@@ -51,11 +51,16 @@
 
     <py-config>
         packages = ["pandas", "numpy"]
+
+        # 1. Fetch DATA from your Raw GitHub URL
+        # Note: We use .tsv for results and goalscorers
         [[fetch]]
-        from = "./data/"
-        files = ["results.csv", "goalscorers.csv", "former_names.csv"]
+        from = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/refs/heads/main/data/"
+        files = ["results.tsv", "goalscorers.tsv", "former_names.csv"]
+
+        # 2. Fetch the PYTHON ENGINE from your Raw GitHub Root
         [[fetch]]
-        from = "./"
+        from = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/refs/heads/main/"
         files = ["simulation_engine.py"]
     </py-config>
 
@@ -80,9 +85,12 @@ from pyodide.ffi import create_proxy
 
 # 1. Initialize Engine on Load
 print("Initializing Engine...")
-# We need to monkey-patch the DATA_DIR in the engine because PyScript file structure is flat
+
+# FORCE the engine to look in the current folder (where PyScript downloads files)
 sim.DATA_DIR = "." 
+
 # Run the setup function
+# Ensure your simulation_engine.py is updated to read .tsv files with sep='\t'
 sim.TEAM_STATS, sim.TEAM_PROFILES, sim.AVG_GOALS = sim.initialize_engine()
 
 # Remove loading text and enable button

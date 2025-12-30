@@ -12,26 +12,33 @@ import os
 
 # Default to a 'data' folder in the same directory as this script
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = "."
+DATA_DIR = "." 
 
 def load_data():
     """
-    Loads data from local CSVs in the 'data/' folder.
-    Returns: (results_df, goalscorers_df, former_names_df) or None
+    Loads data from the virtual file system.
+    Handles TSV format for results/goals and CSV for names.
     """
     try:
-        # Construct paths compatible with GitHub/Local structure
+        # 1. Construct Paths
         former_path = os.path.join(DATA_DIR, 'former_names.csv')
-        results_path = os.path.join(DATA_DIR, 'results.tsv')
-        goals_path = os.path.join(DATA_DIR, 'goalscorers.tsv')
+        results_path = os.path.join(DATA_DIR, 'results.tsv')      # <--- Changed to .tsv
+        goals_path = os.path.join(DATA_DIR, 'goalscorers.tsv')    # <--- Changed to .tsv
         
+        # 2. Read Files
+        # former_names is standard CSV (comma separated)
         former_names_df = pd.read_csv(former_path)
-        results_df = pd.read_tsv(results_path)
-        goalscorers_df = pd.read_tsv(goals_path)
+        
+        # results and goalscorers are TSV (Tab Separated)
+        # We MUST specify sep='\t' or pandas won't split the columns correctly
+        results_df = pd.read_csv(results_path, sep='\t')
+        goalscorers_df = pd.read_csv(goals_path, sep='\t')
         
         return results_df, goalscorers_df, former_names_df
+
     except FileNotFoundError as e:
         return None, None, None
+
 
 # =============================================================================
 # --- PART 2: INITIALIZATION (Run once on startup) ---
