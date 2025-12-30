@@ -101,7 +101,8 @@ def start_simulation(*args):
     js.document.getElementById("champion-box").style.display = "none"
     log_div = js.document.getElementById("log-container")
     log_div.style.display = "block"
-    log_div.innerHTML = "<div class='log-entry'>Simulating tournament... please wait...</div>"
+    log_div.innerHTML = '<div class="log-entry">Simulating tournament... please wait...</div>'
+
 
     # 2. Run the Logic
     result = sim.run_simulation(verbose=True)

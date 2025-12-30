@@ -125,6 +125,7 @@ def initialize_engine():
         pens = len(t_goals[t_goals['penalty'] == True])
         
         if not t_goals.empty:
+           
             hero_reliance = t_goals['scorer'].value_counts().iloc[0] / total
         else: hero_reliance = 0
 
