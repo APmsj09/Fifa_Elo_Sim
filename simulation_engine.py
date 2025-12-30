@@ -18,13 +18,11 @@ def load_data():
     """
     try:
         # UPDATED: Look for .tsv files
-        former_path = os.path.join(DATA_DIR, 'former_names.csv')
-        results_path = os.path.join(DATA_DIR, 'results.tsv')
-        goals_path = os.path.join(DATA_DIR, 'goalscorers.tsv')
+        former_path = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/refs/heads/main/data/former_names.csv"
+        results_path = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/refs/heads/main/data/results.tsv"
+        goals_path = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/refs/heads/main/data/goalscorers.tsv"
         
         former_names_df = pd.read_csv(former_path)
-        
-        # UPDATED: Use sep='\t' for TSV files
         results_df = pd.read_csv(results_path, sep='\t')
         goalscorers_df = pd.read_csv(goals_path, sep='\t')
         
