@@ -10,51 +10,39 @@ import os
 # --- PART 1: SETUP & DATA LOADING ---
 # =============================================================================
 
-# Default to a 'data' folder in the same directory as this script
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = "." 
 
 def load_data():
     """
     Loads data from the virtual file system.
-    Handles TSV format for results/goals and CSV for names.
     """
     try:
-        # 1. Construct Paths
+        # UPDATED: Look for .tsv files
         former_path = os.path.join(DATA_DIR, 'former_names.csv')
-        results_path = os.path.join(DATA_DIR, 'results.tsv')      # <--- Changed to .tsv
-        goals_path = os.path.join(DATA_DIR, 'goalscorers.tsv')    # <--- Changed to .tsv
+        results_path = os.path.join(DATA_DIR, 'results.tsv')
+        goals_path = os.path.join(DATA_DIR, 'goalscorers.tsv')
         
-        # 2. Read Files
-        # former_names is standard CSV (comma separated)
         former_names_df = pd.read_csv(former_path)
         
-        # results and goalscorers are TSV (Tab Separated)
-        # We MUST specify sep='\t' or pandas won't split the columns correctly
+        # UPDATED: Use sep='\t' for TSV files
         results_df = pd.read_csv(results_path, sep='\t')
         goalscorers_df = pd.read_csv(goals_path, sep='\t')
         
         return results_df, goalscorers_df, former_names_df
-
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         return None, None, None
 
-
 # =============================================================================
-# --- PART 2: INITIALIZATION (Run once on startup) ---
+# --- PART 2: INITIALIZATION ---
 # =============================================================================
 
 def initialize_engine():
-    """
-    Calculates Elo and Profiles once when the app starts.
-    Returns: (team_stats, team_profiles, avg_goals_global)
-    """
     results_df, goalscorers_df, former_names_df = load_data()
     
     if results_df is None:
-        return {}, {}, 2.5 # Fallback defaults
+        return {}, {}, 2.5 
 
-    # --- 1. CLEAN DATA ---
+    # Clean Data
     results_df['date'] = pd.to_datetime(results_df['date'])
     results_df['home_team'] = results_df['home_team'].str.lower().str.strip()
     results_df['away_team'] = results_df['away_team'].str.lower().str.strip()
@@ -65,15 +53,15 @@ def initialize_engine():
     
     elo_df = results_df.sort_values('date').copy()
 
-    # --- 2. CALCULATE ELO ---
+    # Calculate Elo
     team_elo = {}
     INITIAL_RATING = 1200
     
     def get_k(tournament, gd):
         k = 20
-        if 'World Cup' in tournament: k = 60
-        elif 'Continental' in tournament or 'Euro' in tournament: k = 50
-        elif 'Qualification' in tournament: k = 40
+        if 'World Cup' in str(tournament): k = 60
+        elif 'Continental' in str(tournament) or 'Euro' in str(tournament): k = 50
+        elif 'Qualification' in str(tournament): k = 40
         if gd == 2: k *= 1.5
         elif gd == 3: k *= 1.75
         elif gd >= 4: k *= (1.75 + (gd-3)/8)
@@ -92,12 +80,12 @@ def initialize_engine():
         elif as_ > hs: W = 0
         else: W = 0.5
         
-        k = get_k(str(row['tournament']), abs(hs-as_))
+        k = get_k(row['tournament'], abs(hs-as_))
         change = k * (W - we)
         team_elo[h] = rh + change
         team_elo[a] = ra - change
 
-    # --- 3. OFFENSE/DEFENSE STATS ---
+    # Stats
     recent_df = elo_df[elo_df['date'] > '2022-01-01']
     avg_goals_global = (recent_df['home_score'].mean() + recent_df['away_score'].mean()) / 2
     
@@ -114,7 +102,7 @@ def initialize_engine():
             def_ = (gc / matches) / avg_goals_global
         team_stats[team] = {'elo': team_elo[team], 'off': off, 'def': def_}
 
-    # --- 4. TACTICAL PROFILES ---
+    # Profiles
     goalscorers_df['team'] = goalscorers_df['team'].str.lower().str.strip()
     goalscorers_df['scorer'] = goalscorers_df['scorer'].str.strip()
     goalscorers_df['penalty'] = goalscorers_df['penalty'].astype(str).str.upper() == 'TRUE'
@@ -150,7 +138,10 @@ def initialize_engine():
     return team_stats, team_profiles, avg_goals_global
 
 # Load stats globally so they are ready for the web function
-TEAM_STATS, TEAM_PROFILES, AVG_GOALS = initialize_engine()
+# These will be populated when initialize_engine is called from HTML
+TEAM_STATS = {}
+TEAM_PROFILES = {}
+AVG_GOALS = 2.5
 
 # =============================================================================
 # --- PART 3: SIMULATION FUNCTIONS ---
@@ -206,7 +197,7 @@ def run_simulation(verbose=False):
     Main entry point for the web app.
     Returns a Dictionary containing the champion and a log of events.
     """
-    game_log = [] # This list will hold the "commentary" for the web page
+    game_log = [] 
     
     def log(msg):
         if verbose: game_log.append(msg)
@@ -215,7 +206,6 @@ def run_simulation(verbose=False):
     log("=== MARCH 2026 PLAYOFFS ===")
     slots = {}
     
-    # Simulate UEFA Paths
     uefa_paths = {
         'Path A': [('italy', 'northern ireland'), ('wales', 'bosnia and herzegovina')],
         'Path B': [('ukraine', 'sweden'), ('poland', 'albania')],
@@ -233,7 +223,7 @@ def run_simulation(verbose=False):
         log(f"{path}: {finalists[0].title()} {g1}-{g2} {finalists[1].title()} {method} -> {w_final.title()}")
         slots[path] = w_final
 
-    # Simulate Inter-confederation
+    # Inter-confederation
     w_icp1, g1, g2, _ = sim_match('jamaica', sim_match('dr congo', 'new caledonia', knockout=True)[0], knockout=True)
     slots['ICP1'] = w_icp1
     
@@ -271,7 +261,7 @@ def run_simulation(verbose=False):
                 if w == t1: table[t1]['p'] += 3
                 elif w == t2: table[t2]['p'] += 3
                 else: table[t1]['p'] += 1; table[t2]['p'] += 1
-                
+        
         sorted_teams = sorted(teams, key=lambda t: (table[t]['p'], table[t]['gd']), reverse=True)
         group_results[grp] = sorted_teams
         third_place.append({'team': sorted_teams[2], 'stats': table[sorted_teams[2]]})
@@ -308,7 +298,6 @@ def run_simulation(verbose=False):
             for i in range(0, len(next_round), 2):
                 if i+1 < len(next_round): bracket.append((next_round[i], next_round[i+1]))
 
-    # Return a structured dictionary for the Web Page to read
     return {
         "champion": champion,
         "logs": game_log
