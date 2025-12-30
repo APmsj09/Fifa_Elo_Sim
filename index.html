@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="https://pyscript.net/releases/2023.05.1/pyscript.css">
     <script defer src="https://pyscript.net/releases/2023.05.1/pyscript.js"></script>
     <style>
-        /* (Keep your existing styles here) */
         body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; max-width: 900px; margin: 0 auto; padding: 20px; }
         .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         h1, h3, .btn-container { text-align: center; }
@@ -29,8 +28,15 @@
 
     <py-config>
         packages = ["pandas", "numpy"]
+        
+        # 1. Fetch the Python logic files (assuming they are in the same folder as index.html)
         [[fetch]]
-        files = ["main.py", "simulation_engine.py", "results.tsv", "goalscorers.tsv", "former_names.csv"]
+        files = ["main.py", "simulation_engine.py"]
+
+        # 2. Fetch the Data files from GitHub automatically
+        [[fetch]]
+        from = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/main/data"
+        files = ["results.tsv", "goalscorers.tsv", "former_names.csv"]
     </py-config>
 
     <div class="btn-container">

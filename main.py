@@ -7,6 +7,7 @@ print("Initializing Engine...")
 
 # Set up paths and load data
 sim.DATA_DIR = "."
+# This will now work because PyScript has already fetched the files
 sim.TEAM_STATS, sim.TEAM_PROFILES, sim.AVG_GOALS = sim.initialize_engine()
 
 # Enable the button now that Python is ready

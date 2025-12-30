@@ -15,19 +15,18 @@ DATA_DIR = "."
 def load_data():
     """
     Loads data from the virtual file system.
+    Note: PyScript (py-config) handles the downloading of these files 
+    before this script runs.
     """
     try:
-        # UPDATED: Look for .tsv files
-        former_path = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/main/data/former_names.csv"
-        results_path = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/main/data/results.tsv"
-        goals_path = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/main/data/goalscorers.tsv"
-        
-        former_names_df = pd.read_csv(former_path)
-        results_df = pd.read_csv(results_path, sep='\t')
-        goalscorers_df = pd.read_csv(goals_path, sep='\t')
+        # We read the files as if they are local
+        former_names_df = pd.read_csv("former_names.csv")
+        results_df = pd.read_csv("results.tsv", sep='\t')
+        goalscorers_df = pd.read_csv("goalscorers.tsv", sep='\t')
         
         return results_df, goalscorers_df, former_names_df
-    except FileNotFoundError:
+    except Exception as e:
+        print(f"CRITICAL ERROR LOADING DATA: {e}")
         return None, None, None
 
 # =============================================================================
