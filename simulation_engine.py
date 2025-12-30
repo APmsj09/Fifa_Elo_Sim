@@ -22,12 +22,12 @@ def load_data():
     try:
         # Construct paths compatible with GitHub/Local structure
         former_path = os.path.join(DATA_DIR, 'former_names.csv')
-        results_path = os.path.join(DATA_DIR, 'results.csv')
-        goals_path = os.path.join(DATA_DIR, 'goalscorers.csv')
+        results_path = os.path.join(DATA_DIR, 'results.tsv')
+        goals_path = os.path.join(DATA_DIR, 'goalscorers.tsv')
         
         former_names_df = pd.read_csv(former_path)
-        results_df = pd.read_csv(results_path)
-        goalscorers_df = pd.read_csv(goals_path)
+        results_df = pd.read_tsv(results_path)
+        goalscorers_df = pd.read_tsv(goals_path)
         
         return results_df, goalscorers_df, former_names_df
     except FileNotFoundError as e:
