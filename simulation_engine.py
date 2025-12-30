@@ -15,14 +15,28 @@ DATA_DIR = "."
 def load_data():
     """
     Loads data from the virtual file system.
-    Note: PyScript (py-config) handles the downloading of these files 
-    before this script runs.
     """
     try:
-        # We read the files as if they are local
+        # Load the files
         former_names_df = pd.read_csv("former_names.csv")
-        results_df = pd.read_csv("results.tsv", sep='\t')
-        goalscorers_df = pd.read_csv("goalscorers.tsv", sep='\t')
+        
+        # Try reading results as TSV first
+        try:
+            results_df = pd.read_csv("results.tsv", sep='\t')
+            # Sanity check: If we only have 1 column, it's probably a CSV read as TSV
+            if len(results_df.columns) < 3:
+                print("Warning: TSV had too few columns. Trying CSV format...")
+                results_df = pd.read_csv("results.tsv", sep=',')
+        except:
+             results_df = pd.read_csv("results.tsv", sep=',')
+
+        # Load goalscorers
+        try:
+            goalscorers_df = pd.read_csv("goalscorers.tsv", sep='\t')
+            if len(goalscorers_df.columns) < 3:
+                goalscorers_df = pd.read_csv("goalscorers.tsv", sep=',')
+        except:
+            goalscorers_df = pd.read_csv("goalscorers.tsv", sep=',')
         
         return results_df, goalscorers_df, former_names_df
     except Exception as e:
@@ -39,10 +53,24 @@ def initialize_engine():
     if results_df is None:
         return {}, {}, 2.5 
 
-    # Clean Data
-    results_df['date'] = pd.to_datetime(results_df['date'])
-    results_df['home_team'] = results_df['home_team'].str.lower().str.strip()
-    results_df['away_team'] = results_df['away_team'].str.lower().str.strip()
+    # --- 1. ROBUST DATA CLEANING (THE FIX) ---
+    # Convert date to datetime
+    results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
+    
+    # FORCE scores to be numeric. Any "dates" or "strings" in these columns become NaN
+    results_df['home_score'] = pd.to_numeric(results_df['home_score'], errors='coerce')
+    results_df['away_score'] = pd.to_numeric(results_df['away_score'], errors='coerce')
+    
+    # Drop rows where date or scores are missing (cleans up the NaT error)
+    results_df = results_df.dropna(subset=['date', 'home_score', 'away_score'])
+    
+    # Convert scores to integers now that they are clean
+    results_df['home_score'] = results_df['home_score'].astype(int)
+    results_df['away_score'] = results_df['away_score'].astype(int)
+
+    # Standardize team names
+    results_df['home_team'] = results_df['home_team'].astype(str).str.lower().str.strip()
+    results_df['away_team'] = results_df['away_team'].astype(str).str.lower().str.strip()
     
     former_map = dict(zip(former_names_df['former'].str.lower(), former_names_df['current'].str.lower()))
     results_df['home_team'] = results_df['home_team'].replace(former_map)
@@ -50,7 +78,7 @@ def initialize_engine():
     
     elo_df = results_df.sort_values('date').copy()
 
-    # Calculate Elo
+    # --- 2. CALCULATE ELO ---
     team_elo = {}
     INITIAL_RATING = 1200
     
@@ -70,6 +98,7 @@ def initialize_engine():
         rh = team_elo.get(h, INITIAL_RATING)
         ra = team_elo.get(a, INITIAL_RATING)
         
+        # We can now safely do math because we cleaned the data above
         dr = rh - ra + 100 if not row['neutral'] else rh - ra
         we = 1 / (10**(-dr/600) + 1)
         
@@ -82,9 +111,12 @@ def initialize_engine():
         team_elo[h] = rh + change
         team_elo[a] = ra - change
 
-    # Stats
+    # --- 3. STATS ---
     recent_df = elo_df[elo_df['date'] > '2022-01-01']
-    avg_goals_global = (recent_df['home_score'].mean() + recent_df['away_score'].mean()) / 2
+    if len(recent_df) > 0:
+        avg_goals_global = (recent_df['home_score'].mean() + recent_df['away_score'].mean()) / 2
+    else:
+        avg_goals_global = 2.5
     
     team_stats = {}
     for team in team_elo.keys():
@@ -99,11 +131,12 @@ def initialize_engine():
             def_ = (gc / matches) / avg_goals_global
         team_stats[team] = {'elo': team_elo[team], 'off': off, 'def': def_}
 
-    # Profiles
-    goalscorers_df['team'] = goalscorers_df['team'].str.lower().str.strip()
-    goalscorers_df['scorer'] = goalscorers_df['scorer'].str.strip()
+    # --- 4. PROFILES ---
+    goalscorers_df['team'] = goalscorers_df['team'].astype(str).str.lower().str.strip()
+    goalscorers_df['scorer'] = goalscorers_df['scorer'].astype(str).str.strip()
     goalscorers_df['penalty'] = goalscorers_df['penalty'].astype(str).str.upper() == 'TRUE'
-    
+    goalscorers_df['date'] = pd.to_datetime(goalscorers_df['date'], errors='coerce')
+
     def clean_min(m):
         try: return int(str(m).split('+')[0])
         except: return 0
@@ -122,7 +155,6 @@ def initialize_engine():
         pens = len(t_goals[t_goals['penalty'] == True])
         
         if not t_goals.empty:
-            
             hero_reliance = t_goals['scorer'].value_counts().iloc[0] / total
         else: hero_reliance = 0
 
@@ -135,8 +167,7 @@ def initialize_engine():
 
     return team_stats, team_profiles, avg_goals_global
 
-# Load stats globally so they are ready for the web function
-# These will be populated when initialize_engine is called from HTML
+# Load stats globally
 TEAM_STATS = {}
 TEAM_PROFILES = {}
 AVG_GOALS = 2.5
@@ -191,10 +222,6 @@ def sim_match(t1, t2, knockout=False):
         return 'draw', g1, g2
 
 def run_simulation(verbose=False):
-    """
-    Main entry point for the web app.
-    Returns a Dictionary containing the champion and a log of events.
-    """
     game_log = [] 
     
     def log(msg):
