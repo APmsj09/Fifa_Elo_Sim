@@ -118,23 +118,26 @@ def start_simulation(*args):
     log_div.style.display = "block"
     log_div.innerHTML = '<div class="log-entry">Simulating tournament… please wait…</div>'
 
+    # Run the simulation
     result = sim.run_simulation(verbose=True)
-
     champion = result["champion"]
     logs = result["logs"]
 
+    # Update the Winner Box
     js.document.getElementById("champion-text").innerText = champion.upper()
     champion_box.style.display = "block"
 
-    html = ""
+    # Build the log HTML efficiently
+    html_parts = []
     for line in logs:
         if "===" in line or "---" in line:
-            html += f"<div class='log-entry log-header'>{line}</div>"
+            # Use single quotes for class attributes
+            html_parts.append(f"<div class='log-entry log-header'>{line}</div>")
         else:
-            html += f"<div class='log-entry'>{line}</div>"
+            html_parts.append(f"<div class='log-entry'>{line}</div>")
 
-    log_div.innerHTML = html
-
+    # Join all parts at once
+    log_div.innerHTML = "".join(html_parts)
 
 # --------------------------------------------------
 # 2. INITIALIZATION (RUNS AFTER FUNCTIONS EXIST)
