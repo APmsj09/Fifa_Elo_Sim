@@ -244,83 +244,96 @@ js.document.getElementById("btn-tab-data").addEventListener("click", create_prox
 # --- 4. HISTORY VIEW ---
 # =============================================================================
 def view_team_history(event):
-    team = js.document.getElementById("team-select").value
-    timeframe = js.document.getElementById("chart-timeframe").value
-    
-    stats = sim.TEAM_STATS.get(team)
-    history = sim.TEAM_HISTORY.get(team)
-    
-    if not stats or not history:
-        js.document.getElementById("team-stats-card").innerHTML = "No Data Available"
-        return
+    try:
+        # 1. GET INPUTS
+        # We use defensive checks in case HTML is outdated
+        team_el = js.document.getElementById("team-select")
+        time_el = js.document.getElementById("chart-timeframe")
+        
+        if not team_el or not time_el:
+            js.document.getElementById("history-output").innerHTML = "Error: HTML elements missing. Please update index.html."
+            return
 
-    # 1. RENDER STATS CARD
-    style = sim.TEAM_PROFILES.get(team, "Balanced")
-    card_html = f"""
-    <div style='background:#2c3e50; color:white; padding:20px; border-radius:8px;'>
-        <h1 style='margin:0; font-size:2.5em;'>{team.title()}</h1>
-        <div style='margin-top:10px; font-size:1.2em;'>
-            Rating: <strong style='color:#f1c40f'>{int(stats['elo'])}</strong>
+        team = team_el.value
+        timeframe = time_el.value
+        
+        # 2. GET DATA
+        # Ensure sim.TEAM_HISTORY exists. If not, engine didn't initialize correctly.
+        if not hasattr(sim, 'TEAM_HISTORY') or not sim.TEAM_HISTORY:
+            js.document.getElementById("team-stats-card").innerHTML = "Error: History data not loaded. Check simulation_engine.py."
+            return
+
+        stats = sim.TEAM_STATS.get(team)
+        history = sim.TEAM_HISTORY.get(team)
+        
+        if not stats or not history:
+            js.document.getElementById("team-stats-card").innerHTML = f"No data found for {team}."
+            return
+
+        # 3. RENDER STATS CARD
+        style = sim.TEAM_PROFILES.get(team, "Balanced")
+        card_html = f"""
+        <div style='background:#2c3e50; color:white; padding:20px; border-radius:8px;'>
+            <h1 style='margin:0; font-size:2.5em;'>{team.title()}</h1>
+            <div style='margin-top:10px; font-size:1.2em;'>
+                Rating: <strong style='color:#f1c40f'>{int(stats['elo'])}</strong>
+            </div>
+            <hr style='border-color:#ffffff30;'>
+            <p><strong>Play Style:</strong> {style}</p>
+            <p><strong>Offense:</strong> {round(stats['off'], 2)}x avg</p>
+            <p><strong>Defense:</strong> {round(stats['def'], 2)}x avg</p>
         </div>
-        <hr style='border-color:#ffffff30;'>
-        <p><strong>Play Style:</strong> {style}</p>
-        <p><strong>Offense:</strong> {round(stats['off'], 2)}x avg</p>
-        <p><strong>Defense:</strong> {round(stats['def'], 2)}x avg</p>
-    </div>
-    """
-    js.document.getElementById("team-stats-card").innerHTML = card_html
+        """
+        js.document.getElementById("team-stats-card").innerHTML = card_html
 
-    # 2. FILTER DATA BY TIMEFRAME
-    dates = history['dates']
-    elos = history['elo']
-    
-    # Simple filtering based on index slicing for performance
-    # (Real date filtering is better but this is faster for browser)
-    limit = 0
-    if timeframe == "10y": limit = -150 # Approx last 150 games
-    elif timeframe == "4y": limit = -60  # Approx last 60 games
-    
-    # Apply limit if valid
-    if limit != 0 and abs(limit) < len(dates):
-        plot_dates = dates[limit:]
-        plot_elos = elos[limit:]
-    else:
-        plot_dates = dates
-        plot_elos = elos
+        # 4. PREPARE DATA FOR PLOTTING
+        dates = history['dates']
+        elos = history['elo']
+        
+        limit = 0
+        if timeframe == "10y": limit = -150 
+        elif timeframe == "4y": limit = -60 
+        
+        if limit != 0 and abs(limit) < len(dates):
+            plot_dates = dates[limit:]
+            plot_elos = elos[limit:]
+        else:
+            plot_dates = dates
+            plot_elos = elos
 
-    # 3. DRAW ELO HISTORY CHART
-    fig1, ax1 = plt.subplots(figsize=(8, 4))
-    ax1.plot(plot_dates, plot_elos, color='#2980b9', linewidth=2)
-    ax1.set_title(f"{team.title()} - Elo Rating History", fontsize=12)
-    ax1.grid(True, linestyle='--', alpha=0.5)
-    ax1.fill_between(plot_dates, plot_elos, min(plot_elos)-50, color='#3498db', alpha=0.1)
-    
-    # Format Dates
-    ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    
-    # Render to div
-    js.document.getElementById("main-chart-container").innerHTML = ""
-    display(fig1, target="main-chart-container")
-    plt.close(fig1) # Cleanup memory
+        # 5. PLOT ELO HISTORY
+        fig1, ax1 = plt.subplots(figsize=(8, 4))
+        ax1.plot(plot_dates, plot_elos, color='#2980b9', linewidth=2)
+        ax1.set_title(f"{team.title()} - Elo Rating History", fontsize=12)
+        ax1.grid(True, linestyle='--', alpha=0.5)
+        ax1.fill_between(plot_dates, plot_elos, min(plot_elos)-50, color='#3498db', alpha=0.1)
+        
+        ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        
+        # Clear previous chart and display new one
+        js.document.getElementById("main-chart-container").innerHTML = ""
+        display(fig1, target="main-chart-container")
+        plt.close(fig1)
 
-    # 4. DRAW GOAL DISTRIBUTION (Simple Histogram)
-    # We need to grab recent match results for this. 
-    # Since we didn't save raw match scores in HISTORY for memory reasons,
-    # we will rely on the Elo fluctuation to infer performance or just skip for now.
-    # Alternatively, create a placeholder chart:
-    
-    fig2, ax2 = plt.subplots(figsize=(4, 3))
-    categories = ['Attack', 'Defense']
-    values = [stats['off'], stats['def']]
-    colors = ['#27ae60', '#e74c3c']
-    
-    ax2.bar(categories, values, color=colors)
-    ax2.axhline(y=1.0, color='gray', linestyle='--', label="Global Avg")
-    ax2.set_title("Relative Strength")
-    plt.tight_layout()
-    
-    js.document.getElementById("dist-chart-container").innerHTML = ""
-    display(fig2, target="dist-chart-container")
-    plt.close(fig2)
+        # 6. PLOT BAR CHART (Off/Def)
+        fig2, ax2 = plt.subplots(figsize=(4, 3))
+        categories = ['Attack', 'Defense']
+        values = [stats['off'], stats['def']]
+        colors = ['#27ae60', '#e74c3c']
+        
+        ax2.bar(categories, values, color=colors)
+        ax2.axhline(y=1.0, color='gray', linestyle='--', label="Avg")
+        ax2.set_title("Team Strength")
+        plt.tight_layout()
+        
+        js.document.getElementById("dist-chart-container").innerHTML = ""
+        display(fig2, target="dist-chart-container")
+        plt.close(fig2)
+        
+    except Exception as e:
+        # Print error to screen so we can see it
+        js.document.getElementById("team-stats-card").innerHTML = f"PYTHON ERROR: {str(e)}"
+
+js.document.getElementById("btn-view-history").addEventListener("click", create_proxy(view_team_history))
