@@ -13,32 +13,12 @@ def load_data():
     """
     Loads data assuming all files are now standard CSVs.
     """
-    print("--- DEBUG: STARTING DATA LOAD ---")
-    
-    # 1. CHECK FILES ON DISK
-    # Note: We are now looking for .csv extensions
-    files_to_check = ["results.csv", "goalscorers.csv", "former_names.csv"]
-    
-    for filename in files_to_check:
-        if os.path.exists(filename):
-            size = os.path.getsize(filename)
-            print(f"DEBUG: Found {filename} ({size} bytes)")
-        else:
-            print(f"CRITICAL ERROR: {filename} NOT FOUND in virtual file system.")
-            return None, None, None
-
     try:
-        # 2. LOAD DATA
-        # No 'sep' argument needed because comma is the default
+        # Load Data
         former_names_df = pd.read_csv("former_names.csv")
         results_df = pd.read_csv("results.csv") 
         goalscorers_df = pd.read_csv("goalscorers.csv")
-
-        # 3. VERIFY COLUMNS
-        print(f"DEBUG: Results columns: {list(results_df.columns)}")
-        
         return results_df, goalscorers_df, former_names_df
-
     except Exception as e:
         print(f"CRITICAL ERROR LOADING DATA: {e}")
         return None, None, None
@@ -50,28 +30,18 @@ def load_data():
 def initialize_engine():
     results_df, goalscorers_df, former_names_df = load_data()
     
-    # If load failed, return empty stats to prevent crash
     if results_df is None:
-        print("ERROR: Dataframes are None. Engine cannot start.")
         return {}, {}, 2.5 
 
-    # --- ROBUST DATA CLEANING ---
-    # 1. Drop rows with missing crucial data
+    # --- CLEAN DATA ---
     results_df = results_df.dropna(subset=['date', 'home_score', 'away_score'])
-
-    # 2. Force Scores to Integer (This prevents the NaT error)
-    # We use 'coerce' to turn bad data into NaN, then drop the NaNs
     results_df['home_score'] = pd.to_numeric(results_df['home_score'], errors='coerce')
     results_df['away_score'] = pd.to_numeric(results_df['away_score'], errors='coerce')
     results_df = results_df.dropna(subset=['home_score', 'away_score'])
-    
     results_df['home_score'] = results_df['home_score'].astype(int)
     results_df['away_score'] = results_df['away_score'].astype(int)
-
-    # 3. Dates
     results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
     
-    # 4. Strings
     results_df['home_team'] = results_df['home_team'].astype(str).str.lower().str.strip()
     results_df['away_team'] = results_df['away_team'].astype(str).str.lower().str.strip()
     
@@ -99,7 +69,6 @@ def initialize_engine():
         h, a = row['home_team'], row['away_team']
         hs, as_ = row['home_score'], row['away_score']
         
-        # Safety check for NaT/NaN just in case
         if pd.isna(hs) or pd.isna(as_): continue
 
         rh = team_elo.get(h, INITIAL_RATING)
@@ -112,7 +81,6 @@ def initialize_engine():
         elif as_ > hs: W = 0
         else: W = 0.5
         
-        # This abs() was the cause of your crash. It is safe now.
         k = get_k(row['tournament'], abs(hs-as_))
         change = k * (W - we)
         team_elo[h] = rh + change
@@ -139,7 +107,6 @@ def initialize_engine():
         team_stats[team] = {'elo': team_elo[team], 'off': off, 'def': def_}
 
     # --- PROFILES ---
-    # Handle goalscorers cleanup
     goalscorers_df['team'] = goalscorers_df['team'].astype(str).str.lower().str.strip()
     goalscorers_df['scorer'] = goalscorers_df['scorer'].astype(str).str.strip()
     goalscorers_df['penalty'] = goalscorers_df['penalty'].astype(str).str.upper() == 'TRUE'
@@ -173,18 +140,12 @@ def initialize_engine():
         else: style = "Balanced"
         team_profiles[team] = style
 
-    print("DEBUG: Engine initialized successfully.")
     return team_stats, team_profiles, avg_goals_global
 
-# Load stats globally
+# Global Vars
 TEAM_STATS = {}
 TEAM_PROFILES = {}
 AVG_GOALS = 2.5
-
-# =============================================================================
-# --- PART 3: SIMULATION FUNCTIONS ---
-# =============================================================================
-
 STYLE_MATRIX = {
     ('Hero Ball', 'Balanced'): 1.05,
     ('Balanced', 'Hero Ball'): 1.0,
@@ -192,6 +153,8 @@ STYLE_MATRIX = {
     ('Dark Arts', 'Hero Ball'): 1.05,
     ('Blitzkrieg', 'Dark Arts'): 1.1
 }
+
+# --- SIM FUNCTIONS ---
 
 def sim_match(t1, t2, knockout=False):
     s1 = TEAM_STATS.get(t1, {'elo':1200, 'off':1.0, 'def':1.0})
@@ -230,16 +193,17 @@ def sim_match(t1, t2, knockout=False):
             return winner, g1, g2, 'pks'
         return 'draw', g1, g2
 
-def run_simulation(verbose=False):
+def run_simulation(verbose=False, quiet=False):
+    """
+    UPDATED: added quiet param. If quiet=True, returns ONLY the champion name.
+    """
     game_log = [] 
     
     def log(msg):
-        if verbose: game_log.append(msg)
+        if verbose and not quiet: game_log.append(msg)
 
     # --- PLAYOFFS ---
-    log("=== MARCH 2026 PLAYOFFS ===")
     slots = {}
-    
     uefa_paths = {
         'Path A': [('italy', 'northern ireland'), ('wales', 'bosnia and herzegovina')],
         'Path B': [('ukraine', 'sweden'), ('poland', 'albania')],
@@ -253,15 +217,12 @@ def run_simulation(verbose=False):
             w, g1, g2, _ = sim_match(t1, t2, knockout=True)
             finalists.append(w)
         w_final, g1, g2, type_ = sim_match(finalists[0], finalists[1], knockout=True)
-        method = "(PKs)" if type_ == 'pks' else ""
-        log(f"{path}: {finalists[0].title()} {g1}-{g2} {finalists[1].title()} {method} -> {w_final.title()}")
         slots[path] = w_final
 
-    # Inter-confederation
-    w_icp1, g1, g2, _ = sim_match('jamaica', sim_match('dr congo', 'new caledonia', knockout=True)[0], knockout=True)
+    w_icp1, _, _, _ = sim_match('jamaica', sim_match('dr congo', 'new caledonia', knockout=True)[0], knockout=True)
     slots['ICP1'] = w_icp1
     
-    w_icp2, g1, g2, _ = sim_match('iraq', sim_match('bolivia', 'suriname', knockout=True)[0], knockout=True)
+    w_icp2, _, _, _ = sim_match('iraq', sim_match('bolivia', 'suriname', knockout=True)[0], knockout=True)
     slots['ICP2'] = w_icp2
 
     # --- GROUPS ---
@@ -280,7 +241,7 @@ def run_simulation(verbose=False):
         'L': ['england', 'croatia', 'ghana', 'panama']
     }
     
-    log("\n=== GROUP STAGE ===")
+    log("=== GROUP STAGE ===")
     group_results = {}
     third_place = []
     
