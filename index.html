@@ -29,9 +29,9 @@
     <py-config>
         packages = ["pandas", "numpy"]
         
-        # 1. Fetch the Python logic files with cache busting (?v=3)
+        # 1. Add '?v=2' to force the browser to re-download your new code
         [[fetch]]
-        files = ["main.py?v=3", "simulation_engine.py?v=3"]
+        files = ["main.py?v=2", "simulation_engine.py?v=2"]
 
         # 2. Fetch the Data files
         [[fetch]]
