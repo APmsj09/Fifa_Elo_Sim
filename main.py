@@ -43,7 +43,12 @@ setup_tabs()
 # =============================================================================
 # --- 1. SINGLE SIMULATION ---
 # =============================================================================
+# Global to store current sim results
+LAST_SIM_RESULTS = {}
+
 def run_single_sim(event):
+    global LAST_SIM_RESULTS
+    
     # UI Prep
     js.document.getElementById("visual-loading").style.display = "block"
     js.document.getElementById("visual-results-container").style.display = "none"
@@ -51,6 +56,8 @@ def run_single_sim(event):
     try:
         # Run Sim
         result = sim.run_simulation()
+        LAST_SIM_RESULTS = result # Store for modal access
+        
         champion = result["champion"]
         groups_data = result["groups_data"]
         bracket_data = result["bracket_data"]
@@ -61,15 +68,18 @@ def run_single_sim(event):
         # 2. Render Groups HTML
         groups_html = ""
         for grp_name, team_list in groups_data.items():
+            # Added onclick event to the div
             groups_html += f"""
-            <div class="group-box">
-                <h3>Group {grp_name}</h3>
+            <div class="group-box" onclick="window.view_group_matches('{grp_name}')" title="Click to view match results">
+                <div style="display:flex; justify-content:space-between;">
+                    <h3>Group {grp_name}</h3>
+                    <span style="font-size:0.8em; color:#3498db;">ℹ️ Matches</span>
+                </div>
                 <table class="group-table">
                     <thead><tr><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th></tr></thead>
                     <tbody>
             """
             for i, row in enumerate(team_list):
-                # Top 2 qualify visually
                 q_class = "qualified" if i < 2 else ""
                 groups_html += f"""
                     <tr class="{q_class}">
@@ -90,7 +100,6 @@ def run_single_sim(event):
             bracket_html += f'<div class="bracket-round"><div class="round-title">{round_data["round"]}</div>'
             
             for m in round_data['matches']:
-                # Determine styling for winner/loser
                 c1 = "winner-text" if m['winner'] == m['t1'] else ""
                 c2 = "winner-text" if m['winner'] == m['t2'] else ""
                 note = f"<div class='match-note'>{m['method'].upper()}</div>" if m['method'] != 'reg' else ""
@@ -106,7 +115,7 @@ def run_single_sim(event):
                     {note}
                 </div>
                 """
-            bracket_html += "</div>" # End bracket-round
+            bracket_html += "</div>"
             
         js.document.getElementById("bracket-container").innerHTML = bracket_html
 
@@ -118,6 +127,32 @@ def run_single_sim(event):
         js.document.getElementById("visual-loading").innerHTML = f"Error: {e}"
 
 js.document.getElementById("btn-run-single").addEventListener("click", create_proxy(run_single_sim))
+
+# --- NEW FUNCTION TO HANDLE MODAL ---
+def open_group_modal(grp_name):
+    matches = LAST_SIM_RESULTS.get("group_matches", {}).get(grp_name, [])
+    
+    js.document.getElementById("modal-title").innerText = f"Group {grp_name} Results"
+    
+    html = ""
+    for m in matches:
+        # Style winner
+        s1 = "font-weight:bold" if m['g1'] > m['g2'] else ""
+        s2 = "font-weight:bold" if m['g2'] > m['g1'] else ""
+        
+        html += f"""
+        <div class="result-row">
+            <span style="flex:1; text-align:right; {s1}">{m['t1'].title()}</span>
+            <span class="result-score" style="margin:0 15px;">{m['g1']} - {m['g2']}</span>
+            <span style="flex:1; text-align:left; {s2}">{m['t2'].title()}</span>
+        </div>
+        """
+        
+    js.document.getElementById("modal-matches").innerHTML = html
+    js.document.getElementById("group-modal").style.display = "block"
+
+# EXPOSE FUNCTION TO JS WINDOW
+js.window.view_group_matches = create_proxy(open_group_modal)
 
 # =============================================================================
 # --- 2. BULK SIMULATION ---

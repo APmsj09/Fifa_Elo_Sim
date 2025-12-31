@@ -63,6 +63,31 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.05); min-height: 400px;
             display: none; /* Hidden by default */
         }
+
+        /* Modal Popup */
+        .modal {
+            display: none; position: fixed; z-index: 1000; left: 0; top: 0;
+            width: 100%; height: 100%; background-color: rgba(0,0,0,0.6);
+        }
+        .modal-content {
+            background-color: #fefefe; margin: 10% auto; padding: 20px;
+            border: 1px solid #888; width: 80%; max-width: 500px;
+            border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .close-btn {
+            color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;
+        }
+        .close-btn:hover { color: black; }
+        
+        .result-row {
+            display: flex; justify-content: space-between; padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .result-score { font-weight: bold; background: #eee; padding: 2px 8px; border-radius: 4px;}
+        
+        /* Make groups clickable */
+        .group-box { cursor: pointer; transition: transform 0.2s; }
+        .group-box:hover { transform: translateY(-3px); border: 1px solid #3498db; }
         
         /* Single Sim specific */
         #single-champion { font-size: 2em; color: #27ae60; font-weight: 800; margin: 20px 0; }
@@ -159,6 +184,14 @@
                  <div id="dist-chart-container" style="background:white; height:300px;"></div>
             </div>
         </div>
+
+        <div id="group-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="document.getElementById('group-modal').style.display='none'">&times;</span>
+            <h2 id="modal-title">Group Results</h2>
+            <div id="modal-matches"></div>
+        </div>
+    </div>
 
     </div>
 
