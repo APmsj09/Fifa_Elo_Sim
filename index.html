@@ -29,11 +29,11 @@
     <py-config>
         packages = ["pandas", "numpy"]
         
-        # 1. Fetch the Python logic files (assuming they are in the same folder as index.html)
+        # 1. Add '?v=2' to force the browser to re-download your new code
         [[fetch]]
-        files = ["main.py", "simulation_engine.py"]
+        files = ["main.py?v=2", "simulation_engine.py?v=2"]
 
-        # 2. Fetch the Data files from GitHub automatically
+        # 2. Fetch the Data files
         [[fetch]]
         from = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/main/data"
         files = ["results.tsv", "goalscorers.tsv", "former_names.csv"]
