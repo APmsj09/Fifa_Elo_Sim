@@ -42,26 +42,80 @@ setup_tabs()
 # --- 1. SINGLE SIMULATION ---
 # =============================================================================
 def run_single_sim(event):
-    log_div = js.document.getElementById("single-log-container")
-    log_div.innerHTML = "Simulating..."
+    # UI Prep
+    js.document.getElementById("visual-loading").style.display = "block"
+    js.document.getElementById("visual-results-container").style.display = "none"
     
     try:
-        result = sim.run_simulation(verbose=True)
+        # Run Sim
+        result = sim.run_simulation()
         champion = result["champion"]
-        logs = result["logs"]
+        groups_data = result["groups_data"]
+        bracket_data = result["bracket_data"]
         
-        js.document.getElementById("single-champion").innerText = champion.upper()
-        
-        html_parts = []
-        for line in logs:
-            c = "log-header" if ("===" in line or "---" in line) else ""
-            html_parts.append(f"<div class='log-entry {c}'>{line}</div>")
-        log_div.innerHTML = "".join(html_parts)
+        # 1. Render Champion
+        js.document.getElementById("visual-champion-name").innerText = champion.upper()
+
+        # 2. Render Groups HTML
+        groups_html = ""
+        for grp_name, team_list in groups_data.items():
+            groups_html += f"""
+            <div class="group-box">
+                <h3>Group {grp_name}</h3>
+                <table class="group-table">
+                    <thead><tr><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th></tr></thead>
+                    <tbody>
+            """
+            for i, row in enumerate(team_list):
+                # Top 2 qualify visually
+                q_class = "qualified" if i < 2 else ""
+                groups_html += f"""
+                    <tr class="{q_class}">
+                        <td>{row['team'].title()}</td>
+                        <td><strong>{row['p']}</strong></td>
+                        <td>{row['w']}</td>
+                        <td>{row['d']}</td>
+                        <td>{row['l']}</td>
+                        <td>{row['gd']}</td>
+                    </tr>
+                """
+            groups_html += "</tbody></table></div>"
+        js.document.getElementById("groups-container").innerHTML = groups_html
+
+        # 3. Render Bracket HTML
+        bracket_html = ""
+        for round_data in bracket_data:
+            bracket_html += f'<div class="bracket-round"><div class="round-title">{round_data["round"]}</div>'
+            
+            for m in round_data['matches']:
+                # Determine styling for winner/loser
+                c1 = "winner-text" if m['winner'] == m['t1'] else ""
+                c2 = "winner-text" if m['winner'] == m['t2'] else ""
+                note = f"<div class='match-note'>{m['method'].upper()}</div>" if m['method'] != 'reg' else ""
+                
+                bracket_html += f"""
+                <div class="matchup">
+                    <div class="matchup-team {c1}">
+                        <span>{m['t1'].title()}</span> <span>{m['g1']}</span>
+                    </div>
+                    <div class="matchup-team {c2}">
+                        <span>{m['t2'].title()}</span> <span>{m['g2']}</span>
+                    </div>
+                    {note}
+                </div>
+                """
+            bracket_html += "</div>" # End bracket-round
+            
+        js.document.getElementById("bracket-container").innerHTML = bracket_html
+
+        # UI Reveal
+        js.document.getElementById("visual-loading").style.display = "none"
+        js.document.getElementById("visual-results-container").style.display = "block"
+
     except Exception as e:
-        log_div.innerHTML = f"Error: {e}"
+        js.document.getElementById("visual-loading").innerHTML = f"Error: {e}"
 
 js.document.getElementById("btn-run-single").addEventListener("click", create_proxy(run_single_sim))
-
 
 # =============================================================================
 # --- 2. BULK SIMULATION ---

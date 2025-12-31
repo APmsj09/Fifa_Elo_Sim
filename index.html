@@ -8,6 +8,34 @@
     <script defer src="https://pyscript.net/releases/2023.05.1/pyscript.js"></script>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #eef2f7; margin: 0; padding: 0; }
+
+        /* --- NEW VISUALIZATION STYLES --- */
+        
+        /* Groups Grid */
+        .groups-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .group-box { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .group-box h3 { margin-top: 0; border-bottom: 2px solid #f1c40f; padding-bottom: 5px; }
+        .group-table th { background: #ecf0f1; font-size: 0.9em; }
+        .group-table td { padding: 6px 10px; font-size: 0.95em; }
+        .qualified { font-weight: bold; color: #27ae60; }
+
+        /* Bracket Flex Layout */
+        #bracket-container { display: flex; overflow-x: auto; padding: 20px 0; }
+        .bracket-round { display: flex; flex-direction: column; justify-content: space-around; margin-right: 30px; min-width: 200px; }
+        .round-title { text-align: center; font-weight: bold; margin-bottom: 15px; color: #7f8c8d; }
+        
+        /* Matchup Box */
+        .matchup { border: 1px solid #ddd; background: white; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); position: relative; margin-bottom: 20px;}
+        .matchup-team { display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #eee; }
+        .matchup-team:last-child { border-bottom: none; }
+        .winner-text { font-weight: bold; color: #2c3e50; background: #f0fff0; }
+        .match-note { font-size: 0.7em; text-align: center; background: #f8f9fa; color: #666; padding: 2px; }
+
+        /* Connecting Lines (Simple CSS approach) */
+        .bracket-round:not(:last-child) .matchup::after {
+            content: ''; position: absolute; right: -30px; top: 50%;
+            width: 30px; height: 2px; background: #ddd; z-index: -1;
+        }
         
         /* Loading Screen */
         #loading-screen {
@@ -70,10 +98,27 @@
         </div>
 
         <div id="tab-single" class="tab-content" style="display:block">
-            <h2>Detailed Simulation</h2>
-            <button class="action-btn" id="btn-run-single">▶ Run Tournament</button>
-            <div id="single-champion">---</div>
-            <div id="single-log-container">Results will appear here...</div>
+            <div style="display:flex; justify-content: space-between; align-items: center;">
+                 <h2>Tournament Visualization</h2>
+                 <button class="action-btn" id="btn-run-single">▶ Run Tournament</button>
+            </div>
+
+            <div id="visual-loading" style="display:none; color:#666; font-style:italic; margin:20px;">
+                Simulating match results...
+            </div>
+
+            <div id="visual-results-container" style="display:none;">
+                <div id="final-champion-banner" style="text-align:center; background:#27ae60; color:white; padding:20px; border-radius:8px; margin: 20px 0;">
+                    <div style="font-size:0.9em; opacity:0.8;">WORLD CUP 2026 CHAMPION</div>
+                    <div id="visual-champion-name" style="font-size:2.5em; font-weight:800;">---</div>
+                </div>
+
+                <h3>Group Stage Results</h3>
+                <div id="groups-container" class="groups-grid"></div>
+
+                <h3>Knockout Bracket</h3>
+                <div id="bracket-container"></div>
+            </div>
         </div>
 
         <div id="tab-bulk" class="tab-content">
