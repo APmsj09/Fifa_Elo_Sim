@@ -1,6 +1,8 @@
 import js
 import simulation_engine as sim
 from pyodide.ffi import create_proxy
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 # 1. INITIALIZE
 print("Initializing Engine...")
@@ -152,21 +154,50 @@ js.document.getElementById("btn-run-bulk").addEventListener("click", create_prox
 # =============================================================================
 def load_data_view(event):
     container = js.document.getElementById("data-table-container")
-    if container.innerHTML != "": return # Already loaded
     
-    html = "<table class='data-table'><thead><tr><th>Team</th><th>Elo</th><th>Off</th><th>Def</th><th>Style</th></tr></thead><tbody>"
+    # Optional: Clear it every time so it refreshes if data changes
+    container.innerHTML = "" 
     
+    # Add 'Rank' to the headers
+    html = """
+    <table class='data-table'>
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Team</th>
+                <th>Elo Rating</th>
+                <th>Offense</th>
+                <th>Defense</th>
+                <th>Play Style</th>
+            </tr>
+        </thead>
+        <tbody>
+    """
+    
+    # Sort teams by Elo (Highest first)
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
     
-    for team, stats in sorted_teams:
+    # Enumerate gives us the index (i), starting at 0. We add 1 for the rank.
+    for i, (team, stats) in enumerate(sorted_teams):
+        rank = i + 1
         style = sim.TEAM_PROFILES.get(team, "Balanced")
-        html += f"""<tr>
-            <td>{team.title()}</td>
+        
+        # styling for top ranks
+        rank_style = "font-weight:bold;" if rank <= 10 else ""
+        if rank == 1: rank_style += "color:#f1c40f;" # Gold
+        elif rank == 2: rank_style += "color:#95a5a6;" # Silver
+        elif rank == 3: rank_style += "color:#cd7f32;" # Bronze
+        
+        html += f"""
+        <tr>
+            <td style='{rank_style}'>#{rank}</td>
+            <td style='font-weight:600'>{team.title()}</td>
             <td>{int(stats['elo'])}</td>
             <td>{round(stats['off'], 2)}</td>
             <td>{round(stats['def'], 2)}</td>
             <td>{style}</td>
-        </tr>"""
+        </tr>
+        """
     
     html += "</tbody></table>"
     container.innerHTML = html
@@ -179,26 +210,82 @@ js.document.getElementById("btn-tab-data").addEventListener("click", create_prox
 # =============================================================================
 def view_team_history(event):
     team = js.document.getElementById("team-select").value
-    out = js.document.getElementById("history-output")
+    timeframe = js.document.getElementById("chart-timeframe").value
     
     stats = sim.TEAM_STATS.get(team)
-    style = sim.TEAM_PROFILES.get(team, "Balanced")
+    history = sim.TEAM_HISTORY.get(team)
     
-    if not stats:
-        out.innerHTML = "Team data not found."
+    if not stats or not history:
+        js.document.getElementById("team-stats-card").innerHTML = "No Data Available"
         return
 
-    html = f"""
-    <div style='background:#f8f9fa; padding:15px; border-radius:8px;'>
-        <h2>{team.title()}</h2>
-        <p><strong>Elo Rating:</strong> {int(stats['elo'])}</p>
+    # 1. RENDER STATS CARD
+    style = sim.TEAM_PROFILES.get(team, "Balanced")
+    card_html = f"""
+    <div style='background:#2c3e50; color:white; padding:20px; border-radius:8px;'>
+        <h1 style='margin:0; font-size:2.5em;'>{team.title()}</h1>
+        <div style='margin-top:10px; font-size:1.2em;'>
+            Rating: <strong style='color:#f1c40f'>{int(stats['elo'])}</strong>
+        </div>
+        <hr style='border-color:#ffffff30;'>
         <p><strong>Play Style:</strong> {style}</p>
-        <p><strong>Offensive Rating:</strong> {round(stats['off'], 3)}</p>
-        <p><strong>Defensive Rating:</strong> {round(stats['def'], 3)}</p>
-        <hr>
-        <p><em>(Detailed match history coming in v2.0)</em></p>
+        <p><strong>Offense:</strong> {round(stats['off'], 2)}x avg</p>
+        <p><strong>Defense:</strong> {round(stats['def'], 2)}x avg</p>
     </div>
     """
-    out.innerHTML = html
+    js.document.getElementById("team-stats-card").innerHTML = card_html
 
-js.document.getElementById("btn-view-history").addEventListener("click", create_proxy(view_team_history))
+    # 2. FILTER DATA BY TIMEFRAME
+    dates = history['dates']
+    elos = history['elo']
+    
+    # Simple filtering based on index slicing for performance
+    # (Real date filtering is better but this is faster for browser)
+    limit = 0
+    if timeframe == "10y": limit = -150 # Approx last 150 games
+    elif timeframe == "4y": limit = -60  # Approx last 60 games
+    
+    # Apply limit if valid
+    if limit != 0 and abs(limit) < len(dates):
+        plot_dates = dates[limit:]
+        plot_elos = elos[limit:]
+    else:
+        plot_dates = dates
+        plot_elos = elos
+
+    # 3. DRAW ELO HISTORY CHART
+    fig1, ax1 = plt.subplots(figsize=(8, 4))
+    ax1.plot(plot_dates, plot_elos, color='#2980b9', linewidth=2)
+    ax1.set_title(f"{team.title()} - Elo Rating History", fontsize=12)
+    ax1.grid(True, linestyle='--', alpha=0.5)
+    ax1.fill_between(plot_dates, plot_elos, min(plot_elos)-50, color='#3498db', alpha=0.1)
+    
+    # Format Dates
+    ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    
+    # Render to div
+    js.document.getElementById("main-chart-container").innerHTML = ""
+    display(fig1, target="main-chart-container")
+    plt.close(fig1) # Cleanup memory
+
+    # 4. DRAW GOAL DISTRIBUTION (Simple Histogram)
+    # We need to grab recent match results for this. 
+    # Since we didn't save raw match scores in HISTORY for memory reasons,
+    # we will rely on the Elo fluctuation to infer performance or just skip for now.
+    # Alternatively, create a placeholder chart:
+    
+    fig2, ax2 = plt.subplots(figsize=(4, 3))
+    categories = ['Attack', 'Defense']
+    values = [stats['off'], stats['def']]
+    colors = ['#27ae60', '#e74c3c']
+    
+    ax2.bar(categories, values, color=colors)
+    ax2.axhline(y=1.0, color='gray', linestyle='--', label="Global Avg")
+    ax2.set_title("Relative Strength")
+    plt.tight_layout()
+    
+    js.document.getElementById("dist-chart-container").innerHTML = ""
+    display(fig2, target="dist-chart-container")
+    plt.close(fig2)

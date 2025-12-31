@@ -135,16 +135,35 @@
         </div>
 
         <div id="tab-history" class="tab-content">
-            <h2>Team Analysis</h2>
-            <select id="team-select"></select>
-            <button class="action-btn" id="btn-view-history">Analyze</button>
-            <div id="history-output" style="margin-top:20px;"></div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2>Team Analysis</h2>
+                
+                <div style="display:flex; gap:10px;">
+                    <select id="team-select" style="min-width:200px;"></select>
+                    <select id="chart-timeframe">
+                        <option value="all">All Time</option>
+                        <option value="10y">Last 10 Years</option>
+                        <option value="4y">Since Last WC</option>
+                    </select>
+                    <button class="action-btn" id="btn-view-history">Analyze</button>
+                </div>
+            </div>
+
+            <div id="history-output" style="margin-top:20px; display:grid; grid-template-columns: 1fr 2fr; gap:20px;">
+                <div id="team-stats-card"></div>
+                <div id="main-chart-container" style="background:#f8f9fa; border-radius:8px; padding:10px; min-height:300px;"></div>
+            </div>
+            
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-top:20px;">
+                 <div id="pie-chart-container" style="background:white; height:300px;"></div>
+                 <div id="dist-chart-container" style="background:white; height:300px;"></div>
+            </div>
         </div>
 
     </div>
 
     <py-config>
-        packages = ["pandas", "numpy"]
+        packages = ["pandas", "numpy", "matplotlib"] 
         
         [[fetch]]
         files = ["main.py", "simulation_engine.py"]

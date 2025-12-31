@@ -12,6 +12,7 @@ DATA_DIR = "."
 # Global Vars
 TEAM_STATS = {}
 TEAM_PROFILES = {}
+TEAM_HISTORY = {}
 AVG_GOALS = 2.5
 STYLE_MATRIX = {
     ('Hero Ball', 'Balanced'): 1.05,
@@ -42,46 +43,49 @@ def initialize_engine():
     results_df, goalscorers_df, former_names_df = load_data()
     
     if results_df is None:
-        return {}, {}, 2.5 
+        return {}, {}, {}, 2.5 # Added extra return for history
 
-    # --- 1. CLEAN DATA (Vectorized) ---
-    # Convert dates and scores efficiently
+    # --- 1. CLEAN DATA ---
     results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
     results_df = results_df.dropna(subset=['date', 'home_score', 'away_score'])
     results_df = results_df.astype({'home_score': int, 'away_score': int})
     
-    # Text cleaning
     results_df['home_team'] = results_df['home_team'].str.lower().str.strip()
     results_df['away_team'] = results_df['away_team'].str.lower().str.strip()
     
-    # Map former names
     former_map = dict(zip(former_names_df['former'].str.lower(), former_names_df['current'].str.lower()))
     results_df['home_team'] = results_df['home_team'].replace(former_map)
     results_df['away_team'] = results_df['away_team'].replace(former_map)
     
-    # Sort by date for Elo calculation
     elo_df = results_df.sort_values('date')
 
-    # --- 2. CALCULATE ELO (Optimized Loop) ---
+    # --- 2. CALCULATE ELO & HISTORY ---
     team_elo = {}
     INITIAL_RATING = 1200
     
-    # Pre-convert columns to numpy arrays/lists for speed
-    # Order: home_team, away_team, home_score, away_score, tournament, neutral
+    # Initialize history dict
+    global TEAM_HISTORY
+    TEAM_HISTORY = {} 
+
+    # We add 'date' to the zip loop to track when changes happen
     matches_data = zip(
         elo_df['home_team'].tolist(),
         elo_df['away_team'].tolist(),
         elo_df['home_score'].tolist(),
         elo_df['away_score'].tolist(),
         elo_df['tournament'].tolist(),
-        elo_df['neutral'].tolist()
+        elo_df['neutral'].tolist(),
+        elo_df['date'].tolist() 
     )
 
-    for h, a, hs, as_, tourney, neutral in matches_data:
+    for h, a, hs, as_, tourney, neutral, date in matches_data:
         rh = team_elo.get(h, INITIAL_RATING)
         ra = team_elo.get(a, INITIAL_RATING)
         
-        # Elo Formula
+        # Initialize history list if new team
+        if h not in TEAM_HISTORY: TEAM_HISTORY[h] = {'dates': [], 'elo': []}
+        if a not in TEAM_HISTORY: TEAM_HISTORY[a] = {'dates': [], 'elo': []}
+
         dr = rh - ra + (100 if not neutral else 0)
         we = 1 / (10**(-dr/600) + 1)
         
@@ -89,7 +93,6 @@ def initialize_engine():
         elif as_ > hs: W = 0
         else: W = 0.5
         
-        # Calculate K-Factor
         gd = abs(hs - as_)
         k = 20
         if 'World Cup' in str(tourney): k = 60
@@ -101,8 +104,17 @@ def initialize_engine():
         elif gd >= 4: k *= (1.75 + (gd-3)/8)
         
         change = k * (W - we)
+        
+        # Update Ratings
         team_elo[h] = rh + change
         team_elo[a] = ra - change
+        
+        # SAVE HISTORY (For Charts)
+        # We only save the new rating and date
+        TEAM_HISTORY[h]['dates'].append(date)
+        TEAM_HISTORY[h]['elo'].append(team_elo[h])
+        TEAM_HISTORY[a]['dates'].append(date)
+        TEAM_HISTORY[a]['elo'].append(team_elo[a])
 
     # --- 3. CALCULATE OFF/DEF RATINGS ---
     # Filter for recent games only
@@ -196,22 +208,26 @@ def sim_match(t1, t2, knockout=False):
     
     style1 = TEAM_PROFILES.get(t1, 'Balanced')
     style2 = TEAM_PROFILES.get(t2, 'Balanced')
+    
+    # Style modifiers
     mod1 = STYLE_MATRIX.get((style1, style2), 1.0)
     mod2 = STYLE_MATRIX.get((style2, style1), 1.0)
     
     elo_scale = 1 + (we - 0.5)
     
-    # Home Advantage Boost (World Cup Hosts)
+    # Home Advantage
     hosts = ['usa', 'mexico', 'canada']
     home_boost = 1.15 if t1 in hosts else 1.0
     away_boost = 1.15 if t2 in hosts else 1.0
 
+    # 1. REGULAR TIME (90 Mins)
     lam1 = AVG_GOALS * s1['off'] * s2['def'] * elo_scale * mod1 * home_boost
     lam2 = AVG_GOALS * s2['off'] * s1['def'] * (2 - elo_scale) * mod2 * away_boost
     
     g1 = np.random.poisson(lam1)
     g2 = np.random.poisson(lam2)
     
+    # Check Result
     if g1 > g2: 
         if knockout: return t1, g1, g2, 'reg'
         return t1, g1, g2
@@ -219,15 +235,36 @@ def sim_match(t1, t2, knockout=False):
         if knockout: return t2, g1, g2, 'reg'
         return t2, g1, g2
     else:
-        if knockout:
-            # Penalty Logic
-            p1_bonus = 0.1 if style1 == 'Dark Arts' else 0
-            p2_bonus = 0.1 if style2 == 'Dark Arts' else 0
-            # Higher Elo still has advantage in PKs, but smaller
-            pk_prob = 0.5 + (dr/4000) + (p1_bonus - p2_bonus)
-            winner = t1 if random.random() < pk_prob else t2
-            return winner, g1, g2, 'pks'
-        return 'draw', g1, g2
+        # IT IS A DRAW
+        if not knockout:
+            return 'draw', g1, g2
+            
+        # 2. EXTRA TIME (30 Mins) if Knockout
+        # ET is approx 1/3 the length of regular time, often tighter defensively
+        et_scale = 0.33 
+        
+        # We re-roll goals for the extra period
+        g1_et = np.random.poisson(lam1 * et_scale)
+        g2_et = np.random.poisson(lam2 * et_scale)
+        
+        # Add ET goals to total score
+        g1 += g1_et
+        g2 += g2_et
+        
+        if g1 > g2:
+            return t1, g1, g2, 'aet' # After Extra Time
+        elif g2 > g1:
+            return t2, g1, g2, 'aet'
+            
+        # 3. PENALTIES (Only if still tied)
+        p1_bonus = 0.1 if style1 == 'Dark Arts' else 0
+        p2_bonus = 0.1 if style2 == 'Dark Arts' else 0
+        
+        # Higher Elo has slight mental edge + style bonus
+        pk_prob = 0.5 + (dr/4000) + (p1_bonus - p2_bonus)
+        winner = t1 if random.random() < pk_prob else t2
+        
+        return winner, g1, g2, 'pks'
 
 def run_simulation(verbose=False, quiet=False):
     # Data containers for visualization
