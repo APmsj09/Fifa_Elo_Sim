@@ -1,6 +1,3 @@
-# =============================================================================
-# --- FIFA WORLD CUP 2026 PREDICTOR (WEB ENGINE VERSION) ---
-# =============================================================================
 import pandas as pd
 import numpy as np
 import random
@@ -14,31 +11,46 @@ DATA_DIR = "."
 
 def load_data():
     """
-    Loads data from the virtual file system.
+    Loads data with DEBUGGING enabled.
     """
-    try:
-        # Load the files
-        former_names_df = pd.read_csv("former_names.csv")
-        
-        # Try reading results as TSV first
-        try:
-            results_df = pd.read_csv("results.tsv", sep='\t')
-            # Sanity check: If we only have 1 column, it's probably a CSV read as TSV
-            if len(results_df.columns) < 3:
-                print("Warning: TSV had too few columns. Trying CSV format...")
-                results_df = pd.read_csv("results.tsv", sep=',')
-        except:
-             results_df = pd.read_csv("results.tsv", sep=',')
+    print("--- DEBUG: STARTING DATA LOAD ---")
+    
+    # 1. DIAGNOSE THE FILES ON DISK
+    # We check if the files exist and what they contain (text vs html)
+    for filename in ["results.tsv", "goalscorers.tsv", "former_names.csv"]:
+        if os.path.exists(filename):
+            size = os.path.getsize(filename)
+            print(f"DEBUG: Found {filename} ({size} bytes)")
+            
+            # Print the first line to see if it's data or HTML
+            with open(filename, 'r') as f:
+                header = f.readline().strip()
+                print(f"DEBUG: Header of {filename}: '{header[:50]}...'")
+                
+                if "<!DOCTYPE" in header or "<html" in header:
+                    print(f"CRITICAL ERROR: {filename} IS AN HTML FILE (Likely a 404 Page). CHECK URL.")
+                    return None, None, None
+        else:
+            print(f"CRITICAL ERROR: {filename} NOT FOUND in virtual file system.")
+            return None, None, None
 
-        # Load goalscorers
-        try:
-            goalscorers_df = pd.read_csv("goalscorers.tsv", sep='\t')
-            if len(goalscorers_df.columns) < 3:
-                goalscorers_df = pd.read_csv("goalscorers.tsv", sep=',')
-        except:
-            goalscorers_df = pd.read_csv("goalscorers.tsv", sep=',')
+    try:
+        # 2. LOAD DATA
+        # We explicitly use sep='\t' for the TSV files
+        former_names_df = pd.read_csv("former_names.csv")
+        results_df = pd.read_csv("results.tsv", sep='\t')
+        goalscorers_df = pd.read_csv("goalscorers.tsv", sep='\t')
+
+        # 3. VERIFY COLUMNS
+        print(f"DEBUG: Results columns: {list(results_df.columns)}")
         
+        # Fallback: If TSV failed and loaded everything into one column, try comma
+        if len(results_df.columns) < 3:
+            print("DEBUG: TSV load suspect. Trying comma separator...")
+            results_df = pd.read_csv("results.tsv", sep=',')
+            
         return results_df, goalscorers_df, former_names_df
+
     except Exception as e:
         print(f"CRITICAL ERROR LOADING DATA: {e}")
         return None, None, None
@@ -50,25 +62,28 @@ def load_data():
 def initialize_engine():
     results_df, goalscorers_df, former_names_df = load_data()
     
+    # If load failed, return empty stats to prevent crash
     if results_df is None:
+        print("ERROR: Dataframes are None. Engine cannot start.")
         return {}, {}, 2.5 
 
-    # --- 1. ROBUST DATA CLEANING (THE FIX) ---
-    # Convert date to datetime
-    results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
-    
-    # FORCE scores to be numeric. Any "dates" or "strings" in these columns become NaN
+    # --- ROBUST DATA CLEANING ---
+    # 1. Drop rows with missing crucial data
+    results_df = results_df.dropna(subset=['date', 'home_score', 'away_score'])
+
+    # 2. Force Scores to Integer (This prevents the NaT error)
+    # We use 'coerce' to turn bad data into NaN, then drop the NaNs
     results_df['home_score'] = pd.to_numeric(results_df['home_score'], errors='coerce')
     results_df['away_score'] = pd.to_numeric(results_df['away_score'], errors='coerce')
+    results_df = results_df.dropna(subset=['home_score', 'away_score'])
     
-    # Drop rows where date or scores are missing (cleans up the NaT error)
-    results_df = results_df.dropna(subset=['date', 'home_score', 'away_score'])
-    
-    # Convert scores to integers now that they are clean
     results_df['home_score'] = results_df['home_score'].astype(int)
     results_df['away_score'] = results_df['away_score'].astype(int)
 
-    # Standardize team names
+    # 3. Dates
+    results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
+    
+    # 4. Strings
     results_df['home_team'] = results_df['home_team'].astype(str).str.lower().str.strip()
     results_df['away_team'] = results_df['away_team'].astype(str).str.lower().str.strip()
     
@@ -78,7 +93,7 @@ def initialize_engine():
     
     elo_df = results_df.sort_values('date').copy()
 
-    # --- 2. CALCULATE ELO ---
+    # --- CALCULATE ELO ---
     team_elo = {}
     INITIAL_RATING = 1200
     
@@ -95,10 +110,13 @@ def initialize_engine():
     for _, row in elo_df.iterrows():
         h, a = row['home_team'], row['away_team']
         hs, as_ = row['home_score'], row['away_score']
+        
+        # Safety check for NaT/NaN just in case
+        if pd.isna(hs) or pd.isna(as_): continue
+
         rh = team_elo.get(h, INITIAL_RATING)
         ra = team_elo.get(a, INITIAL_RATING)
         
-        # We can now safely do math because we cleaned the data above
         dr = rh - ra + 100 if not row['neutral'] else rh - ra
         we = 1 / (10**(-dr/600) + 1)
         
@@ -106,12 +124,13 @@ def initialize_engine():
         elif as_ > hs: W = 0
         else: W = 0.5
         
+        # This abs() was the cause of your crash. It is safe now.
         k = get_k(row['tournament'], abs(hs-as_))
         change = k * (W - we)
         team_elo[h] = rh + change
         team_elo[a] = ra - change
 
-    # --- 3. STATS ---
+    # --- STATS ---
     recent_df = elo_df[elo_df['date'] > '2022-01-01']
     if len(recent_df) > 0:
         avg_goals_global = (recent_df['home_score'].mean() + recent_df['away_score'].mean()) / 2
@@ -131,7 +150,8 @@ def initialize_engine():
             def_ = (gc / matches) / avg_goals_global
         team_stats[team] = {'elo': team_elo[team], 'off': off, 'def': def_}
 
-    # --- 4. PROFILES ---
+    # --- PROFILES ---
+    # Handle goalscorers cleanup
     goalscorers_df['team'] = goalscorers_df['team'].astype(str).str.lower().str.strip()
     goalscorers_df['scorer'] = goalscorers_df['scorer'].astype(str).str.strip()
     goalscorers_df['penalty'] = goalscorers_df['penalty'].astype(str).str.upper() == 'TRUE'
@@ -165,6 +185,7 @@ def initialize_engine():
         else: style = "Balanced"
         team_profiles[team] = style
 
+    print("DEBUG: Engine initialized successfully.")
     return team_stats, team_profiles, avg_goals_global
 
 # Load stats globally
