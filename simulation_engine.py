@@ -11,44 +11,32 @@ DATA_DIR = "."
 
 def load_data():
     """
-    Loads data with DEBUGGING enabled.
+    Loads data assuming all files are now standard CSVs.
     """
     print("--- DEBUG: STARTING DATA LOAD ---")
     
-    # 1. DIAGNOSE THE FILES ON DISK
-    # We check if the files exist and what they contain (text vs html)
-    for filename in ["results.tsv", "goalscorers.tsv", "former_names.csv"]:
+    # 1. CHECK FILES ON DISK
+    # Note: We are now looking for .csv extensions
+    files_to_check = ["results.csv", "goalscorers.csv", "former_names.csv"]
+    
+    for filename in files_to_check:
         if os.path.exists(filename):
             size = os.path.getsize(filename)
             print(f"DEBUG: Found {filename} ({size} bytes)")
-            
-            # Print the first line to see if it's data or HTML
-            with open(filename, 'r') as f:
-                header = f.readline().strip()
-                print(f"DEBUG: Header of {filename}: '{header[:50]}...'")
-                
-                if "<!DOCTYPE" in header or "<html" in header:
-                    print(f"CRITICAL ERROR: {filename} IS AN HTML FILE (Likely a 404 Page). CHECK URL.")
-                    return None, None, None
         else:
             print(f"CRITICAL ERROR: {filename} NOT FOUND in virtual file system.")
             return None, None, None
 
     try:
         # 2. LOAD DATA
-        # We explicitly use sep='\t' for the TSV files
+        # No 'sep' argument needed because comma is the default
         former_names_df = pd.read_csv("former_names.csv")
-        results_df = pd.read_csv("results.tsv", sep='\t')
-        goalscorers_df = pd.read_csv("goalscorers.tsv", sep='\t')
+        results_df = pd.read_csv("results.csv") 
+        goalscorers_df = pd.read_csv("goalscorers.csv")
 
         # 3. VERIFY COLUMNS
         print(f"DEBUG: Results columns: {list(results_df.columns)}")
         
-        # Fallback: If TSV failed and loaded everything into one column, try comma
-        if len(results_df.columns) < 3:
-            print("DEBUG: TSV load suspect. Trying comma separator...")
-            results_df = pd.read_csv("results.tsv", sep=',')
-            
         return results_df, goalscorers_df, former_names_df
 
     except Exception as e:
