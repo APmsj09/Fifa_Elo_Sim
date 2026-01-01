@@ -362,7 +362,9 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
     third_place = []
     
     for grp, teams in groups.items():
-        table_stats = {t: {'p':0, 'gd':0, 'gf':0} for t in teams}
+        # RESTORE W/D/L HERE
+        table_stats = {t: {'p':0, 'gd':0, 'gf':0, 'w':0, 'd':0, 'l':0} for t in teams}
+        
         if not fast_mode: group_matches_log[grp] = []
 
         for i in range(len(teams)):
@@ -376,9 +378,18 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
                 table_stats[t1]['gf'] += g1; table_stats[t1]['gd'] += (g1-g2)
                 table_stats[t2]['gf'] += g2; table_stats[t2]['gd'] += (g2-g1)
                 
-                if g1 > g2: table_stats[t1]['p'] += 3
-                elif g2 > g1: table_stats[t2]['p'] += 3
-                else: table_stats[t1]['p'] += 1; table_stats[t2]['p'] += 1
+                # RESTORE W/D/L LOGIC HERE
+                if g1 > g2: 
+                    table_stats[t1]['p'] += 3
+                    table_stats[t1]['w'] += 1
+                    table_stats[t2]['l'] += 1
+                elif g2 > g1: 
+                    table_stats[t2]['p'] += 3
+                    table_stats[t2]['w'] += 1
+                    table_stats[t1]['l'] += 1
+                else: 
+                    table_stats[t1]['p'] += 1; table_stats[t2]['p'] += 1
+                    table_stats[t1]['d'] += 1; table_stats[t2]['d'] += 1
 
         sorted_teams = sorted(teams, key=lambda t: (table_stats[t]['p'], table_stats[t]['gd'], table_stats[t]['gf']), reverse=True)
         group_results_lists[grp] = sorted_teams
@@ -403,8 +414,8 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
         
     rounds = ['Round of 32', 'Round of 16', 'Quarter-finals', 'Semi-finals', 'Final']
     champion = None
-    runner_up = None # <--- NEW
-    third_place_winner = None # <--- NEW
+    runner_up = None 
+    third_place_winner = None
     semi_losers = []
     
     # --- 3. KNOCKOUT SIMULATION ---
@@ -428,12 +439,12 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
 
         if r_name == 'Final':
             champion = next_round_teams[0]
-            runner_up = current_round_losers[0] # The team that lost the final
+            runner_up = current_round_losers[0]
             
             # Simulate 3rd Place Match
             t3_1, t3_2 = semi_losers[0], semi_losers[1]
             w_3rd, g3_1, g3_2, method_3rd = sim_match(t3_1, t3_2, knockout=True)
-            third_place_winner = w_3rd # <--- Capture result
+            third_place_winner = w_3rd 
             
             if not fast_mode:
                 structured_bracket.append({'round': 'Third Place Play-off', 'matches': [{
@@ -450,8 +461,8 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
 
     return {
         "champion": champion,
-        "runner_up": runner_up, # <--- Return this
-        "third_place": third_place_winner, # <--- Return this
+        "runner_up": runner_up, 
+        "third_place": third_place_winner, 
         "groups_data": structured_groups,
         "bracket_data": structured_bracket,
         "group_matches": group_matches_log
