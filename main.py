@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import simulation_engine as sim
 from pyodide.ffi import create_proxy
+from pyscript import display
 
 # GLOBAL VARIABLES
 LAST_SIM_RESULTS = {}
@@ -58,15 +59,23 @@ def switch_tab(tab_id):
     if target: target.style.display = "block"
 
 def setup_tabs():
-    # Bind Tab Buttons
-    js.document.getElementById("btn-tab-single").addEventListener("click", create_proxy(lambda e: switch_tab("tab-single")))
-    js.document.getElementById("btn-tab-bulk").addEventListener("click", create_proxy(lambda e: switch_tab("tab-bulk")))
-    js.document.getElementById("btn-tab-data").addEventListener("click", create_proxy(lambda e: switch_tab("tab-data")))
-    js.document.getElementById("btn-tab-history").addEventListener("click", create_proxy(lambda e: switch_tab("tab-history")))
+    # Helper to keep references alive
+    def bind_click(btn_id, func):
+        proxy = create_proxy(func)
+        EVENT_HANDLERS.append(proxy) # Store it so it doesn't get deleted
+        el = js.document.getElementById(btn_id)
+        if el:
+            el.addEventListener("click", proxy)
+
+    # Bind Tabs using the helper
+    bind_click("btn-tab-single", lambda e: switch_tab("tab-single"))
+    bind_click("btn-tab-bulk", lambda e: switch_tab("tab-bulk"))
+    bind_click("btn-tab-data", lambda e: switch_tab("tab-data"))
+    bind_click("btn-tab-history", lambda e: switch_tab("tab-history"))
 
     # Bind Filter Checkboxes
-    js.document.getElementById("hist-filter-wc").addEventListener("change", create_proxy(handle_history_filter_change))
-    js.document.getElementById("data-filter-wc").addEventListener("change", create_proxy(load_data_view))
+    bind_click("hist-filter-wc", handle_history_filter_change)
+    bind_click("data-filter-wc", load_data_view)
 
 # =============================================================================
 # --- 2. SINGLE SIMULATION ---

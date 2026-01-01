@@ -15,11 +15,11 @@ TEAM_PROFILES = {}
 TEAM_HISTORY = {}
 AVG_GOALS = 2.5
 STYLE_MATRIX = {
-    ('Hero Ball', 'Balanced'): 1.05,
-    ('Balanced', 'Hero Ball'): 1.0,
-    ('Diesel Engine', 'Blitzkrieg'): 1.1,
-    ('Dark Arts', 'Hero Ball'): 1.05,
-    ('Blitzkrieg', 'Dark Arts'): 1.1
+    ('Star-Centric', 'Balanced'): 1.05,
+    ('Balanced', 'Star-Centric'): 1.0,
+    ('Endurance', 'Fast-Paced'): 1.1, 
+    ('Aggressive', 'Star-Centric'): 1.05,
+    ('Fast-Paced', 'Aggressive'): 1.1
 }
 
 # This includes the 40 fixed teams + all potential qualifier teams
@@ -70,7 +70,8 @@ def initialize_engine():
     results_df, goalscorers_df, former_names_df = load_data()
     
     if results_df is None:
-        return {}, {}, {}, 2.5 # Added extra return for history
+        # FIX: Return 3 values to match the successful return at the end
+        return {}, {}, 2.5
 
     # --- 1. CLEAN DATA ---
     results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
