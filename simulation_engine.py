@@ -161,21 +161,22 @@ def initialize_engine():
     goalscorers_df['scorer'] = goalscorers_df['scorer'].str.strip()
     goalscorers_df['date'] = pd.to_datetime(goalscorers_df['date'], errors='coerce')
     
-    # Helpers for profile logic
     def get_clean_min(m):
         try: return int(str(m).split('+')[0])
         except: return 0
     goalscorers_df['clean_min'] = goalscorers_df['minute'].apply(get_clean_min)
     
     recent_goals = goalscorers_df[goalscorers_df['date'] > '2018-01-01']
-    
-    # Group by team
     grouped_goals = recent_goals.groupby('team')
     
+    # Temporary container to store stats before final packaging
+    raw_style_stats = {} 
+
     for team, t_goals in grouped_goals:
         total = len(t_goals)
         if total < 10:
             team_profiles[team] = 'Balanced'
+            raw_style_stats[team] = {'hero': 0.1, 'aggro': 0.1}
             continue
             
         late = len(t_goals[t_goals['clean_min'] >= 75])
@@ -185,13 +186,30 @@ def initialize_engine():
         hero_counts = t_goals['scorer'].value_counts()
         hero_reliance = (hero_counts.iloc[0] / total) if not hero_counts.empty else 0
         
-        if hero_reliance > 0.30: style = "Hero Ball"
-        elif (pens / total) > 0.15: style = "Dark Arts"
-        elif (late / total) > 0.30: style = "Diesel Engine"
-        elif (early / total) > 0.25: style = "Blitzkrieg"
+        # Save raw metrics for the Graph
+        # X-Axis: Star Reliance (0.0 to 1.0)
+        # Y-Axis: Aggression (Penalty Ratio scaled up)
+        raw_style_stats[team] = {
+            'hero': hero_reliance,
+            'aggro': (pens / total) * 3  # Scale up for visibility
+        }
+        
+        # Assign New Names
+        if hero_reliance > 0.30: style = "Star-Centric"
+        elif (pens / total) > 0.15: style = "Aggressive"
+        elif (late / total) > 0.30: style = "Endurance"
+        elif (early / total) > 0.25: style = "Fast-Paced"
         else: style = "Balanced"
         
         team_profiles[team] = style
+
+    for team in team_stats:
+        if team in raw_style_stats:
+            team_stats[team]['style_x'] = raw_style_stats[team]['hero']
+            team_stats[team]['style_y'] = raw_style_stats[team]['aggro']
+        else:
+            team_stats[team]['style_x'] = 0.1
+            team_stats[team]['style_y'] = 0.1
 
     return team_stats, team_profiles, avg_goals_global
 

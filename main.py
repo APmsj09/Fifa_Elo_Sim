@@ -189,13 +189,13 @@ js.document.getElementById("btn-run-bulk").addEventListener("click", create_prox
 # =============================================================================
 def load_data_view(event):
     container = js.document.getElementById("data-table-container")
-    
-    # Optional: Clear it every time so it refreshes if data changes
     container.innerHTML = "" 
     
-    # Add 'Rank' to the headers
+    # Check Filter Status
+    wc_only = js.document.getElementById("data-filter-wc").checked
+    
     html = """
-    <table class='data-table'>
+    <table class="data-table">
         <thead>
             <tr>
                 <th>Rank</th>
@@ -209,19 +209,30 @@ def load_data_view(event):
         <tbody>
     """
     
-    # Sort teams by Elo (Highest first)
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
     
-    # Enumerate gives us the index (i), starting at 0. We add 1 for the rank.
+    count = 0
     for i, (team, stats) in enumerate(sorted_teams):
         rank = i + 1
+        
+        # FILTER LOGIC:
+        # If "WC Only" is checked, we stop after the top 48 teams
+        if wc_only and rank > 48:
+            break
+            
         style = sim.TEAM_PROFILES.get(team, "Balanced")
         
-        # styling for top ranks
+        # Style mapping for display (Technical Name -> Display Name)
+        display_style = style
+        if style == "Hero Ball": display_style = "Star-Centric"
+        elif style == "Dark Arts": display_style = "Aggressive"
+        elif style == "Diesel Engine": display_style = "Endurance"
+        elif style == "Blitzkrieg": display_style = "Fast-Paced"
+
         rank_style = "font-weight:bold;" if rank <= 10 else ""
-        if rank == 1: rank_style += "color:#f1c40f;" # Gold
-        elif rank == 2: rank_style += "color:#95a5a6;" # Silver
-        elif rank == 3: rank_style += "color:#cd7f32;" # Bronze
+        if rank == 1: rank_style += "color:#f1c40f;" 
+        elif rank == 2: rank_style += "color:#95a5a6;"
+        elif rank == 3: rank_style += "color:#cd7f32;"
         
         html += f"""
         <tr>
@@ -230,7 +241,7 @@ def load_data_view(event):
             <td>{int(stats['elo'])}</td>
             <td>{round(stats['off'], 2)}</td>
             <td>{round(stats['def'], 2)}</td>
-            <td>{style}</td>
+            <td>{display_style}</td>
         </tr>
         """
     
@@ -238,6 +249,8 @@ def load_data_view(event):
     container.innerHTML = html
 
 js.document.getElementById("btn-tab-data").addEventListener("click", create_proxy(load_data_view))
+# Re-load when checkbox is clicked
+js.document.getElementById("data-filter-wc").addEventListener("change", create_proxy(load_data_view))
 
 
 # =============================================================================
@@ -337,3 +350,78 @@ def view_team_history(event):
         js.document.getElementById("team-stats-card").innerHTML = f"PYTHON ERROR: {str(e)}"
 
 js.document.getElementById("btn-view-history").addEventListener("click", create_proxy(view_team_history))
+
+def plot_style_map(event):
+    # Setup
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    x_vals = []
+    y_vals = []
+    colors = []
+    
+    # Updated Colors for New Names
+    style_colors = {
+        'Star-Centric': '#e74c3c', # Red
+        'Aggressive': '#34495e',   # Dark Blue
+        'Endurance': '#f39c12',    # Orange
+        'Fast-Paced': '#2ecc71',   # Green
+        'Balanced': '#95a5a6',     # Grey
+        # Fallbacks for old data if names didn't update yet
+        'Hero Ball': '#e74c3c',
+        'Dark Arts': '#34495e',
+        'Diesel Engine': '#f39c12',
+        'Blitzkrieg': '#2ecc71'
+    }
+    
+    # FILTER LOGIC
+    wc_only = js.document.getElementById("hist-filter-wc").checked
+    
+    # Sort by Elo
+    sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
+    
+    # Determine how many teams to plot
+    # If WC Only: Top 48. If All: Top 100 (plotting 200+ makes the graph unreadable)
+    limit = 48 if wc_only else 100
+    
+    teams_to_plot = sorted_teams[:limit]
+    
+    for team, stats in teams_to_plot:
+        x = stats.get('style_x', 0)
+        y = stats.get('style_y', 0)
+        style_name = sim.TEAM_PROFILES.get(team, 'Balanced')
+        
+        x_vals.append(x)
+        y_vals.append(y)
+        colors.append(style_colors.get(style_name, 'gray'))
+        
+        # Label prominent teams
+        # We label more teams if we are in "WC Only" mode since there's less clutter
+        if wc_only:
+             if team in ['argentina', 'france', 'portugal', 'usa', 'england', 'brazil', 'germany', 'spain', 'japan', 'morocco']:
+                ax.annotate(team.title(), (x, y), fontsize=8, alpha=0.8)
+        else:
+             if team in ['argentina', 'france', 'portugal', 'usa', 'england', 'brazil']:
+                ax.annotate(team.title(), (x, y), fontsize=8, alpha=0.8)
+
+    ax.scatter(x_vals, y_vals, c=colors, alpha=0.7, edgecolors='w', s=100)
+    
+    ax.set_title(f"Team Style Map ({'Top 48' if wc_only else 'Top 100'})", fontsize=14, fontweight='bold')
+    ax.set_xlabel("Star Reliance (Individualism)", fontsize=10)
+    ax.set_ylabel("Aggression / Penalty Ratio", fontsize=10)
+    ax.grid(True, linestyle='--', alpha=0.3)
+    
+    # Clean Legend
+    from matplotlib.lines import Line2D
+    # Only show legend items for the new clear names
+    legend_elements = [
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='#e74c3c', label='Star-Centric', markersize=10),
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='#34495e', label='Aggressive', markersize=10),
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='#f39c12', label='Endurance', markersize=10),
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='#2ecc71', label='Fast-Paced', markersize=10),
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='#95a5a6', label='Balanced', markersize=10),
+    ]
+    ax.legend(handles=legend_elements, title="Play Styles")
+
+    js.document.getElementById("main-chart-container").innerHTML = ""
+    display(fig, target="main-chart-container")
+    plt.close(fig)
