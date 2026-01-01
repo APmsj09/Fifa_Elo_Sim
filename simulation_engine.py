@@ -22,6 +22,33 @@ STYLE_MATRIX = {
     ('Blitzkrieg', 'Dark Arts'): 1.1
 }
 
+# This includes the 40 fixed teams + all potential qualifier teams
+WC_TEAMS = [
+    # Fixed Group Teams
+    'mexico', 'south africa', 'south korea', 
+    'canada', 'switzerland', 'qatar', 
+    'brazil', 'morocco', 'haiti', 'scotland', 
+    'usa', 'paraguay', 'australia', 
+    'germany', 'curacao', 'ivory coast', 'ecuador', 
+    'netherlands', 'japan', 'tunisia', 
+    'belgium', 'egypt', 'iran', 'new zealand', 
+    'spain', 'cape verde', 'saudi arabia', 'uruguay', 
+    'france', 'senegal', 'norway', 
+    'argentina', 'algeria', 'austria', 'jordan', 
+    'portugal', 'uzbekistan', 'colombia', 
+    'england', 'croatia', 'ghana', 'panama',
+    
+    # Potential Qualifiers (UEFA Paths)
+    'italy', 'northern ireland', 'wales', 'bosnia and herzegovina',
+    'ukraine', 'sweden', 'poland', 'albania',
+    'turkey', 'romania', 'slovakia', 'kosovo',
+    'czech republic', 'republic of ireland', 'denmark', 'north macedonia',
+    
+    # Potential Qualifiers (Inter-Confederation)
+    'dr congo', 'new caledonia', 'jamaica',
+    'bolivia', 'suriname', 'iraq'
+]
+
 def load_data():
     """
     Loads data assuming all files are now standard CSVs.
@@ -284,16 +311,13 @@ def sim_match(t1, t2, knockout=False):
         
         return winner, g1, g2, 'pks'
 
-def run_simulation(verbose=False, quiet=False):
-    # Data containers for visualization
-    structured_groups = {}
-    structured_bracket = []
-    
-    # NEW: Container for group match logs
-    group_matches_log = {}
+def run_simulation(verbose=False, quiet=False, fast_mode=False):
+    # Data containers
+    structured_groups = {} if not fast_mode else None
+    structured_bracket = [] if not fast_mode else None
+    group_matches_log = {} if not fast_mode else None
 
     # --- 0. PRE-TOURNAMENT QUALIFIERS ---
-    # (Keep existing qualifiers logic exactly as is...)
     slots = {}
     uefa_paths = {
         'Path A': [('italy', 'northern ireland'), ('wales', 'bosnia and herzegovina')],
@@ -319,7 +343,6 @@ def run_simulation(verbose=False, quiet=False):
     slots['ICP2'] = w_icp2
 
     # --- 1. GROUP STAGE ---
-    # (Keep existing groups definition...)
     groups = {
         'A': ['mexico', 'south africa', 'south korea', slots['Path D']],
         'B': ['canada', 'switzerland', 'qatar', slots['Path A']],
@@ -339,42 +362,34 @@ def run_simulation(verbose=False, quiet=False):
     third_place = []
     
     for grp, teams in groups.items():
-        table_stats = {t: {'p':0, 'gd':0, 'gf':0, 'w':0, 'd':0, 'l':0} for t in teams}
-        
-        # NEW: Initialize list for this group's matches
-        group_matches_log[grp] = []
-        
-        # Round Robin
+        table_stats = {t: {'p':0, 'gd':0, 'gf':0} for t in teams}
+        if not fast_mode: group_matches_log[grp] = []
+
         for i in range(len(teams)):
             for j in range(i+1, len(teams)):
                 t1, t2 = teams[i], teams[j]
                 w, g1, g2 = sim_match(t1, t2)
                 
-                # NEW: Save the specific score
-                group_matches_log[grp].append({'t1': t1, 't2': t2, 'g1': g1, 'g2': g2})
+                if not fast_mode:
+                    group_matches_log[grp].append({'t1': t1, 't2': t2, 'g1': g1, 'g2': g2})
                 
                 table_stats[t1]['gf'] += g1; table_stats[t1]['gd'] += (g1-g2)
                 table_stats[t2]['gf'] += g2; table_stats[t2]['gd'] += (g2-g1)
                 
-                if g1 > g2:
-                    table_stats[t1]['p'] += 3; table_stats[t1]['w'] += 1; table_stats[t2]['l'] += 1
-                elif g2 > g1:
-                    table_stats[t2]['p'] += 3; table_stats[t2]['w'] += 1; table_stats[t1]['l'] += 1
-                else:
-                    table_stats[t1]['p'] += 1; table_stats[t2]['p'] += 1
-                    table_stats[t1]['d'] += 1; table_stats[t2]['d'] += 1
+                if g1 > g2: table_stats[t1]['p'] += 3
+                elif g2 > g1: table_stats[t2]['p'] += 3
+                else: table_stats[t1]['p'] += 1; table_stats[t2]['p'] += 1
 
-        # Sort: Points -> GD -> GF
         sorted_teams = sorted(teams, key=lambda t: (table_stats[t]['p'], table_stats[t]['gd'], table_stats[t]['gf']), reverse=True)
         group_results_lists[grp] = sorted_teams
         third_place.append({'team': sorted_teams[2], 'stats': table_stats[sorted_teams[2]]})
 
-        structured_groups[grp] = []
-        for t in sorted_teams:
-             structured_groups[grp].append({'team': t, **table_stats[t]})
+        if not fast_mode:
+            structured_groups[grp] = []
+            for t in sorted_teams:
+                structured_groups[grp].append({'team': t, **table_stats[t]})
 
     # --- 2. KNOCKOUT PREP ---
-    # (Keep exactly as before...)
     advancing = []
     for g in groups: advancing.extend(group_results_lists[g][:2])
     best_3rds = sorted(third_place, key=lambda x: (x['stats']['p'], x['stats']['gd'], x['stats']['gf']), reverse=True)[:8]
@@ -388,14 +403,15 @@ def run_simulation(verbose=False, quiet=False):
         
     rounds = ['Round of 32', 'Round of 16', 'Quarter-finals', 'Semi-finals', 'Final']
     champion = None
+    runner_up = None # <--- NEW
+    third_place_winner = None # <--- NEW
     semi_losers = []
     
     # --- 3. KNOCKOUT SIMULATION ---
-    # (Keep exactly as before...)
     for r_name in rounds:
-        round_results = []
         next_round_teams = []
         current_round_losers = []
+        round_matches_log = [] if not fast_mode else None
         
         for t1, t2 in bracket_matchups:
             w, g1, g2, method = sim_match(t1, t2, knockout=True)
@@ -404,25 +420,28 @@ def run_simulation(verbose=False, quiet=False):
             l = t2 if w == t1 else t1
             current_round_losers.append(l)
             
-            round_results.append({
-                't1': t1, 't2': t2, 'g1': g1, 'g2': g2, 
-                'winner': w, 'method': method
-            })
+            if not fast_mode:
+                round_matches_log.append({'t1': t1, 't2': t2, 'g1': g1, 'g2': g2, 'winner': w, 'method': method})
         
         if r_name == 'Semi-finals':
             semi_losers = current_round_losers
 
         if r_name == 'Final':
+            champion = next_round_teams[0]
+            runner_up = current_round_losers[0] # The team that lost the final
+            
+            # Simulate 3rd Place Match
             t3_1, t3_2 = semi_losers[0], semi_losers[1]
             w_3rd, g3_1, g3_2, method_3rd = sim_match(t3_1, t3_2, knockout=True)
+            third_place_winner = w_3rd # <--- Capture result
             
-            structured_bracket.append({'round': 'Third Place Play-off', 'matches': [{
-                't1': t3_1, 't2': t3_2, 'g1': g3_1, 'g2': g3_2,
-                'winner': w_3rd, 'method': method_3rd
-            }]})
-            champion = next_round_teams[0]
+            if not fast_mode:
+                structured_bracket.append({'round': 'Third Place Play-off', 'matches': [{
+                    't1': t3_1, 't2': t3_2, 'g1': g3_1, 'g2': g3_2, 'winner': w_3rd, 'method': method_3rd
+                }]})
 
-        structured_bracket.append({'round': r_name, 'matches': round_results})
+        if not fast_mode:
+            structured_bracket.append({'round': r_name, 'matches': round_matches_log})
         
         bracket_matchups = []
         for i in range(0, len(next_round_teams), 2):
@@ -431,7 +450,9 @@ def run_simulation(verbose=False, quiet=False):
 
     return {
         "champion": champion,
+        "runner_up": runner_up, # <--- Return this
+        "third_place": third_place_winner, # <--- Return this
         "groups_data": structured_groups,
         "bracket_data": structured_bracket,
-        "group_matches": group_matches_log  # <--- NEW RETURN ITEM
+        "group_matches": group_matches_log
     }
