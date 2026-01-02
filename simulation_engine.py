@@ -23,13 +23,16 @@ STYLE_MATRIX = {
 }
 
 # This includes the 40 fixed teams + all potential qualifier teams
+# Updated to match YOUR results.csv exactly
 WC_TEAMS = [
     # Fixed Group Teams
-    'mexico', 'south africa', 'south korea', 
+    'mexico', 'south africa', 'south korea', # Matches CSV
     'canada', 'switzerland', 'qatar', 
     'brazil', 'morocco', 'haiti', 'scotland', 
-    'usa', 'paraguay', 'australia', 
-    'germany', 'curacao', 'ivory coast', 'ecuador', 
+    'united states', # FIXED: CSV uses 'United States', not 'USA'
+    'paraguay', 'australia', 
+    'germany', 'curaçao', # FIXED: CSV uses special character 'ç'
+    'ivory coast', 'ecuador', # Matches CSV
     'netherlands', 'japan', 'tunisia', 
     'belgium', 'egypt', 'iran', 'new zealand', 
     'spain', 'cape verde', 'saudi arabia', 'uruguay', 
@@ -48,6 +51,52 @@ WC_TEAMS = [
     'dr congo', 'new caledonia', 'jamaica',
     'bolivia', 'suriname', 'iraq'
 ]
+
+# Map teams to Confederations
+# UEFA (Europe), CONMEBOL (S. America), CONCACAF (N. America), CAF (Africa), AFC (Asia), OFC (Oceania)
+TEAM_CONFEDS = {
+    # UEFA
+    'france': 'UEFA', 'germany': 'UEFA', 'england': 'UEFA', 'spain': 'UEFA', 
+    'belgium': 'UEFA', 'netherlands': 'UEFA', 'portugal': 'UEFA', 'croatia': 'UEFA',
+    'italy': 'UEFA', 'denmark': 'UEFA', 'switzerland': 'UEFA', 'serbia': 'UEFA',
+    'poland': 'UEFA', 'sweden': 'UEFA', 'wales': 'UEFA', 'ukraine': 'UEFA',
+    'scotland': 'UEFA', 'austria': 'UEFA', 'turkey': 'UEFA', 'norway': 'UEFA',
+    'romania': 'UEFA', 'czech republic': 'UEFA', 'hungary': 'UEFA', 'greece': 'UEFA',
+    'slovakia': 'UEFA', 'republic of ireland': 'UEFA', 'northern ireland': 'UEFA',
+    'bosnia and herzegovina': 'UEFA', 'iceland': 'UEFA', 'north macedonia': 'UEFA',
+    'albania': 'UEFA', 'slovenia': 'UEFA', 'montenegro': 'UEFA', 'kosovo': 'UEFA',
+    'georgia': 'UEFA', 'bulgaria': 'UEFA', 'finland': 'UEFA', 'luxembourg': 'UEFA',
+    'russia': 'UEFA', 'belarus': 'UEFA', 'israel': 'UEFA',
+
+    # CONMEBOL
+    'brazil': 'CONMEBOL', 'argentina': 'CONMEBOL', 'uruguay': 'CONMEBOL', 
+    'colombia': 'CONMEBOL', 'ecuador': 'CONMEBOL', 'chile': 'CONMEBOL', 
+    'peru': 'CONMEBOL', 'paraguay': 'CONMEBOL', 'venezuela': 'CONMEBOL', 'bolivia': 'CONMEBOL',
+
+    # CONCACAF
+    'united states': 'CONCACAF', 'mexico': 'CONCACAF', 'canada': 'CONCACAF', 
+    'costa rica': 'CONCACAF', 'panama': 'CONCACAF', 'jamaica': 'CONCACAF',
+    'honduras': 'CONCACAF', 'el salvador': 'CONCACAF', 'haiti': 'CONCACAF',
+    'curaçao': 'CONCACAF', 'trinidad & tobago': 'CONCACAF', 'guatemala': 'CONCACAF',
+
+    # CAF
+    'morocco': 'CAF', 'senegal': 'CAF', 'tunisia': 'CAF', 'nigeria': 'CAF', 
+    'algeria': 'CAF', 'egypt': 'CAF', 'cameroon': 'CAF', 'ghana': 'CAF', 
+    'mali': 'CAF', 'ivory coast': 'CAF', 'burkina faso': 'CAF', 'south africa': 'CAF',
+    'dr congo': 'CAF', 'cabo verde': 'CAF', 'guinea': 'CAF', 'zambia': 'CAF',
+
+    # AFC
+    'japan': 'AFC', 'iran': 'AFC', 'south korea': 'AFC', 'australia': 'AFC', 
+    'saudi arabia': 'AFC', 'qatar': 'AFC', 'iraq': 'AFC', 'uae': 'AFC', 
+    'oman': 'AFC', 'uzbekistan': 'AFC', 'china': 'AFC', 'jordan': 'AFC', 
+    'bahrain': 'AFC', 'syria': 'AFC', 'vietnam': 'AFC', 'thailand': 'AFC',
+
+    # OFC
+    'new zealand': 'OFC', 'new caledonia': 'OFC', 'fiji': 'OFC', 'solomon islands': 'OFC'
+}
+
+# Where we will store the calculated multipliers
+CONFED_MULTIPLIERS = {}
 
 def load_data():
     """
@@ -221,6 +270,73 @@ def initialize_engine():
 # --- PART 3: SIMULATION ---
 # =============================================================================
 
+import statistics
+
+def calculate_confed_strength():
+    """
+    Calculates a 'Nerf' multiplier based on a Composite Score:
+    50% Weight = Elite Strength (Top 3 Teams)
+    50% Weight = Depth Strength (Average of the Top 50% of teams)
+    
+    This penalizes 'Top Heavy' regions where a few giants farm points 
+    against weak depth.
+    """
+    global CONFED_MULTIPLIERS
+    
+    # 1. Bucket teams by Confed
+    buckets = {c: [] for c in set(TEAM_CONFEDS.values())}
+    
+    for team, stats in TEAM_STATS.items():
+        confed = TEAM_CONFEDS.get(team, 'OFC') 
+        buckets[confed].append(stats['elo'])
+        
+    # 2. Calculate Composite Scores
+    confed_scores = {}
+    
+    for confed, elos in buckets.items():
+        if not elos:
+            confed_scores[confed] = 1000
+            continue
+            
+        # Sort Rating Descending (High to Low)
+        elos.sort(reverse=True)
+        count = len(elos)
+        
+        # A. Elite Score (Top 3)
+        # We focus on the absolute best who represent the region in the World Cup
+        elite_count = min(3, count)
+        elite_avg = sum(elos[:elite_count]) / elite_count
+        
+        # B. Depth Score (Top 50%)
+        # We look at the upper half of the table. 
+        # If the mid-table is weak, this score drops.
+        depth_count = max(1, int(count * 0.5))
+        depth_avg = sum(elos[:depth_count]) / depth_count
+        
+        # C. Composite (50/50 Split)
+        # You can tweak weights: 0.7/0.3 if you prefer favoring top teams.
+        composite = (elite_avg * 0.6) + (depth_avg * 0.4)
+        confed_scores[confed] = composite
+        
+        print(f"Region {confed}: Elite={int(elite_avg)}, Depth={int(depth_avg)} -> Score={int(composite)}")
+
+    # 3. Normalize against the best region
+    baseline = max(confed_scores.values()) if confed_scores else 1800
+    
+    print("\n--- DYNAMIC REGIONAL MULTIPLIERS ---")
+    for confed, score in confed_scores.items():
+        # Calculate ratio
+        ratio = score / baseline
+        
+        # Apply a 'Curve' to prevent minimal differences from punishing too hard
+        # e.g., if ratio is 0.95, we might treat it as 0.98
+        # But if it's 0.70, it stays 0.70.
+        # We'll use a simple root curve: ratio^(0.5) roughly pushes 0.8 -> 0.9
+        # But for 'Top Heavy' accountability, a linear ratio is often fairer.
+        
+        CONFED_MULTIPLIERS[confed] = round(ratio, 3)
+        print(f"{confed}: {CONFED_MULTIPLIERS[confed]} (Based on score {int(score)})")
+
 def sim_match(t1, t2, knockout=False):
     
     s1 = TEAM_STATS.get(t1, {'elo':1200, 'off':1.0, 'def':1.0})
@@ -237,15 +353,24 @@ def sim_match(t1, t2, knockout=False):
     mod2 = STYLE_MATRIX.get((style2, style1), 1.0)
     
     elo_scale = 1 + (we - 0.5)
+
+    # GET CONFEDERATIONS
+    c1 = TEAM_CONFEDS.get(t1, 'OFC')
+    c2 = TEAM_CONFEDS.get(t2, 'OFC')
+    
+    # GET DYNAMIC MULTIPLIERS
+    # Default to 0.8 if something goes wrong, but usually it's calculated
+    tier1 = CONFED_MULTIPLIERS.get(c1, 0.8)
+    tier2 = CONFED_MULTIPLIERS.get(c2, 0.8)
     
     # Home Advantage
-    hosts = ['usa', 'mexico', 'canada']
+    hosts = ['united states', 'mexico', 'canada']
     home_boost = 1.15 if t1 in hosts else 1.0
     away_boost = 1.15 if t2 in hosts else 1.0
 
     # 1. REGULAR TIME (90 Mins)
-    lam1 = AVG_GOALS * s1['off'] * s2['def'] * elo_scale * mod1 * home_boost
-    lam2 = AVG_GOALS * s2['off'] * s1['def'] * (2 - elo_scale) * mod2 * away_boost
+    lam1 = AVG_GOALS * s1['off'] * s2['def'] * elo_scale * mod1 * home_boost * tier1
+    lam2 = AVG_GOALS * s2['off'] * s1['def'] * (2 - elo_scale) * mod2 * away_boost * tier2
     
     g1 = np.random.poisson(lam1)
     g2 = np.random.poisson(lam2)
@@ -325,7 +450,7 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
         'A': ['mexico', 'south africa', 'south korea', slots['Path D']],
         'B': ['canada', 'switzerland', 'qatar', slots['Path A']],
         'C': ['brazil', 'morocco', 'haiti', 'scotland'],
-        'D': ['usa', 'paraguay', 'australia', slots['Path C']],
+        'D': ['united states', 'paraguay', 'australia', slots['Path C']],
         'E': ['germany', 'curacao', 'ivory coast', 'ecuador'],
         'F': ['netherlands', 'japan', 'tunisia', slots['Path B']],
         'G': ['belgium', 'egypt', 'iran', 'new zealand'],
@@ -340,7 +465,6 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
     third_place = []
     
     for grp, teams in groups.items():
-        # RESTORE W/D/L HERE
         table_stats = {t: {'p':0, 'gd':0, 'gf':0, 'w':0, 'd':0, 'l':0} for t in teams}
         
         if not fast_mode: group_matches_log[grp] = []
@@ -356,7 +480,6 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
                 table_stats[t1]['gf'] += g1; table_stats[t1]['gd'] += (g1-g2)
                 table_stats[t2]['gf'] += g2; table_stats[t2]['gd'] += (g2-g1)
                 
-                # RESTORE W/D/L LOGIC HERE
                 if g1 > g2: 
                     table_stats[t1]['p'] += 3
                     table_stats[t1]['w'] += 1
@@ -378,17 +501,48 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
             for t in sorted_teams:
                 structured_groups[grp].append({'team': t, **table_stats[t]})
 
-    # --- 2. KNOCKOUT PREP ---
-    advancing = []
-    for g in groups: advancing.extend(group_results_lists[g][:2])
+    # --- 2. KNOCKOUT PREP (FIXED BRACKET) ---
+    # Helper to get team by group position (0=1st, 1=2nd)
+    def get_t(grp, pos):
+        return group_results_lists[grp][pos]
+
+    # Get the 8 Best 3rd Place Teams
     best_3rds = sorted(third_place, key=lambda x: (x['stats']['p'], x['stats']['gd'], x['stats']['gf']), reverse=True)[:8]
-    advancing.extend([x['team'] for x in best_3rds])
-    seeded = sorted(advancing, key=lambda t: TEAM_STATS.get(t, {}).get('elo', 0), reverse=True)
-    
-    bracket_matchups = []
-    n = len(seeded)
-    for i in range(n//2):
-        bracket_matchups.append((seeded[i], seeded[n-1-i]))
+    t3 = [x['team'] for x in best_3rds] # List of just the names
+
+    # Hard-Coded Bracket: Round of 32 (16 Matches)
+    # This structure ensures 1st place teams play 3rds or 2nds, and pathways don't overlap until deep in tourney.
+    # The order is: Match 1 plays Match 2 in next round, Match 3 plays Match 4, etc.
+
+    bracket_matchups = [
+        # --- SECTION 1 ---
+        (get_t('A', 0), t3[0]),       # 1. 1A vs Best 3rd
+        (get_t('B', 1), get_t('C', 1)), # 2. 2B vs 2C
+        
+        (get_t('D', 0), t3[1]),       # 3. 1D vs 2nd Best 3rd
+        (get_t('E', 1), get_t('F', 1)), # 4. 2E vs 2F
+        
+        # --- SECTION 2 ---
+        (get_t('G', 0), t3[2]),       # 5. 1G vs 3rd
+        (get_t('H', 1), get_t('I', 1)), # 6. 2H vs 2I
+        
+        (get_t('J', 0), t3[3]),       # 7. 1J vs 3rd
+        (get_t('K', 1), get_t('L', 1)), # 8. 2K vs 2L
+        
+        # --- SECTION 3 (Other Side of Bracket) ---
+        (get_t('B', 0), t3[4]),       # 9. 1B vs 3rd
+        (get_t('A', 1), get_t('D', 1)), # 10. 2A vs 2D (Runners up clash)
+        
+        (get_t('E', 0), t3[5]),       # 11. 1E vs 3rd
+        (get_t('C', 0), get_t('G', 1)), # 12. 1C vs 2G
+        
+        # --- SECTION 4 ---
+        (get_t('H', 0), t3[6]),       # 13. 1H vs 3rd
+        (get_t('F', 0), get_t('J', 1)), # 14. 1F vs 2J
+
+        (get_t('K', 0), t3[7]),       # 15. 1K vs 3rd
+        (get_t('L', 0), get_t('I', 0)), # 16. 1L vs 1I (Titans clash early)
+    ]
         
     rounds = ['Round of 32', 'Round of 16', 'Quarter-finals', 'Semi-finals', 'Final']
     champion = None
@@ -432,6 +586,7 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
         if not fast_mode:
             structured_bracket.append({'round': r_name, 'matches': round_matches_log})
         
+        # Prepare next round pairings (Winner Match 1 vs Winner Match 2)
         bracket_matchups = []
         for i in range(0, len(next_round_teams), 2):
             if i+1 < len(next_round_teams):
