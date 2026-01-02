@@ -165,12 +165,38 @@ def initialize_engine():
         else: W = 0.5
         
         # 1. Determine Base K-Factor (Importance)
-        k = 30 # Default for friendlies
-        if 'World Cup' in str(tourney): k = 60
-        elif 'Continental' in str(tourney) or 'Euro' in str(tourney): k = 50
-        elif 'Qualification' in str(tourney): k = 40
+        k = 20 # Default for friendlies / minor tournaments
+        
+        # Convert to string to be safe
+        t_str = str(tourney)
+        
+        # --- TIER 1: THE WORLD CUP (K=60) ---
+        if 'World Cup' in t_str and 'qualification' not in t_str:
+            k = 60
+            
+        # --- TIER 2: CONTINENTAL FINALS (K=50) ---
+        elif any(x in t_str for x in [
+            'Copa América', 'UEFA Euro', 'African Cup of Nations', 
+            'Asian Cup', 'Gold Cup', 'CONCACAF Championship', 
+            'Oceania Nations Cup'
+        ]) and 'qualification' not in t_str:
+            k = 50
+            
+        # --- TIER 3: QUALIFIERS & OFFICIAL COMPETITIVE (K=40) ---
+        elif any(x in t_str for x in [
+            'qualification', 'Nations League', 'Confederations Cup', 
+            'Arab Cup', 'Gulf Cup'
+        ]):
+            k = 40
+            
+        # --- TIER 4: REGIONAL CHAMPIONSHIPS (K=35 - Optional boost over friendlies) ---
+        elif any(x in t_str for x in [
+            'AFF Championship', 'ASEAN', 'EAFF', 'Caribbean Cup', 
+            'UNCAF', 'COSAFA', 'SAFF', 'WAFF'
+        ]):
+            k = 35
 
-        # 2. Determine Margin of Victory Multiplier
+        # 2. Determine Margin of Victory Multiplier (Keep your existing logic here)
         gd = abs(hs - as_)
         if gd == 2: k *= 1.5
         elif gd == 3: k *= 1.75
