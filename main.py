@@ -12,15 +12,19 @@ LAST_SIM_RESULTS = {}
 EVENT_HANDLERS = []
 
 # =============================================================================
-# --- 0. STARTUP & INITIALIZATION ---
+# --- STARTUP & INITIALIZATION ---
 # =============================================================================
 async def initialize_app():
     try:
-        print("Initializing Engine...")
+        js.console.log("Initializing Engine...")
         
         # 1. Initialize Backend
         sim.DATA_DIR = "."
+        
+        # Make sure to run the confed calculation we discussed
         sim.TEAM_STATS, sim.TEAM_PROFILES, sim.AVG_GOALS = sim.initialize_engine()
+        # Trigger the dynamic tier calculation immediately after stats are ready
+        sim.calculate_confed_strength() 
 
         # 2. Setup UI Tabs
         setup_tabs()
@@ -32,7 +36,7 @@ async def initialize_app():
         js.document.getElementById("loading-screen").style.display = "none"
         js.document.getElementById("main-dashboard").style.display = "block"
         
-        print("Engine Ready.")
+        js.console.log("Engine Ready.")
 
     except Exception as e:
         # If this fails, show error on screen
@@ -44,7 +48,8 @@ async def initialize_app():
             <p>Check your console (F12) for more details.</p>
         </div>
         """
-        print(f"CRITICAL ERROR: {e}")
+        # Log error to console instead of screen
+        js.console.error(f"CRITICAL ERROR: {e}")
 
 # =============================================================================
 # --- 1. TAB NAVIGATION ---
@@ -171,7 +176,7 @@ async def run_single_sim(event):
 
     except Exception as e:
         js.document.getElementById("visual-loading").innerHTML = f"Error: {e}"
-        print(e)
+        js.console.error(e)
 
 # Match Modal Logic
 def open_group_modal(grp_name):
@@ -477,7 +482,7 @@ async def view_team_history(event):
 
     except Exception as e:
         js.document.getElementById("team-stats-card").innerHTML = f"Error: {e}"
-        print(e)
+        js.console.error(e)
 
 # Chart 2: Global Map
 async def plot_style_map(event):

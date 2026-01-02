@@ -8,307 +8,172 @@
     <link rel="stylesheet" href="https://pyscript.net/releases/2023.05.1/pyscript.css">
     <script defer src="https://pyscript.net/releases/2023.05.1/pyscript.js"></script>
     <style>
+        /* --- 1. THE MAIN LAYOUT --- */
         body {
-            font-family: 'Segoe UI', sans-serif;
-            background: #eef2f7;
             margin: 0;
             padding: 0;
+            background-color: #f4f7f6;
+            font-family: 'Segoe UI', sans-serif;
+            height: 100vh; /* Fill screen height */
+            overflow: hidden; /* Stop full page scroll, we scroll inside panels */
         }
 
-        /* --- NEW VISUALIZATION STYLES --- */
+        .app-layout {
+            display: grid;
+            /* Sidebar is 300px fixed, Content takes the rest */
+            grid-template-columns: 300px 1fr; 
+            height: 100vh;
+        }
 
-        /* Groups Grid */
+        /* --- 2. SIDEBAR STYLING --- */
+        .sidebar-panel {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            overflow-y: auto; /* Scroll if controls are too tall */
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .sidebar-panel h2 { margin-top: 0; color: #f1c40f; border-bottom: 1px solid #34495e; padding-bottom: 10px; }
+
+        /* Navigation Buttons in Sidebar */
+        .nav-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            text-align: left;
+            background: #34495e;
+            color: #ecf0f1;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-weight: 600;
+        }
+
+        .nav-btn:hover { background: #3498db; color: white; }
+        
+        .control-group {
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 6px;
+        }
+        
+        .control-group label {
+            display: block;
+            font-size: 0.85em;
+            margin-bottom: 5px;
+            color: #bdc3c7;
+        }
+
+        .action-btn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 15px;
+            width: 100%;
+            border-radius: 6px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        .action-btn:hover { background: #2ecc71; }
+
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            background: #ecf0f1;
+            box-sizing: border-box; /* Fix width issues */
+        }
+
+        /* --- 3. MAIN CONTENT STYLING --- */
+        .content-panel {
+            padding: 30px;
+            overflow-y: auto; /* The content scrolls independently */
+            background: #ecf0f1;
+        }
+        
+        .tab-content { display: none; } /* Hidden by default */
+
+        /* --- 4. ADAPTIVE COMPONENTS --- */
+
+        /* The Groups Grid: Auto-fill space */
         .groups-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            /* Creates as many columns as fit, min 300px wide */
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
             gap: 20px;
-            margin-bottom: 30px;
+            margin-top: 20px;
         }
 
+        /* Group Box Styling */
         .group-box {
             background: white;
             padding: 15px;
             border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            cursor: pointer;
+            transition: transform 0.2s;
         }
+        .group-box:hover { transform: translateY(-3px); border: 1px solid #3498db; }
+        
+        .group-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        .group-table th { background: #f8f9fa; text-align: left; padding: 5px; }
+        .group-table td { border-bottom: 1px solid #eee; padding: 5px; }
+        .qualified { color: #27ae60; font-weight: bold; }
 
-        .group-box h3 {
-            margin-top: 0;
-            border-bottom: 2px solid #f1c40f;
-            padding-bottom: 5px;
-        }
-
-        .group-table th {
-            background: #ecf0f1;
-            font-size: 0.9em;
-        }
-
-        .group-table td {
-            padding: 6px 10px;
-            font-size: 0.95em;
-        }
-
-        .qualified {
-            font-weight: bold;
-            color: #27ae60;
-        }
-
-        /* Bracket Flex Layout */
+        /* The Bracket */
         #bracket-container {
             display: flex;
             overflow-x: auto;
             padding: 20px 0;
+            gap: 40px;
         }
+        .bracket-round { min-width: 200px; display: flex; flex-direction: column; justify-content: space-around; }
+        .matchup { background: white; border: 1px solid #ddd; margin-bottom: 20px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .matchup-team { padding: 8px; display: flex; justify-content: space-between; }
+        .winner-text { font-weight: bold; background: #e8f8f5; }
 
-        .bracket-round {
-            display: flex;
-            flex-direction: column;
-            justify-content: space-around;
-            margin-right: 30px;
-            min-width: 200px;
-        }
-
-        .round-title {
-            text-align: center;
-            font-weight: bold;
-            margin-bottom: 15px;
-            color: #7f8c8d;
-        }
-
-        /* Matchup Box */
-        .matchup {
-            border: 1px solid #ddd;
+        /* Chart Container: Adaptive Height */
+        .chart-box {
+            width: 100%;
+            min-height: 500px; /* Use vertical space on big monitors */
             background: white;
-            border-radius: 6px;
-            overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            position: relative;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
 
-        .matchup-team {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 12px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .matchup-team:last-child {
-            border-bottom: none;
-        }
-
-        .winner-text {
-            font-weight: bold;
-            color: #2c3e50;
-            background: #f0fff0;
-        }
-
-        .match-note {
-            font-size: 0.7em;
-            text-align: center;
-            background: #f8f9fa;
-            color: #666;
-            padding: 2px;
-        }
-
-        /* Connecting Lines (Simple CSS approach) */
-        .bracket-round:not(:last-child) .matchup::after {
-            content: '';
-            position: absolute;
-            right: -30px;
-            top: 50%;
-            width: 30px;
-            height: 2px;
-            background: #ddd;
-            z-index: -1;
-        }
+        /* Data Table */
+        .data-table { width: 100%; border-collapse: collapse; background: white; }
+        .data-table th { position: sticky; top: 0; background: #34495e; color: white; padding: 12px; text-align: left;}
+        .data-table td { padding: 8px; border-bottom: 1px solid #ddd; }
 
         /* Loading Screen */
         #loading-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #2c3e50;
-            color: white;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #2c3e50; color: white;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
             z-index: 9999;
         }
 
-        .loader {
-            font-size: 2em;
-            font-weight: bold;
-            margin-bottom: 20px;
-        }
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal-content { background: white; margin: 10% auto; padding: 20px; width: 500px; border-radius: 8px; }
 
-        /* Main Dashboard */
-        #main-dashboard {
-            display: none;
-            max-width: 1000px;
-            margin: 20px auto;
-            padding: 20px;
-        }
-
-        /* Navigation */
-        .nav-bar {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        .nav-btn {
-            padding: 12px 20px;
-            background: white;
-            border: none;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            color: #555;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-
-        .nav-btn:hover {
-            background: #3498db;
-            color: white;
-        }
-
-        /* Content Tabs */
-        .tab-content {
-            background: white;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-            min-height: 400px;
-            display: none;
-            /* Hidden by default */
-        }
-
-        /* Modal Popup */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.6);
-        }
-
-        .modal-content {
-            background-color: #fefefe;
-            margin: 10% auto;
-            padding: 20px;
-            border: 1px solid #888;
-            width: 80%;
-            max-width: 500px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        .close-btn {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .close-btn:hover {
-            color: black;
-        }
-
-        .result-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .result-score {
-            font-weight: bold;
-            background: #eee;
-            padding: 2px 8px;
-            border-radius: 4px;
-        }
-
-        /* Make groups clickable */
-        .group-box {
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .group-box:hover {
-            transform: translateY(-3px);
-            border: 1px solid #3498db;
-        }
-
-        /* Single Sim specific */
-        #single-champion {
-            font-size: 2em;
-            color: #27ae60;
-            font-weight: 800;
-            margin: 20px 0;
-        }
-
-        #single-log-container {
-            height: 300px;
-            overflow-y: auto;
-            background: #2c3e50;
-            color: #ecf0f1;
-            padding: 15px;
-            font-family: monospace;
-        }
-
-        /* General Utils */
-        .log-entry {
-            margin-bottom: 4px;
-            font-size: 0.9em;
-        }
-
-        .log-header {
-            color: #f1c40f;
-            font-weight: bold;
-            margin-top: 10px;
-        }
-
-        input,
-        select {
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid #ddd;
-        }
-
-        button.action-btn {
-            background: #2ecc71;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1.1em;
-        }
-
-        /* Tables */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        th,
-        td {
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-
-        th {
-            background-color: #f8f9fa;
+        /* --- 5. MOBILE FALLBACK --- */
+        @media (max-width: 900px) {
+            .app-layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+            .sidebar-panel { height: auto; max-height: 200px; }
         }
     </style>
 </head>
@@ -316,120 +181,110 @@
 <body>
 
     <div id="loading-screen">
-        <div class="loader">⚽ Preparing Engine...</div>
-        <div>Downloading Data & Booting Python</div>
+        <div style="font-size: 2em; margin-bottom: 20px;">⚽ Starting Engine...</div>
+        <div>Loading Libraries & Data</div>
     </div>
 
-    <div id="main-dashboard">
-        <h1>🏆 WC 2026 Engine</h1>
+    <div class="app-layout" id="main-dashboard" style="display:none;">
+        
+        <aside class="sidebar-panel">
+            <h2>🏆 WC 2026 Sim</h2>
+            
+            <div style="font-size:0.8em; color:#bdc3c7; margin-bottom:10px;">NAVIGATION</div>
+            <button class="nav-btn" id="btn-tab-single">📊 Tournament View</button>
+            <button class="nav-btn" id="btn-tab-bulk">🎲 Bulk Probability</button>
+            <button class="nav-btn" id="btn-tab-data">📈 Global Rankings</button>
+            <button class="nav-btn" id="btn-tab-history">🔍 Team Analysis</button>
 
-        <div class="nav-bar">
-            <button class="nav-btn" id="btn-tab-single">Single Sim</button>
-            <button class="nav-btn" id="btn-tab-bulk">Bulk Sim</button>
-            <button class="nav-btn" id="btn-tab-data">Data View</button>
-            <button class="nav-btn" id="btn-tab-history">Team Analysis</button>
-        </div>
+            <hr style="border-color: #34495e; width: 100%;">
 
-        <div id="tab-single" class="tab-content" style="display:block">
-            <div style="display:flex; justify-content: space-between; align-items: center;">
-                <h2>Tournament Visualization</h2>
-                <button class="action-btn" id="btn-run-single">▶ Run Tournament</button>
-            </div>
-
-            <div id="visual-loading" style="display:none; color:#666; font-style:italic; margin:20px;">
-                Simulating match results...
-            </div>
-
-            <div id="visual-results-container" style="display:none;">
-                <div id="final-champion-banner"
-                    style="text-align:center; background:#27ae60; color:white; padding:20px; border-radius:8px; margin: 20px 0;">
-                    <div style="font-size:0.9em; opacity:0.8;">WORLD CUP 2026 CHAMPION</div>
-                    <div id="visual-champion-name" style="font-size:2.5em; font-weight:800;">---</div>
+            <div id="controls-area">
+                <div class="control-group">
+                    <label>Simulation Settings</label>
+                    <input type="number" id="bulk-count" value="100" placeholder="Sim Count">
                 </div>
-
-                <h3>Group Stage Results</h3>
-                <div id="groups-container" class="groups-grid"></div>
-
-                <h3>Knockout Bracket</h3>
-                <div id="bracket-container"></div>
-            </div>
-        </div>
-
-        <div id="tab-bulk" class="tab-content">
-            <h2>Bulk Simulation</h2>
-            <p>Run the tournament multiple times to see probability of winning.</p>
-            <input type="number" id="bulk-count" value="50" min="1" max="500">
-            <button class="action-btn" id="btn-run-bulk">Run Sims</button>
-            <div id="bulk-results" style="margin-top:20px;"></div>
-        </div>
-
-        <div id="tab-data" class="tab-content">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h2>Global Rankings & Stats</h2>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <input type="checkbox" id="data-filter-wc" style="width:auto;">
-                    <label for="data-filter-wc" style="font-weight:bold; color:#555;">WC Level Only</label>
-                </div>
-            </div>
-            <div id="data-table-container"></div>
-        </div>
-
-        <div id="tab-history" class="tab-content">
-
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                <h2>Team Analysis</h2>
-
-                <div style="display:flex; gap:10px; align-items:center;">
-
-                    <select id="team-select" style="min-width:150px;"></select>
-
-                    <div style="display:flex; align-items:center; gap:5px;">
+                
+                <div class="control-group" style="margin-top:10px;">
+                    <label>Filters</label>
+                    <div style="display:flex; align-items:center; gap:10px;">
                         <input type="checkbox" id="hist-filter-wc" style="width:auto;">
-                        <label for="hist-filter-wc" style="font-size:0.9em; white-space:nowrap;">WC Level</label>
+                        <span style="font-size:0.9em; color:white;">WC Teams Only</span>
+                    </div>
+                </div>
+
+                <button id="btn-run-single" class="action-btn">▶ Run Single Sim</button>
+                <button id="btn-run-bulk" class="action-btn" style="background:#f39c12; margin-top:5px;">⚡ Run Bulk Sim</button>
+            </div>
+        </aside>
+
+        <main class="content-panel">
+            
+            <div id="tab-single" class="tab-content" style="display:block;">
+                <div id="visual-loading" style="display:none; text-align:center; padding:50px;">
+                    <h2>Simulating Tournament...</h2>
+                </div>
+                
+                <div id="visual-results-container" style="display:none;">
+                    <div style="background: linear-gradient(135deg, #27ae60, #2ecc71); color: white; padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);">
+                        <div style="font-size: 1.2em; opacity: 0.9; letter-spacing: 2px;">2026 WORLD CHAMPION</div>
+                        <div id="visual-champion-name" style="font-size: 4em; font-weight: 800; margin-top: 10px; text-transform: uppercase;">---</div>
                     </div>
 
+                    <h3>Knockout Bracket</h3>
+                    <div id="bracket-container"></div>
+
+                    <h3>Group Stage</h3>
+                    <div id="groups-container" class="groups-grid"></div>
+                </div>
+            </div>
+
+            <div id="tab-bulk" class="tab-content">
+                <h2>Bulk Simulation Results</h2>
+                <div id="bulk-results">Click "Run Bulk Sim" in the sidebar to start.</div>
+            </div>
+            
+            <div id="tab-data" class="tab-content">
+                <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
+                    <h2>Global Power Rankings</h2>
+                    <button class="nav-btn" id="data-filter-wc" style="width:auto; background:#3498db;">Refresh View</button>
+                </div>
+                <div id="data-table-container"></div>
+            </div>
+
+            <div id="tab-history" class="tab-content">
+                <div style="display:flex; gap:10px; margin-bottom:20px; background:white; padding:15px; border-radius:8px;">
+                    <select id="team-select"></select>
                     <select id="chart-timeframe">
                         <option value="all">All Time</option>
                         <option value="10y">Last 10 Years</option>
-                        <option value="4y">Since Last WC</option>
                     </select>
-
-                    <button class="action-btn" id="btn-view-history">Analyze Team</button>
-                    <button class="action-btn" id="btn-view-style-map" style="background:#8e44ad;">Global Style
-                        Map</button>
-
+                    <button id="btn-view-history" style="background:#34495e; color:white; border:none; padding:0 20px; border-radius:4px; cursor:pointer;">Analyze</button>
+                    <button id="btn-view-style-map" style="background:#8e44ad; color:white; border:none; padding:0 20px; border-radius:4px; cursor:pointer;">Style Map</button>
                 </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 2fr; gap:20px;">
+                    <div id="team-stats-card"></div>
+                    <div id="main-chart-container" class="chart-box">Select a team to view analysis.</div>
+                </div>
+                <div id="dist-chart-container" class="chart-box" style="height:300px; margin-top:20px;"></div>
             </div>
 
-            <div id="history-output" style="margin-top:20px; display:grid; grid-template-columns: 1fr 2fr; gap:20px;">
-                <div id="team-stats-card"></div>
-                <div id="main-chart-container"
-                    style="background:#f8f9fa; border-radius:8px; padding:10px; min-height:300px;"></div>
-            </div>
+        </main>
+    
+    </div>
 
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-top:20px;">
-                <div id="dist-chart-container" style="background:white; height:300px;"></div>
-            </div>
-
+    <div id="group-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="document.getElementById('group-modal').style.display='none'" style="float:right; cursor:pointer; font-size:1.5em;">&times;</span>
+            <h2 id="modal-title">Group Results</h2>
+            <div id="modal-matches"></div>
         </div>
-
-        <div id="group-modal" class="modal">
-            <div class="modal-content">
-                <span class="close-btn"
-                    onclick="document.getElementById('group-modal').style.display='none'">&times;</span>
-                <h2 id="modal-title">Group Results</h2>
-                <div id="modal-matches"></div>
-            </div>
-        </div>
-
     </div>
 
     <py-config>
         packages = ["pandas", "numpy", "matplotlib"]
-
         [[fetch]]
         files = ["main.py", "simulation_engine.py"]
-
         [[fetch]]
         from = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/main/data"
         files = ["results.csv", "goalscorers.csv", "former_names.csv"]
@@ -438,5 +293,4 @@
     <py-script src="./main.py"></py-script>
 
 </body>
-
 </html>
