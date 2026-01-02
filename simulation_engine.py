@@ -70,174 +70,146 @@ def initialize_engine():
     results_df, goalscorers_df, former_names_df = load_data()
     
     if results_df is None:
-        # FIX: Return 3 values to match the successful return at the end
-        return {}, {}, 2.5
+        return {}, {}, 2.5 
 
     # --- 1. CLEAN DATA ---
     results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
     results_df = results_df.dropna(subset=['date', 'home_score', 'away_score'])
     results_df = results_df.astype({'home_score': int, 'away_score': int})
     
+    # Standardize Names
     results_df['home_team'] = results_df['home_team'].str.lower().str.strip()
     results_df['away_team'] = results_df['away_team'].str.lower().str.strip()
-    
     former_map = dict(zip(former_names_df['former'].str.lower(), former_names_df['current'].str.lower()))
     results_df['home_team'] = results_df['home_team'].replace(former_map)
     results_df['away_team'] = results_df['away_team'].replace(former_map)
     
     elo_df = results_df.sort_values('date')
 
-    # --- 2. CALCULATE ELO & HISTORY ---
+    # --- 2. CALCULATE ELO (Standard) ---
     team_elo = {}
     INITIAL_RATING = 1200
-    
-    # Initialize history dict
     global TEAM_HISTORY
     TEAM_HISTORY = {} 
 
-    # We add 'date' to the zip loop to track when changes happen
-    matches_data = zip(
-        elo_df['home_team'].tolist(),
-        elo_df['away_team'].tolist(),
-        elo_df['home_score'].tolist(),
-        elo_df['away_score'].tolist(),
-        elo_df['tournament'].tolist(),
-        elo_df['neutral'].tolist(),
-        elo_df['date'].tolist() 
-    )
-
+    # Loop through matches to build Elo
+    matches_data = zip(elo_df['home_team'], elo_df['away_team'], elo_df['home_score'], elo_df['away_score'], elo_df['tournament'], elo_df['neutral'], elo_df['date'])
+    
     for h, a, hs, as_, tourney, neutral, date in matches_data:
         rh = team_elo.get(h, INITIAL_RATING)
         ra = team_elo.get(a, INITIAL_RATING)
         
-        # Initialize history list if new team
+        # Init history if needed
         if h not in TEAM_HISTORY: TEAM_HISTORY[h] = {'dates': [], 'elo': []}
         if a not in TEAM_HISTORY: TEAM_HISTORY[a] = {'dates': [], 'elo': []}
-
+        
+        # Elo Math
         dr = rh - ra + (100 if not neutral else 0)
         we = 1 / (10**(-dr/600) + 1)
-        
         if hs > as_: W = 1
         elif as_ > hs: W = 0
         else: W = 0.5
         
-        gd = abs(hs - as_)
-        k = 20
+        # 1. Determine Base K-Factor (Importance)
+        k = 30 # Default for friendlies
         if 'World Cup' in str(tourney): k = 60
         elif 'Continental' in str(tourney) or 'Euro' in str(tourney): k = 50
         elif 'Qualification' in str(tourney): k = 40
-        
+
+        # 2. Determine Margin of Victory Multiplier
+        gd = abs(hs - as_)
         if gd == 2: k *= 1.5
         elif gd == 3: k *= 1.75
         elif gd >= 4: k *= (1.75 + (gd-3)/8)
-        
+    
+        # 3. Apply Change
         change = k * (W - we)
         
-        # Update Ratings
         team_elo[h] = rh + change
         team_elo[a] = ra - change
         
-        # SAVE HISTORY (For Charts)
-        # We only save the new rating and date
-        TEAM_HISTORY[h]['dates'].append(date)
-        TEAM_HISTORY[h]['elo'].append(team_elo[h])
-        TEAM_HISTORY[a]['dates'].append(date)
-        TEAM_HISTORY[a]['elo'].append(team_elo[a])
+        TEAM_HISTORY[h]['dates'].append(date); TEAM_HISTORY[h]['elo'].append(team_elo[h])
+        TEAM_HISTORY[a]['dates'].append(date); TEAM_HISTORY[a]['elo'].append(team_elo[a])
 
-    # --- 3. CALCULATE OFF/DEF RATINGS ---
-    # Filter for recent games only
-    recent_date = pd.Timestamp('2022-01-01')
+    # --- 3. RECENT STATS (Form & Averages) ---
+    # We use a recent window (e.g., last 2-3 years of data)
+    recent_date = pd.Timestamp('2022-01-01') 
     recent_df = elo_df[elo_df['date'] > recent_date]
     
+    # Calculate Global Average for Normalization
     if len(recent_df) > 0:
         avg_goals_global = (recent_df['home_score'].mean() + recent_df['away_score'].mean()) / 2
     else:
-        avg_goals_global = 2.5
+        avg_goals_global = 1.25
 
-    # Calculate Off/Def stats using groupby (Much faster than per-team filtering)
-    home_stats = recent_df.groupby('home_team').agg({'home_score': 'sum', 'away_score': 'sum', 'date': 'count'}).rename(columns={'date': 'matches'})
-    away_stats = recent_df.groupby('away_team').agg({'away_score': 'sum', 'home_score': 'sum', 'date': 'count'}).rename(columns={'date': 'matches'})
+    # Group Stats
+    home_stats = recent_df.groupby('home_team').agg({'home_score': 'sum', 'away_score': 'sum', 'date': 'count'})
+    away_stats = recent_df.groupby('away_team').agg({'away_score': 'sum', 'home_score': 'sum', 'date': 'count'})
     
     all_teams = set(team_elo.keys())
     team_stats = {}
+    team_profiles = {} # Simple profiles, no deep player analysis
+    team_form = {}
 
+    # --- 4. BUILD TEAM PROFILES ---
     for team in all_teams:
-        elo = team_elo[team]
+        # A. CALCULATE FORM (Last 5 Games)
+        last_games = elo_df[(elo_df['home_team'] == team) | (elo_df['away_team'] == team)].tail(5)
+        form_str = ""
+        for _, row in last_games.iterrows():
+            if row['home_team'] == team:
+                if row['home_score'] > row['away_score']: form_str += "W"
+                elif row['home_score'] < row['away_score']: form_str += "L"
+                else: form_str += "D"
+            else: # Away
+                if row['away_score'] > row['home_score']: form_str += "W"
+                elif row['away_score'] < row['home_score']: form_str += "L"
+                else: form_str += "D"
+        team_form[team] = form_str
+
+        # B. CALCULATE GOAL AVERAGES
+        h_s = home_stats.loc[team] if team in home_stats.index else pd.Series({'home_score':0, 'away_score':0, 'date':0})
+        a_s = away_stats.loc[team] if team in away_stats.index else pd.Series({'away_score':0, 'home_score':0, 'date':0})
         
-        # Combine home and away stats safely
-        h_s = home_stats.loc[team] if team in home_stats.index else pd.Series({'home_score':0, 'away_score':0, 'matches':0})
-        a_s = away_stats.loc[team] if team in away_stats.index else pd.Series({'away_score':0, 'home_score':0, 'matches':0})
-        
-        total_matches = h_s['matches'] + a_s['matches']
+        total_matches = h_s['date'] + a_s['date']
         
         if total_matches < 5:
+            # Not enough data
+            gf_avg, ga_avg = 0.0, 0.0
             off, def_ = 1.0, 1.0
+            style = "Balanced"
         else:
-            gs = h_s['home_score'] + a_s['away_score'] # Goals Scored
-            gc = h_s['away_score'] + a_s['home_score'] # Goals Conceded
+            gs = h_s['home_score'] + a_s['away_score']
+            gc = h_s['away_score'] + a_s['home_score']
             
-            off = (gs / total_matches) / avg_goals_global
-            def_ = (gc / total_matches) / avg_goals_global
+            # RAW AVERAGES 
+            gf_avg = gs / total_matches
+            ga_avg = gc / total_matches
             
-        team_stats[team] = {'elo': elo, 'off': off, 'def': def_}
+            # NORMALIZED RATINGS (For Engine)
+            off = gf_avg / avg_goals_global
+            def_ = ga_avg / avg_goals_global
+            
+            # Simple Style Logic (Goal Heavy = Fast Paced, Low Scoring = Endurance)
+            total_goals_per_game = gf_avg + ga_avg
+            if total_goals_per_game > 3.0: style = "Fast-Paced"
+            elif total_goals_per_game < 2.0: style = "Endurance"
+            elif gf_avg > 2.0: style = "Aggressive"
+            else: style = "Balanced"
 
-    # --- 4. PROFILES (Optimized Groupby) ---
-    team_profiles = {}
-    
-    # Prep Goalscorers
-    goalscorers_df['team'] = goalscorers_df['team'].str.lower().str.strip()
-    goalscorers_df['scorer'] = goalscorers_df['scorer'].str.strip()
-    goalscorers_df['date'] = pd.to_datetime(goalscorers_df['date'], errors='coerce')
-    
-    def get_clean_min(m):
-        try: return int(str(m).split('+')[0])
-        except: return 0
-    goalscorers_df['clean_min'] = goalscorers_df['minute'].apply(get_clean_min)
-    
-    recent_goals = goalscorers_df[goalscorers_df['date'] > '2018-01-01']
-    grouped_goals = recent_goals.groupby('team')
-    
-    # Temporary container to store stats before final packaging
-    raw_style_stats = {} 
-
-    for team, t_goals in grouped_goals:
-        total = len(t_goals)
-        if total < 10:
-            team_profiles[team] = 'Balanced'
-            raw_style_stats[team] = {'hero': 0.1, 'aggro': 0.1}
-            continue
-            
-        late = len(t_goals[t_goals['clean_min'] >= 75])
-        pens = len(t_goals[t_goals['penalty'].astype(str) == 'TRUE'])
-        early = len(t_goals[t_goals['clean_min'] <= 20])
-        
-        hero_counts = t_goals['scorer'].value_counts()
-        hero_reliance = (hero_counts.iloc[0] / total) if not hero_counts.empty else 0
-        
-        # Save raw metrics for the Graph
-        # X-Axis: Star Reliance (0.0 to 1.0)
-        # Y-Axis: Aggression (Penalty Ratio scaled up)
-        raw_style_stats[team] = {
-            'hero': hero_reliance,
-            'aggro': (pens / total) * 3  # Scale up for visibility
-        }
-        
-        # Assign New Names
-        if hero_reliance > 0.30: style = "Star-Centric"
-        elif (pens / total) > 0.15: style = "Aggressive"
-        elif (late / total) > 0.30: style = "Endurance"
-        elif (early / total) > 0.25: style = "Fast-Paced"
-        else: style = "Balanced"
-        
         team_profiles[team] = style
-
-    for team in team_stats:
-        if team in raw_style_stats:
-            team_stats[team]['style_x'] = raw_style_stats[team]['hero']
-            team_stats[team]['style_y'] = raw_style_stats[team]['aggro']
-        else:
-            team_stats[team]['style_x'] = 0.1
-            team_stats[team]['style_y'] = 0.1
+        
+        # Store Data
+        team_stats[team] = {
+            'elo': team_elo[team],
+            'off': off,
+            'def': def_,
+            'gf_avg': gf_avg, # <--- NEW
+            'ga_avg': ga_avg, # <--- NEW
+            'form': team_form.get(team, "-----"),
+            'style_x': 0.5, # Default coords since we removed player analysis
+            'style_y': 0.5
+        }
 
     return team_stats, team_profiles, avg_goals_global
 

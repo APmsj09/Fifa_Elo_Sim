@@ -60,24 +60,33 @@ def switch_tab(tab_id):
     if target: target.style.display = "block"
 
 def setup_tabs():
+    global EVENT_HANDLERS # Important: Use the global list
+
     # Helper to keep references alive
     def bind_click(btn_id, func):
-        proxy = create_proxy(func)
-        EVENT_HANDLERS.append(proxy) # Store it so it doesn't get deleted
         el = js.document.getElementById(btn_id)
         if el:
-            el.addEventListener("click", proxy)
+            proxy = create_proxy(func)
+            EVENT_HANDLERS.append(proxy) # 1. Save it so it doesn't get deleted
+            el.addEventListener("click", proxy) # 2. Attach it
 
-    # Bind Tabs using the helper
+    # Navigation Tabs
     bind_click("btn-tab-single", lambda e: switch_tab("tab-single"))
     bind_click("btn-tab-bulk", lambda e: switch_tab("tab-bulk"))
     bind_click("btn-tab-data", lambda e: switch_tab("tab-data"))
     bind_click("btn-tab-history", lambda e: switch_tab("tab-history"))
 
-    # Bind Filter Checkboxes
+    # Simulation Buttons
+    bind_click("btn-run-single", run_single_sim)
+    bind_click("btn-run-bulk", run_bulk_sim)
+
+    # Analysis Buttons
+    bind_click("btn-view-history", view_team_history)
+    bind_click("btn-view-style-map", plot_style_map) # <--- ADD THIS HERE
+
+    # Filters
     bind_click("hist-filter-wc", handle_history_filter_change)
     bind_click("data-filter-wc", load_data_view)
-
 # =============================================================================
 # --- 2. SINGLE SIMULATION ---
 # =============================================================================
@@ -273,7 +282,23 @@ def load_data_view(event):
     checkbox = js.document.getElementById("data-filter-wc")
     wc_only = checkbox.checked if checkbox else False
     
-    html = """<table class="data-table"><thead><tr><th>Rank</th><th>Team</th><th>Elo</th><th>Off</th><th>Def</th><th>Style</th></tr></thead><tbody>"""
+    # 1. New Headers
+    html = """
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Team</th>
+                <th>Rating</th>
+                <th>Form</th>
+                <th title="Goals Scored per Game (Last 2 Years)">GF / Gm</th>
+                <th title="Goals Allowed per Game (Last 2 Years)">GA / Gm</th>
+                <th>Style</th>
+            </tr>
+        </thead>
+        <tbody>
+    """
+    
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
     
     rank_counter = 0
@@ -282,18 +307,36 @@ def load_data_view(event):
         
         rank_counter += 1
         style = sim.TEAM_PROFILES.get(team, "Balanced")
-        display_style = style
-        if style == "Hero Ball": display_style = "Star-Centric"
-        elif style == "Dark Arts": display_style = "Aggressive"
-        elif style == "Diesel Engine": display_style = "Endurance"
-        elif style == "Blitzkrieg": display_style = "Fast-Paced"
-
-        rank_style = "font-weight:bold;" if rank_counter <= 10 else ""
-        if rank_counter == 1: rank_style += "color:#f1c40f;" 
-        elif rank_counter == 2: rank_style += "color:#95a5a6;"
-        elif rank_counter == 3: rank_style += "color:#cd7f32;"
         
-        html += f"""<tr><td style='{rank_style}'>#{rank_counter}</td><td style='font-weight:600'>{team.title()}</td><td>{int(stats['elo'])}</td><td>{round(stats['off'], 2)}</td><td>{round(stats['def'], 2)}</td><td>{display_style}</td></tr>"""
+        # 2. Render Form (Colors)
+        form_html = ""
+        form_raw = stats.get('form', '-----')
+        for char in form_raw:
+            color = "#ccc"
+            if char == "W": color = "#2ecc71"
+            elif char == "L": color = "#e74c3c"
+            elif char == "D": color = "#f1c40f"
+            form_html += f"<span style='color:{color}; font-weight:bold; margin-right:2px;'>{char}</span>"
+
+        # 3. Get New Stats
+        gf = round(stats.get('gf_avg', 0), 2)
+        ga = round(stats.get('ga_avg', 0), 2)
+        
+        # Color code the stats for readability
+        gf_color = "green" if gf > 2.0 else "#555"
+        ga_color = "red" if ga > 1.5 else "#555"
+
+        html += f"""
+        <tr>
+            <td>#{rank_counter}</td>
+            <td style='font-weight:600'>{team.title()}</td>
+            <td>{int(stats['elo'])}</td>
+            <td style='letter-spacing:1px; font-size:0.9em'>{form_html}</td>
+            <td style='color:{gf_color}; font-weight:bold;'>{gf}</td>
+            <td style='color:{ga_color};'>{ga}</td>
+            <td>{style}</td>
+        </tr>
+        """
     
     html += "</tbody></table>"
     container.innerHTML = html
@@ -348,29 +391,46 @@ async def view_team_history(event):
             js.document.getElementById("team-stats-card").innerHTML = "No data found."
             return
 
-        # Stat Card
+        # --- 1. STATS CARD UPDATE ---
         style = sim.TEAM_PROFILES.get(team, "Balanced")
-        display_style = style
-        if style == "Hero Ball": display_style = "Star-Centric"
-        elif style == "Dark Arts": display_style = "Aggressive"
-        elif style == "Diesel Engine": display_style = "Endurance"
-        elif style == "Blitzkrieg": display_style = "Fast-Paced"
+        
+        # Get the new stats (default to 0 if missing)
+        gf = round(stats.get('gf_avg', 0), 2)
+        ga = round(stats.get('ga_avg', 0), 2)
+        
+        # Color Logic
+        gf_color = "#27ae60" if gf > 2.0 else "white"
+        ga_color = "#e74c3c" if ga > 1.5 else "white"
         
         card_html = f"""
-        <div style='background:#2c3e50; color:white; padding:20px; border-radius:8px;'>
-            <h1 style='margin:0; font-size:2.5em;'>{team.title()}</h1>
-            <div style='margin-top:10px; font-size:1.2em;'>
-                Rating: <strong style='color:#f1c40f'>{int(stats['elo'])}</strong>
+        <div style='background:#2c3e50; color:white; padding:20px; border-radius:8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h1 style='margin:0; font-size:2.5em;'>{team.title()}</h1>
+                <div style="background:#f1c40f; color:#2c3e50; padding:5px 10px; border-radius:4px; font-weight:bold;">
+                    {int(stats['elo'])} ELO
+                </div>
             </div>
-            <hr style='border-color:#ffffff30;'>
-            <p><strong>Play Style:</strong> {display_style}</p>
-            <p><strong>Offense:</strong> {round(stats['off'], 2)}x avg</p>
-            <p><strong>Defense:</strong> {round(stats['def'], 2)}x avg</p>
+            
+            <hr style='border-color:#ffffff30; margin: 15px 0;'>
+            
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:15px;">
+                <div style="background:#34495e; padding:10px; border-radius:4px; text-align:center;">
+                    <div style="font-size:0.8em; color:#bdc3c7;">GOALS FOR / GM</div>
+                    <div style="font-size:1.5em; font-weight:bold; color:{gf_color}">{gf}</div>
+                </div>
+                <div style="background:#34495e; padding:10px; border-radius:4px; text-align:center;">
+                    <div style="font-size:0.8em; color:#bdc3c7;">GOALS AGAINST / GM</div>
+                    <div style="font-size:1.5em; font-weight:bold; color:{ga_color}">{ga}</div>
+                </div>
+            </div>
+
+            <p><strong>Play Style:</strong> {style}</p>
+            <p style="font-size:0.9em; opacity:0.8;">Based on last 2 years of performance.</p>
         </div>
         """
         js.document.getElementById("team-stats-card").innerHTML = card_html
 
-        # Chart: Elo
+        # --- 2. ELO CHART (Unchanged) ---
         dates = history['dates']
         elos = history['elo']
         
@@ -396,20 +456,27 @@ async def view_team_history(event):
         display(fig1, target="main-chart-container")
         plt.close(fig1)
 
-        # Chart: Bar
-        fig2, ax2 = plt.subplots(figsize=(4, 3))
-        ax2.bar(['Attack', 'Defense'], [stats['off'], stats['def']], color=['#27ae60', '#e74c3c'])
-        ax2.axhline(y=1.0, color='gray', linestyle='--')
-        ax2.set_title("Team Strength")
-        plt.tight_layout()
-        js.document.getElementById("dist-chart-container").innerHTML = ""
-        display(fig2, target="dist-chart-container")
-        plt.close(fig2)
+        # --- 3. PIE CHART (Win/Loss/Draw) ---
+        # Since we removed the "Attack/Defense" bar chart, let's show their Form
+        form_str = stats.get('form', '')
+        w = form_str.count('W')
+        d = form_str.count('D')
+        l = form_str.count('L')
         
+        if len(form_str) > 0:
+            fig2, ax2 = plt.subplots(figsize=(4, 3))
+            ax2.pie([w, d, l], labels=['W', 'D', 'L'], colors=['#2ecc71', '#f1c40f', '#e74c3c'], autopct='%1.0f%%')
+            ax2.set_title("Recent Form (Last 5)")
+            plt.tight_layout()
+            js.document.getElementById("dist-chart-container").innerHTML = ""
+            display(fig2, target="dist-chart-container")
+            plt.close(fig2)
+        else:
+            js.document.getElementById("dist-chart-container").innerHTML = "<p style='text-align:center; padding:20px;'>No recent games.</p>"
+
     except Exception as e:
         js.document.getElementById("team-stats-card").innerHTML = f"Error: {e}"
-
-js.document.getElementById("btn-view-history").addEventListener("click", create_proxy(view_team_history))
+        print(e)
 
 # Chart 2: Global Map
 async def plot_style_map(event):
@@ -417,7 +484,6 @@ async def plot_style_map(event):
     await asyncio.sleep(0.01)
     
     fig, ax = plt.subplots(figsize=(8, 6))
-    style_colors = {'Star-Centric': '#e74c3c', 'Aggressive': '#34495e', 'Endurance': '#f39c12', 'Fast-Paced': '#2ecc71', 'Balanced': '#95a5a6', 'Hero Ball': '#e74c3c', 'Dark Arts': '#34495e', 'Diesel Engine': '#f39c12', 'Blitzkrieg': '#2ecc71'}
     
     wc_only = js.document.getElementById("hist-filter-wc").checked
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
@@ -428,41 +494,70 @@ async def plot_style_map(event):
     else:
         teams_to_plot = sorted_teams[:100]
 
+    # Collect Data
+    x_vals = [] # Defense (GA) - We invert this so "Right" is good
+    y_vals = [] # Offense (GF)
+    colors = []
+    sizes = []
+    
     for team, stats in teams_to_plot:
-        x, y = stats.get('style_x', 0), stats.get('style_y', 0)
-        style_name = sim.TEAM_PROFILES.get(team, 'Balanced')
-        color = style_colors.get(style_name, 'gray')
-        ax.scatter([x], [y], c=[color], alpha=0.7, edgecolors='w', s=100)
+        # X Axis: Goals Against (Inverted: Lower is better, so we negate it or map 3 - GA)
+        # Let's just map standard: X=Offense, Y=Defense
         
+        gf = stats.get('gf_avg', 0)
+        ga = stats.get('ga_avg', 0)
+        
+        x_vals.append(gf)
+        y_vals.append(ga) 
+        
+        # Color based on Elo
+        elo = stats['elo']
+        if elo > 2000: c = '#f1c40f' # Gold
+        elif elo > 1800: c = '#2ecc71' # Green
+        elif elo > 1600: c = '#3498db' # Blue
+        else: c = '#95a5a6' # Grey
+        colors.append(c)
+        sizes.append(elo / 15) # Size based on rating
+
+        # Labels for top teams
         should_label = False
         if wc_only: 
-             if team in ['argentina', 'france', 'portugal', 'usa', 'england', 'brazil', 'germany', 'spain', 'japan', 'morocco', 'canada', 'mexico']: should_label = True
-        else:
-             if team in ['argentina', 'france', 'portugal', 'usa', 'england', 'brazil']: should_label = True
-        if should_label: ax.annotate(team.title(), (x, y), fontsize=8, alpha=0.8)
+             if team in ['argentina', 'france', 'brazil', 'usa', 'england', 'germany', 'japan', 'morocco']: should_label = True
+        elif elo > 1950: should_label = True
+            
+        if should_label:
+            ax.annotate(team.title(), (gf, ga), xytext=(5, 5), textcoords='offset points', fontsize=9)
 
-    ax.set_title(f"Team Style Map ({'Tournament Teams' if wc_only else 'Top 100'})", fontsize=14, fontweight='bold')
-    ax.set_xlabel("Star Reliance (Individualism)", fontsize=10)
-    ax.set_ylabel("Aggression / Penalty Ratio", fontsize=10)
-    ax.grid(True, linestyle='--', alpha=0.3)
+    ax.scatter(x_vals, y_vals, c=colors, s=sizes, alpha=0.7, edgecolors='black', linewidth=0.5)
+
+    # Add quadrant lines (using approx averages)
+    ax.axvline(x=1.5, color='gray', linestyle='--', alpha=0.3) # Avg Goals Scored
+    ax.axhline(y=1.2, color='gray', linestyle='--', alpha=0.3) # Avg Goals Conceded
+
+    # Quadrant Labels 
+
+[Image of quadrant graph]
+
+    ax.text(2.5, 0.2, "ELITE\n(High Score, Low Concede)", color='green', fontsize=10, ha='center')
+    ax.text(0.5, 2.5, "STRUGGLING\n(Low Score, High Concede)", color='red', fontsize=10, ha='center')
+    ax.text(2.5, 2.5, "CHAOTIC\n(High Score, High Concede)", color='orange', fontsize=8, ha='center')
+    ax.text(0.5, 0.2, "DEFENSIVE\n(Low Score, Low Concede)", color='blue', fontsize=8, ha='center')
+
+    ax.set_title(f"Performance Map: Offense vs Defense", fontsize=14, fontweight='bold')
+    ax.set_xlabel("Goals Scored per Game (Avg)", fontsize=10)
+    ax.set_ylabel("Goals Conceded per Game (Avg)", fontsize=10)
+    ax.grid(True, linestyle='--', alpha=0.2)
     
-    # Legend
-    from matplotlib.lines import Line2D
-    legend_elements = [
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='#e74c3c', label='Star-Centric', markersize=10),
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='#34495e', label='Aggressive', markersize=10),
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='#f39c12', label='Endurance', markersize=10),
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='#2ecc71', label='Fast-Paced', markersize=10),
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='#95a5a6', label='Balanced', markersize=10),
-    ]
-    ax.legend(handles=legend_elements, title="Play Styles")
+    # Invert Y axis so "Low Goals Conceded" (Good Defense) is at the TOP? 
+    # Usually standard graphs have 0 at bottom. Let's keep 0 at bottom but label clearly.
+    # Actually, for defense, "Lower is Better". Let's invert Y axis for visual logic.
+    ax.invert_yaxis()
 
     js.document.getElementById("main-chart-container").innerHTML = ""
     display(fig, target="main-chart-container")
     plt.close(fig)
 
-js.document.getElementById("btn-view-style-map").addEventListener("click", create_proxy(plot_style_map))
-
+    
 # =============================================================================
 # --- 6. BOOTSTRAP APP ---
 # =============================================================================
