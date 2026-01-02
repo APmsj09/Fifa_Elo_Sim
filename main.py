@@ -283,10 +283,15 @@ js.document.getElementById("btn-run-bulk").addEventListener("click", create_prox
 # =============================================================================
 def load_data_view(event):
     container = js.document.getElementById("data-table-container")
-    container.innerHTML = "" 
+    if not container: return
     
-    checkbox = js.document.getElementById("data-filter-wc")
-    wc_only = checkbox.checked if checkbox else False
+    # Clear and show loading state
+    container.innerHTML = "<div style='padding:20px; text-align:center;'>Loading data...</div>" 
+    
+    # --- FIX: READ FROM SIDEBAR CHECKBOX ---
+    # The element 'data-filter-wc' is now a Button, so we check 'hist-filter-wc' instead.
+    sidebar_checkbox = js.document.getElementById("hist-filter-wc")
+    wc_only = sidebar_checkbox.checked if sidebar_checkbox else False
     
     # 1. New Headers
     html = """
@@ -347,6 +352,14 @@ def load_data_view(event):
     html += "</tbody></table>"
     container.innerHTML = html
 
+# Ensure the button in the Data tab triggers this function
+btn_refresh = js.document.getElementById("data-filter-wc")
+if btn_refresh:
+    # Remove old listeners to be safe (though PyScript handles this mostly)
+    # Just add the new click listener
+    btn_refresh.addEventListener("click", create_proxy(load_data_view))
+    
+# Ensure the TAB button triggers it too
 js.document.getElementById("btn-tab-data").addEventListener("click", create_proxy(load_data_view))
 
 # =============================================================================
