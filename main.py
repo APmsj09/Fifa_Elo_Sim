@@ -495,15 +495,13 @@ async def plot_style_map(event):
         teams_to_plot = sorted_teams[:100]
 
     # Collect Data
-    x_vals = [] # Defense (GA) - We invert this so "Right" is good
-    y_vals = [] # Offense (GF)
+    x_vals = [] 
+    y_vals = [] 
     colors = []
     sizes = []
     
     for team, stats in teams_to_plot:
-        # X Axis: Goals Against (Inverted: Lower is better, so we negate it or map 3 - GA)
-        # Let's just map standard: X=Offense, Y=Defense
-        
+        # X Axis: Goals Scored (GF), Y Axis: Goals Allowed (GA)
         gf = stats.get('gf_avg', 0)
         ga = stats.get('ga_avg', 0)
         
@@ -534,13 +532,17 @@ async def plot_style_map(event):
     ax.axvline(x=1.5, color='gray', linestyle='--', alpha=0.3) # Avg Goals Scored
     ax.axhline(y=1.2, color='gray', linestyle='--', alpha=0.3) # Avg Goals Conceded
 
-    # Quadrant Labels 
-
-[Image of quadrant graph]
-
+    # --- QUADRANT LABELS ---
+    # ELITE: High Scoring (Right), Low Conceding (Top - due to inverted axis)
     ax.text(2.5, 0.2, "ELITE\n(High Score, Low Concede)", color='green', fontsize=10, ha='center')
+    
+    # STRUGGLING: Low Scoring (Left), High Conceding (Bottom)
     ax.text(0.5, 2.5, "STRUGGLING\n(Low Score, High Concede)", color='red', fontsize=10, ha='center')
+    
+    # CHAOTIC: High Scoring (Right), High Conceding (Bottom)
     ax.text(2.5, 2.5, "CHAOTIC\n(High Score, High Concede)", color='orange', fontsize=8, ha='center')
+    
+    # DEFENSIVE: Low Scoring (Left), Low Conceding (Top)
     ax.text(0.5, 0.2, "DEFENSIVE\n(Low Score, Low Concede)", color='blue', fontsize=8, ha='center')
 
     ax.set_title(f"Performance Map: Offense vs Defense", fontsize=14, fontweight='bold')
@@ -548,9 +550,8 @@ async def plot_style_map(event):
     ax.set_ylabel("Goals Conceded per Game (Avg)", fontsize=10)
     ax.grid(True, linestyle='--', alpha=0.2)
     
-    # Invert Y axis so "Low Goals Conceded" (Good Defense) is at the TOP? 
-    # Usually standard graphs have 0 at bottom. Let's keep 0 at bottom but label clearly.
-    # Actually, for defense, "Lower is Better". Let's invert Y axis for visual logic.
+    # We invert Y axis because for Defense, a LOWER number is better.
+    # So the "Top" of the graph will be 0.0 goals allowed.
     ax.invert_yaxis()
 
     js.document.getElementById("main-chart-container").innerHTML = ""
