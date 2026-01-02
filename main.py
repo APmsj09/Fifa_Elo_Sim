@@ -9,6 +9,7 @@ from pyscript import display
 
 # GLOBAL VARIABLES
 LAST_SIM_RESULTS = {}
+# This list prevents the browser-to-python bridges from being deleted
 EVENT_HANDLERS = []
 
 # =============================================================================
@@ -21,38 +22,36 @@ async def initialize_app():
         # 1. Initialize Backend
         sim.DATA_DIR = "."
         
-        # Make sure to run the confed calculation we discussed
+        # Run calculations
         sim.TEAM_STATS, sim.TEAM_PROFILES, sim.AVG_GOALS = sim.initialize_engine()
-        # Trigger the dynamic tier calculation immediately after stats are ready
         sim.calculate_confed_strength() 
 
-        # 2. Setup UI Tabs
-        setup_tabs()
+        # 2. Setup UI Tabs & Buttons (This is where we bind clicks)
+        setup_interactions()
         
         # 3. Populate Initial Dropdowns
         populate_team_dropdown(wc_only=False)
 
         # 4. Hide Loading Screen
         js.document.getElementById("loading-screen").style.display = "none"
-        js.document.getElementById("main-dashboard").style.display = "block"
+        js.document.getElementById("main-dashboard").style.display = "grid" # Changed to grid to match CSS
         
         js.console.log("Engine Ready.")
 
     except Exception as e:
-        # If this fails, show error on screen
+        # Show error on screen
         js.document.getElementById("loading-screen").innerHTML = f"""
         <div style='color:#e74c3c; text-align:center; padding:20px;'>
             <h1>Startup Error</h1>
             <p>The Python script crashed:</p>
-            <pre style='background:black; padding:15px; border-radius:5px;'>{str(e)}</pre>
+            <pre style='background:black; padding:15px; border-radius:5px; text-align:left;'>{str(e)}</pre>
             <p>Check your console (F12) for more details.</p>
         </div>
         """
-        # Log error to console instead of screen
         js.console.error(f"CRITICAL ERROR: {e}")
 
 # =============================================================================
-# --- 1. TAB NAVIGATION ---
+# --- 1. TAB NAVIGATION & INTERACTION SETUP ---
 # =============================================================================
 def switch_tab(tab_id):
     # Hide all tabs
@@ -64,34 +63,49 @@ def switch_tab(tab_id):
     target = js.document.getElementById(tab_id)
     if target: target.style.display = "block"
 
-def setup_tabs():
-    global EVENT_HANDLERS # Important: Use the global list
+def setup_interactions():
+    """
+    Consolidates all event binding into one safe place.
+    """
+    global EVENT_HANDLERS 
 
-    # Helper to keep references alive
+    # Helper to create persistent listeners
     def bind_click(btn_id, func):
         el = js.document.getElementById(btn_id)
         if el:
+            # Create the proxy
             proxy = create_proxy(func)
-            EVENT_HANDLERS.append(proxy) # 1. Save it so it doesn't get deleted
-            el.addEventListener("click", proxy) # 2. Attach it
+            # IMPORTANT: Store it so it doesn't get Garbage Collected
+            EVENT_HANDLERS.append(proxy) 
+            # Attach it
+            el.addEventListener("click", proxy)
+        else:
+            js.console.warn(f"Warning: Button {btn_id} not found in HTML")
 
-    # Navigation Tabs
+    # --- Navigation Tabs ---
     bind_click("btn-tab-single", lambda e: switch_tab("tab-single"))
     bind_click("btn-tab-bulk", lambda e: switch_tab("tab-bulk"))
     bind_click("btn-tab-data", lambda e: switch_tab("tab-data"))
     bind_click("btn-tab-history", lambda e: switch_tab("tab-history"))
 
-    # Simulation Buttons
+    # --- Simulation Buttons ---
     bind_click("btn-run-single", run_single_sim)
     bind_click("btn-run-bulk", run_bulk_sim)
 
-    # Analysis Buttons
+    # --- Analysis Buttons ---
     bind_click("btn-view-history", view_team_history)
     bind_click("btn-view-style-map", plot_style_map) 
 
-    # Filters
+    # --- Filters ---
+    # Note: Checkboxes usually use "change", but "click" works too
     bind_click("hist-filter-wc", handle_history_filter_change)
     bind_click("data-filter-wc", load_data_view)
+    
+    # --- Expose Global Functions for HTML 'onclick' attributes ---
+    # Specifically for the group boxes created dynamically in HTML
+    proxy_view_group = create_proxy(open_group_modal)
+    EVENT_HANDLERS.append(proxy_view_group)
+    js.window.view_group_matches = proxy_view_group
 
 # =============================================================================
 # --- 2. SINGLE SIMULATION ---
@@ -153,7 +167,8 @@ async def run_single_sim(event):
             for m in round_data['matches']:
                 c1 = "winner-text" if m['winner'] == m['t1'] else ""
                 c2 = "winner-text" if m['winner'] == m['t2'] else ""
-                note = f"<div class='match-note'>{m['method'].upper()}</div>" if m['method'] != 'reg' else ""
+                method_text = m['method'].upper() if m['method'] != 'reg' else ""
+                note = f"<div class='match-note' style='font-size:0.7em; color:#7f8c8d; text-align:right;'>{method_text}</div>" if method_text else ""
                 
                 bracket_html += f"""
                 <div class="matchup">
@@ -180,6 +195,10 @@ async def run_single_sim(event):
 
 # Match Modal Logic
 def open_group_modal(grp_name):
+    # This might come in as a proxy object if not careful, but usually string from HTML onclick is safe
+    if hasattr(grp_name, "target"): # Check if it accidentally got an event object
+        return 
+
     matches = LAST_SIM_RESULTS.get("group_matches", {}).get(grp_name, [])
     js.document.getElementById("modal-title").innerText = f"Group {grp_name} Results"
     
@@ -188,20 +207,17 @@ def open_group_modal(grp_name):
         s1 = "font-weight:bold" if m['g1'] > m['g2'] else ""
         s2 = "font-weight:bold" if m['g2'] > m['g1'] else ""
         html += f"""
-        <div class="result-row">
+        <div class="result-row" style="display:flex; padding:5px; border-bottom:1px solid #eee;">
             <span style="flex:1; text-align:right; {s1}">{m['t1'].title()}</span>
-            <span class="result-score" style="margin:0 15px;">{m['g1']} - {m['g2']}</span>
+            <span class="result-score" style="margin:0 15px; background:#eee; padding:2px 8px; border-radius:4px;">{m['g1']} - {m['g2']}</span>
             <span style="flex:1; text-align:left; {s2}">{m['t2'].title()}</span>
         </div>
         """
     js.document.getElementById("modal-matches").innerHTML = html
     js.document.getElementById("group-modal").style.display = "block"
 
-js.window.view_group_matches = create_proxy(open_group_modal)
-js.document.getElementById("btn-run-single").addEventListener("click", create_proxy(run_single_sim))
-
 # =============================================================================
-# --- 3. BULK SIMULATION (MEDALS & OPTIMIZED) ---
+# --- 3. BULK SIMULATION ---
 # =============================================================================
 async def run_bulk_sim(event):
     num_el = js.document.getElementById("bulk-count")
@@ -211,14 +227,12 @@ async def run_bulk_sim(event):
     
     await asyncio.sleep(0.02)
     
-    stats = {} # Structure: {Team: {'1st':0, '2nd':0, '3rd':0}}
+    stats = {} 
     
     try:
         for i in range(num):
-            # Run Fast Mode
             res = sim.run_simulation(quiet=True, fast_mode=True)
             
-            # Helper to increment stats
             def add_stat(team, place):
                 if not team: return
                 if team not in stats: stats[team] = {'1st':0, '2nd':0, '3rd':0}
@@ -228,31 +242,27 @@ async def run_bulk_sim(event):
             add_stat(res["runner_up"], '2nd')
             add_stat(res["third_place"], '3rd')
             
-            # Update UI every 20 sims
             if i % 20 == 0:
                 out_div.innerHTML = f"Running... ({i}/{num})"
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(0.001)
         
-        # Cleanup
         gc.collect()
 
-        # Weighted Sort (Gold=3, Silver=2, Bronze=1)
         def get_score(item):
             s = item[1]
             return (s['1st'] * 3) + (s['2nd'] * 2) + (s['3rd'] * 1)
             
         sorted_stats = sorted(stats.items(), key=get_score, reverse=True)
         
-        # Build Medal Table
         html = """
         <h3>Medal Table</h3>
-        <table style="text-align:center;">
+        <table style="text-align:center; width:100%; border-collapse:collapse;">
             <thead>
-                <tr>
-                    <th style="text-align:left;">Team</th>
-                    <th style="background:#f1c40f; color:#fff;">🥇 1st</th>
-                    <th style="background:#bdc3c7; color:#fff;">🥈 2nd</th>
-                    <th style="background:#cd7f32; color:#fff;">🥉 3rd</th>
+                <tr style="background:#34495e; color:white;">
+                    <th style="text-align:left; padding:8px;">Team</th>
+                    <th style="background:#f1c40f; color:#2c3e50;">🥇 1st</th>
+                    <th style="background:#bdc3c7; color:#2c3e50;">🥈 2nd</th>
+                    <th style="background:#d35400; color:white;">🥉 3rd</th>
                     <th>Win %</th>
                 </tr>
             </thead>
@@ -260,10 +270,10 @@ async def run_bulk_sim(event):
         """
         for team, s in sorted_stats:
             perc = round((s['1st'] / num) * 100, 1)
-            row_style = "background:#fdfefe;" if perc > 10 else ""
+            row_style = "background:#eafaf1;" if perc > 10 else "border-bottom:1px solid #ddd;"
             html += f"""
             <tr style="{row_style}">
-                <td style="text-align:left; font-weight:600;">{team.title()}</td>
+                <td style="text-align:left; font-weight:600; padding:8px;">{team.title()}</td>
                 <td>{s['1st']}</td>
                 <td>{s['2nd']}</td>
                 <td>{s['3rd']}</td>
@@ -276,8 +286,6 @@ async def run_bulk_sim(event):
     except Exception as e:
         out_div.innerHTML = f"Error in Bulk Sim: {e}"
 
-js.document.getElementById("btn-run-bulk").addEventListener("click", create_proxy(run_bulk_sim))
-
 # =============================================================================
 # --- 4. DATA VIEW ---
 # =============================================================================
@@ -285,15 +293,11 @@ def load_data_view(event):
     container = js.document.getElementById("data-table-container")
     if not container: return
     
-    # Clear and show loading state
     container.innerHTML = "<div style='padding:20px; text-align:center;'>Loading data...</div>" 
     
-    # --- FIX: READ FROM SIDEBAR CHECKBOX ---
-    # The element 'data-filter-wc' is now a Button, so we check 'hist-filter-wc' instead.
     sidebar_checkbox = js.document.getElementById("hist-filter-wc")
     wc_only = sidebar_checkbox.checked if sidebar_checkbox else False
     
-    # 1. New Headers
     html = """
     <table class="data-table">
         <thead>
@@ -319,7 +323,6 @@ def load_data_view(event):
         rank_counter += 1
         style = sim.TEAM_PROFILES.get(team, "Balanced")
         
-        # 2. Render Form (Colors)
         form_html = ""
         form_raw = stats.get('form', '-----')
         for char in form_raw:
@@ -329,11 +332,9 @@ def load_data_view(event):
             elif char == "D": color = "#f1c40f"
             form_html += f"<span style='color:{color}; font-weight:bold; margin-right:2px;'>{char}</span>"
 
-        # 3. Get New Stats
         gf = round(stats.get('gf_avg', 0), 2)
         ga = round(stats.get('ga_avg', 0), 2)
         
-        # Color code the stats for readability
         gf_color = "green" if gf > 2.0 else "#555"
         ga_color = "red" if ga > 1.5 else "#555"
 
@@ -352,21 +353,9 @@ def load_data_view(event):
     html += "</tbody></table>"
     container.innerHTML = html
 
-# Ensure the button in the Data tab triggers this function
-btn_refresh = js.document.getElementById("data-filter-wc")
-if btn_refresh:
-    # Remove old listeners to be safe (though PyScript handles this mostly)
-    # Just add the new click listener
-    btn_refresh.addEventListener("click", create_proxy(load_data_view))
-    
-# Ensure the TAB button triggers it too
-js.document.getElementById("btn-tab-data").addEventListener("click", create_proxy(load_data_view))
-
 # =============================================================================
 # --- 5. HISTORY & ANALYSIS ---
 # =============================================================================
-
-# Dropdown Helper
 def populate_team_dropdown(wc_only=False):
     select = js.document.getElementById("team-select")
     current_val = select.value 
@@ -383,18 +372,21 @@ def populate_team_dropdown(wc_only=False):
         select.appendChild(opt)
     
     if current_val:
+        # Restore selection if it still exists in the filtered list
         for opt in select.options:
             if opt.value == current_val:
                 select.value = current_val
                 break
+    
     if not select.value and select.options.length > 0:
         select.selectedIndex = 0
 
 def handle_history_filter_change(event):
     is_checked = js.document.getElementById("hist-filter-wc").checked
     populate_team_dropdown(wc_only=is_checked)
+    # Also refresh data view if that tab is open
+    load_data_view(None)
 
-# Chart 1: Team Analysis
 async def view_team_history(event):
     js.document.getElementById("team-stats-card").innerHTML = "Loading Analysis..."
     await asyncio.sleep(0.01)
@@ -410,14 +402,11 @@ async def view_team_history(event):
             js.document.getElementById("team-stats-card").innerHTML = "No data found."
             return
 
-        # --- 1. STATS CARD UPDATE ---
+        # Stats Card
         style = sim.TEAM_PROFILES.get(team, "Balanced")
-        
-        # Get the new stats (default to 0 if missing)
         gf = round(stats.get('gf_avg', 0), 2)
         ga = round(stats.get('ga_avg', 0), 2)
         
-        # Color Logic
         gf_color = "#27ae60" if gf > 2.0 else "white"
         ga_color = "#e74c3c" if ga > 1.5 else "white"
         
@@ -429,9 +418,7 @@ async def view_team_history(event):
                     {int(stats['elo'])} ELO
                 </div>
             </div>
-            
             <hr style='border-color:#ffffff30; margin: 15px 0;'>
-            
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:15px;">
                 <div style="background:#34495e; padding:10px; border-radius:4px; text-align:center;">
                     <div style="font-size:0.8em; color:#bdc3c7;">GOALS FOR / GM</div>
@@ -442,17 +429,14 @@ async def view_team_history(event):
                     <div style="font-size:1.5em; font-weight:bold; color:{ga_color}">{ga}</div>
                 </div>
             </div>
-
             <p><strong>Play Style:</strong> {style}</p>
-            <p style="font-size:0.9em; opacity:0.8;">Based on last 2 years of performance.</p>
         </div>
         """
         js.document.getElementById("team-stats-card").innerHTML = card_html
 
-        # --- 2. ELO CHART (Unchanged) ---
+        # ELO Chart
         dates = history['dates']
         elos = history['elo']
-        
         limit = 0
         if timeframe == "10y": limit = -150 
         elif timeframe == "4y": limit = -60 
@@ -466,7 +450,6 @@ async def view_team_history(event):
         ax1.plot(plot_dates, plot_elos, color='#2980b9', linewidth=2)
         ax1.set_title(f"{team.title()} - Elo Rating History", fontsize=12)
         ax1.grid(True, linestyle='--', alpha=0.5)
-        ax1.fill_between(plot_dates, plot_elos, min(plot_elos)-50, color='#3498db', alpha=0.1)
         ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
         plt.xticks(rotation=45)
         plt.tight_layout()
@@ -475,8 +458,7 @@ async def view_team_history(event):
         display(fig1, target="main-chart-container")
         plt.close(fig1)
 
-        # --- 3. PIE CHART (Win/Loss/Draw) ---
-        # Since we removed the "Attack/Defense" bar chart, let's show their Form
+        # Pie Chart
         form_str = stats.get('form', '')
         w = form_str.count('W')
         d = form_str.count('D')
@@ -497,7 +479,6 @@ async def view_team_history(event):
         js.document.getElementById("team-stats-card").innerHTML = f"Error: {e}"
         js.console.error(e)
 
-# Chart 2: Global Map
 async def plot_style_map(event):
     js.document.getElementById("main-chart-container").innerHTML = "Generating Global Map..."
     await asyncio.sleep(0.01)
@@ -507,40 +488,27 @@ async def plot_style_map(event):
     wc_only = js.document.getElementById("hist-filter-wc").checked
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
     
-    teams_to_plot = []
-    if wc_only:
-        teams_to_plot = [t for t in sorted_teams if t[0] in sim.WC_TEAMS]
-    else:
-        teams_to_plot = sorted_teams[:100]
+    teams_to_plot = [t for t in sorted_teams if t[0] in sim.WC_TEAMS] if wc_only else sorted_teams[:100]
 
-    # Collect Data
-    x_vals = [] 
-    y_vals = [] 
-    colors = []
-    sizes = []
+    x_vals, y_vals, colors, sizes = [], [], [], []
     
     for team, stats in teams_to_plot:
-        # X Axis: Goals Scored (GF), Y Axis: Goals Allowed (GA)
         gf = stats.get('gf_avg', 0)
         ga = stats.get('ga_avg', 0)
-        
         x_vals.append(gf)
         y_vals.append(ga) 
         
-        # Color based on Elo
         elo = stats['elo']
-        if elo > 2000: c = '#f1c40f' # Gold
-        elif elo > 1800: c = '#2ecc71' # Green
-        elif elo > 1600: c = '#3498db' # Blue
-        else: c = '#95a5a6' # Grey
+        if elo > 2000: c = '#f1c40f' 
+        elif elo > 1800: c = '#2ecc71' 
+        elif elo > 1600: c = '#3498db' 
+        else: c = '#95a5a6'
         colors.append(c)
-        sizes.append(elo / 15) # Size based on rating
+        sizes.append(elo / 15)
 
-        # Labels for top teams
         should_label = False
         if wc_only:
-            if team in ['argentina', 'france', 'brazil', 'usa', 'england', 'germany', 'japan', 'morocco']:
-                should_label = True
+            if team in ['argentina', 'france', 'brazil', 'usa', 'england', 'germany', 'japan', 'morocco']: should_label = True
         elif elo > 1950:
             should_label = True
             
@@ -548,40 +516,26 @@ async def plot_style_map(event):
             ax.annotate(team.title(), (gf, ga), xytext=(5, 5), textcoords='offset points', fontsize=9)
 
     ax.scatter(x_vals, y_vals, c=colors, s=sizes, alpha=0.7, edgecolors='black', linewidth=0.5)
+    ax.axvline(x=1.5, color='gray', linestyle='--', alpha=0.3)
+    ax.axhline(y=1.2, color='gray', linestyle='--', alpha=0.3)
 
-    # Add quadrant lines (using approx averages)
-    ax.axvline(x=1.5, color='gray', linestyle='--', alpha=0.3) # Avg Goals Scored
-    ax.axhline(y=1.2, color='gray', linestyle='--', alpha=0.3) # Avg Goals Conceded
-
-    # --- QUADRANT LABELS ---
-    # ELITE: High Scoring (Right), Low Conceding (Top - due to inverted axis)
-    ax.text(2.5, 0.2, "ELITE\n(High Score, Low Concede)", color='green', fontsize=10, ha='center')
-    
-    # STRUGGLING: Low Scoring (Left), High Conceding (Bottom)
-    ax.text(0.5, 2.5, "STRUGGLING\n(Low Score, High Concede)", color='red', fontsize=10, ha='center')
-    
-    # CHAOTIC: High Scoring (Right), High Conceding (Bottom)
-    ax.text(2.5, 2.5, "CHAOTIC\n(High Score, High Concede)", color='orange', fontsize=8, ha='center')
-    
-    # DEFENSIVE: Low Scoring (Left), Low Conceding (Top)
-    ax.text(0.5, 0.2, "DEFENSIVE\n(Low Score, Low Concede)", color='blue', fontsize=8, ha='center')
+    ax.text(2.5, 0.2, "ELITE", color='green', fontsize=10, ha='center')
+    ax.text(0.5, 2.5, "STRUGGLING", color='red', fontsize=10, ha='center')
+    ax.text(2.5, 2.5, "CHAOTIC", color='orange', fontsize=8, ha='center')
+    ax.text(0.5, 0.2, "DEFENSIVE", color='blue', fontsize=8, ha='center')
 
     ax.set_title(f"Performance Map: Offense vs Defense", fontsize=14, fontweight='bold')
     ax.set_xlabel("Goals Scored per Game (Avg)", fontsize=10)
     ax.set_ylabel("Goals Conceded per Game (Avg)", fontsize=10)
-    ax.grid(True, linestyle='--', alpha=0.2)
-    
-    # We invert Y axis because for Defense, a LOWER number is better.
-    # So the "Top" of the graph will be 0.0 goals allowed.
     ax.invert_yaxis()
+    ax.grid(True, linestyle='--', alpha=0.2)
 
     js.document.getElementById("main-chart-container").innerHTML = ""
     display(fig, target="main-chart-container")
     plt.close(fig)
 
-    
 # =============================================================================
 # --- 6. BOOTSTRAP APP ---
 # =============================================================================
-# Run initialization
+# Start the engine
 asyncio.ensure_future(initialize_app())
