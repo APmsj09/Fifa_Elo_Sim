@@ -164,17 +164,23 @@ def initialize_engine():
         elif as_ > hs: W = 0
         else: W = 0.5
         
-        # 1. Determine Base K-Factor (Importance)
-        k = 20 # Default for friendlies / minor tournaments
+        # 1. Determine Base K-Factor
+        # Default for Minor Tournaments (e.g., Kirin Cup, King's Cup)
+        k = 30 
         
-        # Convert to string to be safe
         t_str = str(tourney)
         
+        # --- TIER 0: PURE FRIENDLIES (K=20) ---
+        # "Friendly" is the standard label in the dataset for non-tournament matches
+        if t_str == 'Friendly':
+            k = 20
+
         # --- TIER 1: THE WORLD CUP (K=60) ---
-        if 'World Cup' in t_str and 'qualification' not in t_str:
+        elif 'World Cup' in t_str and 'qualification' not in t_str:
             k = 60
             
         # --- TIER 2: CONTINENTAL FINALS (K=50) ---
+        # Euros, Copa America, AFCON, Asian Cup, Gold Cup
         elif any(x in t_str for x in [
             'Copa América', 'UEFA Euro', 'African Cup of Nations', 
             'Asian Cup', 'Gold Cup', 'CONCACAF Championship', 
@@ -183,13 +189,15 @@ def initialize_engine():
             k = 50
             
         # --- TIER 3: QUALIFIERS & OFFICIAL COMPETITIVE (K=40) ---
+        # World Cup Qualifiers, Nations League, Confed Cup
         elif any(x in t_str for x in [
             'qualification', 'Nations League', 'Confederations Cup', 
             'Arab Cup', 'Gulf Cup'
         ]):
             k = 40
             
-        # --- TIER 4: REGIONAL CHAMPIONSHIPS (K=35 - Optional boost over friendlies) ---
+        # --- TIER 4: REGIONAL CHAMPIONSHIPS (K=35) ---
+        # Official sub-regional tournaments (higher than random cups, lower than Qualifiers)
         elif any(x in t_str for x in [
             'AFF Championship', 'ASEAN', 'EAFF', 'Caribbean Cup', 
             'UNCAF', 'COSAFA', 'SAFF', 'WAFF'
