@@ -54,6 +54,7 @@ def load_data():
     Loads data assuming all files are now standard CSVs.
     """
     try:
+        # Note: If using PyScript, ensure files are fetched to virtual FS first
         former_names_df = pd.read_csv("former_names.csv")
         results_df = pd.read_csv("results.csv") 
         goalscorers_df = pd.read_csv("goalscorers.csv")
@@ -70,6 +71,7 @@ def initialize_engine():
     results_df, goalscorers_df, former_names_df = load_data()
     
     if results_df is None:
+        # Return defaults if data fails to load so app doesn't crash
         return {}, {}, 2.5 
 
     # --- 1. CLEAN DATA ---
@@ -80,9 +82,11 @@ def initialize_engine():
     # Standardize Names
     results_df['home_team'] = results_df['home_team'].str.lower().str.strip()
     results_df['away_team'] = results_df['away_team'].str.lower().str.strip()
-    former_map = dict(zip(former_names_df['former'].str.lower(), former_names_df['current'].str.lower()))
-    results_df['home_team'] = results_df['home_team'].replace(former_map)
-    results_df['away_team'] = results_df['away_team'].replace(former_map)
+    
+    if former_names_df is not None:
+        former_map = dict(zip(former_names_df['former'].str.lower(), former_names_df['current'].str.lower()))
+        results_df['home_team'] = results_df['home_team'].replace(former_map)
+        results_df['away_team'] = results_df['away_team'].replace(former_map)
     
     elo_df = results_df.sort_values('date')
 
@@ -218,6 +222,7 @@ def initialize_engine():
 # =============================================================================
 
 def sim_match(t1, t2, knockout=False):
+    
     s1 = TEAM_STATS.get(t1, {'elo':1200, 'off':1.0, 'def':1.0})
     s2 = TEAM_STATS.get(t2, {'elo':1200, 'off':1.0, 'def':1.0})
     
