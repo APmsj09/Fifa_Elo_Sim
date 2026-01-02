@@ -82,11 +82,12 @@ def setup_tabs():
 
     # Analysis Buttons
     bind_click("btn-view-history", view_team_history)
-    bind_click("btn-view-style-map", plot_style_map) # <--- ADD THIS HERE
+    bind_click("btn-view-style-map", plot_style_map) 
 
     # Filters
     bind_click("hist-filter-wc", handle_history_filter_change)
     bind_click("data-filter-wc", load_data_view)
+
 # =============================================================================
 # --- 2. SINGLE SIMULATION ---
 # =============================================================================
@@ -519,9 +520,11 @@ async def plot_style_map(event):
 
         # Labels for top teams
         should_label = False
-        if wc_only: 
-             if team in ['argentina', 'france', 'brazil', 'usa', 'england', 'germany', 'japan', 'morocco']: should_label = True
-        elif elo > 1950: should_label = True
+        if wc_only:
+            if team in ['argentina', 'france', 'brazil', 'usa', 'england', 'germany', 'japan', 'morocco']:
+                should_label = True
+        elif elo > 1950:
+            should_label = True
             
         if should_label:
             ax.annotate(team.title(), (gf, ga), xytext=(5, 5), textcoords='offset points', fontsize=9)
