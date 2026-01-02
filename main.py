@@ -9,6 +9,7 @@ from pyscript import display
 
 # GLOBAL VARIABLES
 LAST_SIM_RESULTS = {}
+EVENT_HANDLERS = []
 
 # =============================================================================
 # --- 0. STARTUP & INITIALIZATION ---
