@@ -109,7 +109,7 @@ def load_data():
         goalscorers_df = pd.read_csv("goalscorers.csv")
         return results_df, goalscorers_df, former_names_df
     except Exception as e:
-        print(f"CRITICAL ERROR LOADING DATA: {e}")
+        js.console.error(f"CRITICAL ERROR LOADING DATA: {e}")
         return None, None, None
 
 # =============================================================================
@@ -318,12 +318,12 @@ def calculate_confed_strength():
         composite = (elite_avg * 0.6) + (depth_avg * 0.4)
         confed_scores[confed] = composite
         
-        print(f"Region {confed}: Elite={int(elite_avg)}, Depth={int(depth_avg)} -> Score={int(composite)}")
+        js.console.error(f"Region {confed}: Elite={int(elite_avg)}, Depth={int(depth_avg)} -> Score={int(composite)}")
 
     # 3. Normalize against the best region
     baseline = max(confed_scores.values()) if confed_scores else 1800
     
-    print("\n--- DYNAMIC REGIONAL MULTIPLIERS ---")
+    js.console.error("\n--- DYNAMIC REGIONAL MULTIPLIERS ---")
     for confed, score in confed_scores.items():
         # Calculate ratio
         ratio = score / baseline
@@ -335,7 +335,7 @@ def calculate_confed_strength():
         # But for 'Top Heavy' accountability, a linear ratio is often fairer.
         
         CONFED_MULTIPLIERS[confed] = round(ratio, 3)
-        print(f"{confed}: {CONFED_MULTIPLIERS[confed]} (Based on score {int(score)})")
+        js.console.error(f"{confed}: {CONFED_MULTIPLIERS[confed]} (Based on score {int(score)})")
 
 def sim_match(t1, t2, knockout=False):
     
