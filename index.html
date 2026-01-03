@@ -217,6 +217,55 @@
                 min-width: 130px; 
             }
         }
+
+        /* --- 5. MODAL / POPOUT WINDOW --- */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top of everything */
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.6); /* Black w/ opacity */
+            backdrop-filter: blur(3px); /* Blur the background slightly */
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto; /* 10% from the top and centered */
+            padding: 25px;
+            border: 1px solid #888;
+            width: 90%; 
+            max-width: 500px; /* Nice width for desktop */
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            position: relative;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        /* Animation for smooth entry */
+        @keyframes slideDown {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .close-btn {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 0.8;
+            transition: color 0.2s;
+        }
+
+        .close-btn:hover,
+        .close-btn:focus {
+            color: #e74c3c;
+            text-decoration: none;
+        }
     </style>
 </head>
 
