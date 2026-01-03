@@ -387,9 +387,20 @@ def handle_history_filter_change(event):
     # Also refresh data view if that tab is open
     load_data_view(None)
 
+import math 
+
 async def view_team_history(event):
-    js.document.getElementById("team-stats-card").innerHTML = "Loading Analysis..."
-    await asyncio.sleep(0.01)
+    # 1. Loading State
+    container = js.document.getElementById("tab-history")
+    
+    # We will inject a whole new grid layout dynamically
+    container.innerHTML = """
+    <div style="text-align:center; padding:50px;">
+        <div style="font-size:2em; margin-bottom:10px;">🔄</div>
+        <div>Generating Scout Report...</div>
+    </div>
+    """
+    await asyncio.sleep(0.05) # Yield to let UI render
     
     try:
         team = js.document.getElementById("team-select").value
@@ -399,135 +410,232 @@ async def view_team_history(event):
         history = sim.TEAM_HISTORY.get(team)
         
         if not stats or not history:
-            js.document.getElementById("team-stats-card").innerHTML = "No data found."
+            container.innerHTML = "Error: No data found for this team."
             return
 
-        # Stats Card
-        style = sim.TEAM_PROFILES.get(team, "Balanced")
-        gf = round(stats.get('gf_avg', 0), 2)
-        ga = round(stats.get('ga_avg', 0), 2)
+        # --- 2. CALCULATE METRICS ---
         
-        gf_color = "#27ae60" if gf > 2.0 else "white"
-        ga_color = "#e74c3c" if ga > 1.5 else "white"
+        # World Rank
+        sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
+        rank = next((i+1 for i, (t, _) in enumerate(sorted_teams) if t == team), "-")
         
-        card_html = f"""
-        <div style='background:#2c3e50; color:white; padding:20px; border-radius:8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h1 style='margin:0; font-size:2.5em;'>{team.title()}</h1>
-                <div style="background:#f1c40f; color:#2c3e50; padding:5px 10px; border-radius:4px; font-weight:bold;">
-                    {int(stats['elo'])} ELO
-                </div>
+        # Form (Last 5)
+        form_str = stats.get('form', '-----')
+        form_badges = ""
+        for char in form_str:
+            c = "#2ecc71" if char == 'W' else "#e74c3c" if char == 'L' else "#95a5a6"
+            form_badges += f"<span style='background:{c}; color:white; padding:2px 8px; border-radius:4px; margin-right:4px; font-size:0.8em; font-weight:bold;'>{char}</span>"
+            
+        # Timing Stats
+        m_score = stats.get('avg_minute_scored', 48)
+        m_concede = stats.get('avg_minute_conceded', 48)
+        net_timing = m_score - m_concede
+        
+        timing_color = "#e74c3c" if net_timing > 5 else "#2980b9" if net_timing < -5 else "#7f8c8d"
+        timing_text = "Late Bloomer" if net_timing > 5 else "Fast Starter" if net_timing < -5 else "Balanced"
+        
+        # --- 3. BUILD HTML DASHBOARD ---
+        
+        html = f"""
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; background:white; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+            <div>
+                <div style="font-size:0.9em; color:#7f8c8d; letter-spacing:1px;">WORLD RANK #{rank}</div>
+                <h1 style="margin:5px 0 0 0; font-size:2.5em; text-transform:uppercase;">{team}</h1>
+                <div style="margin-top:10px;">{form_badges}</div>
             </div>
-            <hr style='border-color:#ffffff30; margin: 15px 0;'>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:15px;">
-                <div style="background:#34495e; padding:10px; border-radius:4px; text-align:center;">
-                    <div style="font-size:0.8em; color:#bdc3c7;">GOALS FOR / GM</div>
-                    <div style="font-size:1.5em; font-weight:bold; color:{gf_color}">{gf}</div>
-                </div>
-                <div style="background:#34495e; padding:10px; border-radius:4px; text-align:center;">
-                    <div style="font-size:0.8em; color:#bdc3c7;">GOALS AGAINST / GM</div>
-                    <div style="font-size:1.5em; font-weight:bold; color:{ga_color}">{ga}</div>
-                </div>
+            <div style="text-align:right;">
+                <div style="font-size:3em; font-weight:800; color:#2c3e50;">{int(stats['elo'])}</div>
+                <div style="font-size:0.9em; color:#7f8c8d;">ELO RATING</div>
             </div>
-            <p><strong>Play Style:</strong> {style}</p>
+        </div>
+
+        <div style="margin-bottom:20px; display:flex; gap:10px;">
+            <select id="team-select-dashboard" onchange="document.getElementById('team-select').value=this.value; document.getElementById('btn-view-history').click();" style="padding:10px; width:200px;">
+                <option value="{team}" selected>{team.title()}</option>
+            </select>
+            <button onclick="document.getElementById('btn-tab-history').click()" style="background:#34495e; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer;">Refresh / Back</button>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:20px; margin-bottom:20px;">
+            
+            <div style="background:white; padding:20px; border-radius:8px; border-left:5px solid #2ecc71; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+                <div style="font-size:0.8em; color:#95a5a6;">ATTACK RATING</div>
+                <div style="font-size:1.8em; font-weight:bold; color:#2ecc71;">{round(stats['gf_avg'], 2)} <span style="font-size:0.5em; color:#bdc3c7;">gls/gm</span></div>
+            </div>
+
+            <div style="background:white; padding:20px; border-radius:8px; border-left:5px solid #e74c3c; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+                <div style="font-size:0.8em; color:#95a5a6;">DEFENSE RATING</div>
+                <div style="font-size:1.8em; font-weight:bold; color:#e74c3c;">{round(stats['ga_avg'], 2)} <span style="font-size:0.5em; color:#bdc3c7;">gls/gm</span></div>
+            </div>
+
+            <div style="background:white; padding:20px; border-radius:8px; border-left:5px solid {timing_color}; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+                <div style="font-size:0.8em; color:#95a5a6;">GAME PHASE</div>
+                <div style="font-size:1.4em; font-weight:bold; color:{timing_color};">{timing_text}</div>
+                <div style="font-size:0.8em; opacity:0.7;">Avg Goal: {int(m_score)}'</div>
+            </div>
+
+            <div style="background:white; padding:20px; border-radius:8px; border-left:5px solid #f1c40f; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+                <div style="font-size:0.8em; color:#95a5a6;">SET PIECE RELIANCE</div>
+                <div style="font-size:1.8em; font-weight:bold; color:#f39c12;">{int(stats.get('pen_pct',0)*100)}%</div>
+                <div style="font-size:0.8em; opacity:0.7;">of goals from pens</div>
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px;">
+            
+            <div style="background:white; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+                <h3 style="margin-top:0; color:#2c3e50;">Performance History</h3>
+                <div id="dashboard_chart_elo"></div>
+            </div>
+
+            <div style="background:white; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+                <h3 style="margin-top:0; color:#2c3e50;">Team DNA</h3>
+                <div id="dashboard_chart_radar"></div>
+            </div>
+
         </div>
         """
-        js.document.getElementById("team-stats-card").innerHTML = card_html
-
-        # ELO Chart
+        
+        container.innerHTML = html
+        
+        # --- 4. RENDER PLOTS ---
+        
+        # A. ELO Chart
         dates = history['dates']
         elos = history['elo']
-        limit = 0
-        if timeframe == "10y": limit = -150 
-        elif timeframe == "4y": limit = -60 
+        limit = -100 if timeframe == "10y" else 0
         
-        if limit != 0 and abs(limit) < len(dates):
-            plot_dates, plot_elos = dates[limit:], elos[limit:]
-        else:
-            plot_dates, plot_elos = dates, elos
-
         fig1, ax1 = plt.subplots(figsize=(8, 4))
-        ax1.plot(plot_dates, plot_elos, color='#2980b9', linewidth=2)
-        ax1.set_title(f"{team.title()} - Elo Rating History", fontsize=12)
-        ax1.grid(True, linestyle='--', alpha=0.5)
-        ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
-        plt.xticks(rotation=45)
-        plt.tight_layout()
+        ax1.plot(dates[limit:], elos[limit:], color='#34495e', linewidth=2)
+        ax1.fill_between(dates[limit:], elos[limit:], min(elos[limit:])-20, color='#34495e', alpha=0.1)
+        ax1.set_title("Elo Rating Trajectory", fontsize=10)
+        ax1.grid(True, linestyle='--', alpha=0.3)
+        ax1.xaxis.set_major_formatter(mdates.DateFormatter("'%y"))
         
-        js.document.getElementById("main-chart-container").innerHTML = ""
-        display(fig1, target="main-chart-container")
+        display(fig1, target="dashboard_chart_elo")
         plt.close(fig1)
 
-        # Pie Chart
-        form_str = stats.get('form', '')
-        w = form_str.count('W')
-        d = form_str.count('D')
-        l = form_str.count('L')
+        # B. Radar Chart
+        # Normalize stats against global averages
+        avg_gf = sim.AVG_GOALS / 2 # Approx 1.25
+        avg_ga = sim.AVG_GOALS / 2
         
-        if len(form_str) > 0:
-            fig2, ax2 = plt.subplots(figsize=(4, 3))
-            ax2.pie([w, d, l], labels=['W', 'D', 'L'], colors=['#2ecc71', '#f1c40f', '#e74c3c'], autopct='%1.0f%%')
-            ax2.set_title("Recent Form (Last 5)")
-            plt.tight_layout()
-            js.document.getElementById("dist-chart-container").innerHTML = ""
-            display(fig2, target="dist-chart-container")
-            plt.close(fig2)
-        else:
-            js.document.getElementById("dist-chart-container").innerHTML = "<p style='text-align:center; padding:20px;'>No recent games.</p>"
+        # Metrics: [Attack, Defense(inv), Form(W%), Intensity(Total Goals), Clutch(Late)]
+        # We clamp values between 0.2 and 2.0 to keep radar readable
+        
+        val_att = min(2.0, max(0.2, stats['gf_avg'] / avg_gf))
+        val_def = min(2.0, max(0.2, avg_ga / stats['ga_avg'] if stats['ga_avg'] > 0 else 2.0)) # Invert: Low GA is good
+        
+        # Form: Count Wins in last 5 chars
+        wins = form_str.count('W')
+        val_form = 0.5 + (wins * 0.3) # 0 wins = 0.5, 5 wins = 2.0
+        
+        # Intensity: Are their games high scoring?
+        val_int = min(2.0, (stats['gf_avg'] + stats['ga_avg']) / (avg_gf + avg_ga))
+        
+        # Clutch: Late goals > Early goals
+        val_clutch = 1.0 + (net_timing / 40.0) # +/- 20 mins swing
+        
+        categories = ['Attack', 'Defense', 'Form', 'Intensity', 'Clutch']
+        values = [val_att, val_def, val_form, val_int, val_clutch]
+        values += values[:1] # Close the loop
+        
+        angles = [n / float(len(categories)) * 2 * math.pi for n in range(len(categories))]
+        angles += angles[:1]
+        
+        fig2, ax2 = plt.subplots(figsize=(4, 4), subplot_kw=dict(polar=True))
+        
+        # Draw Background
+        ax2.set_theta_offset(math.pi / 2)
+        ax2.set_theta_direction(-1)
+        ax2.set_rlabel_position(0)
+        
+        # Draw Lines & Fill
+        ax2.plot(angles, values, linewidth=2, linestyle='solid', color='#e67e22')
+        ax2.fill(angles, values, '#e67e22', alpha=0.4)
+        
+        # Labels
+        ax2.set_xticks(angles[:-1])
+        ax2.set_xticklabels(categories, size=9, weight='bold')
+        ax2.set_yticks([1.0])
+        ax2.set_yticklabels(['Avg'], color="grey", size=7)
+        ax2.set_ylim(0, 2.2)
+        
+        ax2.set_title("Style Profile", size=11, y=1.1)
+        
+        display(fig2, target="dashboard_chart_radar")
+        plt.close(fig2)
 
     except Exception as e:
-        js.document.getElementById("team-stats-card").innerHTML = f"Error: {e}"
-        js.console.error(e)
+        container.innerHTML = f"<div style='color:red; padding:20px;'>Error building dashboard: {e}</div>"
+        print(f"DASHBOARD ERROR: {e}")
 
 async def plot_style_map(event):
-    js.document.getElementById("main-chart-container").innerHTML = "Generating Global Map..."
+    js.document.getElementById("main-chart-container").innerHTML = "Generating 5D Map..."
     await asyncio.sleep(0.01)
     
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(9, 6))
     
     wc_only = js.document.getElementById("hist-filter-wc").checked
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
-    
-    teams_to_plot = [t for t in sorted_teams if t[0] in sim.WC_TEAMS] if wc_only else sorted_teams[:100]
+    teams_to_plot = [t for t in sorted_teams if t[0] in sim.WC_TEAMS] if wc_only else sorted_teams[:80]
 
     x_vals, y_vals, colors, sizes = [], [], [], []
     
     for team, stats in teams_to_plot:
+        # X/Y: Offense vs Defense
         gf = stats.get('gf_avg', 0)
         ga = stats.get('ga_avg', 0)
         x_vals.append(gf)
         y_vals.append(ga) 
         
-        elo = stats['elo']
-        if elo > 2000: c = '#f1c40f' 
-        elif elo > 1800: c = '#2ecc71' 
-        elif elo > 1600: c = '#3498db' 
-        else: c = '#95a5a6'
-        colors.append(c)
-        sizes.append(elo / 15)
+        # Color: Net Timing (Clutch Factor)
+        # Formula: Scored Minute - Conceded Minute
+        # Positive = Scores Late, Concedes Early (Comeback Kings / 2nd Half)
+        # Negative = Scores Early, Concedes Late (Front Runners / 1st Half)
+        m_scored = stats.get('avg_minute_scored', 48)
+        m_conceded = stats.get('avg_minute_conceded', 48)
+        net_timing = m_scored - m_conceded
+        colors.append(net_timing)
+        
+        # Size: Penalty Reliance
+        pen = stats.get('pen_pct', 0.05)
+        sizes.append(50 + (pen * 1200)) # Scale up for visibility
 
+        # Labels for Elite teams
         should_label = False
         if wc_only:
-            if team in ['argentina', 'france', 'brazil', 'usa', 'england', 'germany', 'japan', 'morocco']: should_label = True
-        elif elo > 1950:
+            if team in ['argentina', 'france', 'brazil', 'usa', 'england', 'germany', 'japan', 'morocco', 'mexico']: should_label = True
+        elif stats['elo'] > 1950:
             should_label = True
             
         if should_label:
-            ax.annotate(team.title(), (gf, ga), xytext=(5, 5), textcoords='offset points', fontsize=9)
+            ax.annotate(team.title(), (gf, ga), xytext=(5, 5), textcoords='offset points', fontsize=9, fontweight='bold')
 
-    ax.scatter(x_vals, y_vals, c=colors, s=sizes, alpha=0.7, edgecolors='black', linewidth=0.5)
+    # Scatter Plot with Diverging Color Map (Red vs Blue)
+    # vmin/vmax set the range. +/- 15 minutes is a massive difference in football averages.
+    scatter = ax.scatter(x_vals, y_vals, c=colors, s=sizes, cmap='coolwarm', alpha=0.8, edgecolors='black', linewidth=0.5, vmin=-15, vmax=15)
+
+    # Colorbar
+    cbar = plt.colorbar(scatter, ax=ax)
+    cbar.set_label('Net Timing (Blue = 1st Half / Red = 2nd Half)')
+
+    # Quadrant Analysis
     ax.axvline(x=1.5, color='gray', linestyle='--', alpha=0.3)
     ax.axhline(y=1.2, color='gray', linestyle='--', alpha=0.3)
+    
+    ax.text(2.6, 0.2, "ELITE\n(Dominant)", color='green', fontsize=9, ha='center', weight='bold')
+    ax.text(0.5, 2.5, "STRUGGLING\n(Leaky)", color='red', fontsize=9, ha='center', weight='bold')
+    
+    # Legend for Size
+    # Manually adding a text box to explain bubble size
+    ax.text(0.02, 0.95, "Size = % Goals from Pens", transform=ax.transAxes, fontsize=8, 
+            verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
 
-    ax.text(2.5, 0.2, "ELITE", color='green', fontsize=10, ha='center')
-    ax.text(0.5, 2.5, "STRUGGLING", color='red', fontsize=10, ha='center')
-    ax.text(2.5, 2.5, "CHAOTIC", color='orange', fontsize=8, ha='center')
-    ax.text(0.5, 0.2, "DEFENSIVE", color='blue', fontsize=8, ha='center')
-
-    ax.set_title(f"Performance Map: Offense vs Defense", fontsize=14, fontweight='bold')
-    ax.set_xlabel("Goals Scored per Game (Avg)", fontsize=10)
-    ax.set_ylabel("Goals Conceded per Game (Avg)", fontsize=10)
-    ax.invert_yaxis()
+    ax.set_title(f"Strategic Profile Map (5D Analysis)", fontsize=14, fontweight='bold')
+    ax.set_xlabel("Goals Scored per Game", fontsize=10)
+    ax.set_ylabel("Goals Conceded per Game", fontsize=10)
+    ax.invert_yaxis() # Defense: Lower is Higher
     ax.grid(True, linestyle='--', alpha=0.2)
 
     js.document.getElementById("main-chart-container").innerHTML = ""
