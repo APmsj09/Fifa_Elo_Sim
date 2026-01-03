@@ -12,6 +12,8 @@ LAST_SIM_RESULTS = {}
 # This list prevents the browser-to-python bridges from being deleted
 EVENT_HANDLERS = []
 
+DASHBOARD_BUILT = False
+
 # =============================================================================
 # --- STARTUP & INITIALIZATION ---
 # =============================================================================
@@ -110,6 +112,7 @@ def setup_interactions():
     proxy_view_history = create_proxy(view_team_history)
     EVENT_HANDLERS.append(proxy_view_history)
     js.window.trigger_view_history = proxy_view_history
+    js.window.refresh_team_analysis = create_proxy(refresh_team_analysis)
 # =============================================================================
 # --- 2. SINGLE SIMULATION ---
 # =============================================================================
@@ -317,6 +320,29 @@ async def run_bulk_sim(event):
 # =============================================================================
 # --- 4. DATA VIEW ---
 # =============================================================================
+
+def build_dashboard_shell():
+    container = js.document.getElementById("tab-history")
+
+    container.innerHTML = """
+    <div id="dashboard-header"></div>
+
+    <div id="dashboard-metrics"></div>
+
+    <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px;">
+        <div style="background:white; padding:20px; border-radius:10px;">
+            <h4>Performance History</h4>
+            <div id="dashboard_chart_elo"></div>
+        </div>
+        <div style="background:white; padding:20px; border-radius:10px;">
+            <h4>Strategic DNA</h4>
+            <div id="dashboard_chart_radar"></div>
+        </div>
+    </div>
+    """
+
+    populate_team_dropdown()
+
 def load_data_view(event):
     container = js.document.getElementById("data-table-container")
     if not container: return
@@ -432,8 +458,16 @@ def handle_history_filter_change(event):
 
 import math 
 
-async def view_team_history(event):
+async def view_team_history(event=None):
     container = js.document.getElementById("tab-history")
+
+    global DASHBOARD_BUILT
+
+    if not DASHBOARD_BUILT:
+        build_dashboard_shell()
+        DASHBOARD_BUILT = True
+
+    update_dashboard_data()
     
     # --- 1. ROBUST INPUT RETRIEVAL ---
     # We must assume ANY element might be missing depending on the current view.
@@ -531,7 +565,7 @@ async def view_team_history(event):
                 <div style="font-size:3em; font-weight:800; color:#2c3e50; line-height:1;">{int(stats['elo'])}</div>
                 <div style="font-size:0.9em; color:#7f8c8d; margin-bottom:10px;">ELO RATING</div>
                 
-                <select id="team-select-dashboard" onchange="window.trigger_view_history()" style="padding:8px; border-radius:4px; border:1px solid #bdc3c7; background:#f9f9f9; font-size:1em;">
+                <select id="team-select-dashboard" onchange="window.refresh_team_analysis()" style="padding:8px; border-radius:4px; border:1px solid #bdc3c7; background:#f9f9f9; font-size:1em;">
                     {options_html}
                 </select>
             </div>
@@ -620,6 +654,26 @@ async def view_team_history(event):
     except Exception as e:
         container.innerHTML = f"<div style='color:red; padding:20px;'>Dashboard Error: {e}</div>"
         js.console.error(f"DASHBOARD ERROR: {e}")
+
+def update_dashboard_data():
+    select = js.document.getElementById("team-select-dashboard")
+    if select is None or not select.value:
+        return
+
+    team = select.value
+    stats = sim.TEAM_STATS.get(team)
+    if not stats:
+        return
+
+    # Example updates
+    js.document.getElementById("dash-elo").innerText = int(stats["elo"])
+    js.document.getElementById("dash-rank").innerText = stats["rank"]
+
+    render_elo_chart(team)
+    render_radar_chart(team)
+
+async def refresh_team_analysis(event=None):
+    update_dashboard_data()
 
 async def plot_style_map(event):
     js.document.getElementById("main-chart-container").innerHTML = "Generating 5D Map..."
