@@ -112,7 +112,12 @@ def setup_interactions():
     proxy_view_history = create_proxy(view_team_history)
     EVENT_HANDLERS.append(proxy_view_history)
     js.window.trigger_view_history = proxy_view_history
-    js.window.refresh_team_analysis = create_proxy(refresh_team_analysis)
+
+    proxy_refresh = create_proxy(refresh_team_analysis)
+    EVENT_HANDLERS.append(proxy_refresh)
+    js.window.refresh_team_analysis = proxy_refresh
+
+    
 # =============================================================================
 # --- 2. SINGLE SIMULATION ---
 # =============================================================================
@@ -459,8 +464,6 @@ def handle_history_filter_change(event):
 import math 
 
 async def view_team_history(event=None):
-    container = js.document.getElementById("tab-history")
-
     global DASHBOARD_BUILT
 
     if not DASHBOARD_BUILT:
@@ -468,192 +471,6 @@ async def view_team_history(event=None):
         DASHBOARD_BUILT = True
 
     update_dashboard_data()
-    
-    # --- 1. ROBUST INPUT RETRIEVAL ---
-    # We must assume ANY element might be missing depending on the current view.
-    
-    # A. Get Team Name
-    val_team = None
-    
-    # Try Sidebar Dropdown
-    el_sidebar = js.document.getElementById("team-select")
-    if el_sidebar: 
-        val_team = el_sidebar.value
-        
-    # Try Dashboard Dropdown (if sidebar is hidden/gone)
-    if not val_team:
-        el_dash = js.document.getElementById("team-select-dashboard")
-        if el_dash: 
-            val_team = el_dash.value
-            
-    # Fallback if both fail
-    if not val_team:
-        if len(sim.TEAM_STATS) > 0:
-            val_team = list(sim.TEAM_STATS.keys())[0]
-        else:
-            container.innerHTML = "Error: No data loaded."
-            return
-
-    # B. Get Timeframe (Safety Check Added)
-    timeframe = "all"
-    el_time = js.document.getElementById("chart-timeframe")
-    if el_time:
-        timeframe = el_time.value
-
-    # --- 2. RENDER LOADING STATE ---
-    container.innerHTML = """
-    <div style="text-align:center; padding:50px; color:#7f8c8d;">
-        <div style="font-size:2em; margin-bottom:10px;">🔄</div>
-        <div>Generating Scout Report for <b>""" + val_team.title() + """</b>...</div>
-    </div>
-    """
-    await asyncio.sleep(0.05)
-    
-    try:
-        team = val_team
-        stats = sim.TEAM_STATS.get(team)
-        history = sim.TEAM_HISTORY.get(team)
-        
-        if not stats or not history:
-            container.innerHTML = f"Error: No data found for {team}."
-            return
-
-        # --- 3. CALCULATE METRICS ---
-        sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
-        # Handle case where team might not be in sorted list (rare bug safety)
-        try:
-            rank = next((i+1 for i, (t, _) in enumerate(sorted_teams) if t == team), "-")
-        except StopIteration:
-            rank = "-"
-        
-        form_str = stats.get('form', '-----')
-        form_badges = ""
-        for char in form_str:
-            c = "#2ecc71" if char == 'W' else "#e74c3c" if char == 'L' else "#95a5a6"
-            form_badges += f"<span style='background:{c}; color:white; padding:2px 8px; border-radius:4px; margin-right:4px; font-size:0.8em; font-weight:bold;'>{char}</span>"
-            
-        m_score = stats.get('avg_minute_scored', 48)
-        m_concede = stats.get('avg_minute_conceded', 48)
-        net_timing = m_score - m_concede
-        
-        timing_color = "#e74c3c" if net_timing > 5 else "#2980b9" if net_timing < -5 else "#7f8c8d"
-        timing_text = "Late Bloomer" if net_timing > 5 else "Fast Starter" if net_timing < -5 else "Balanced"
-        
-        # --- 4. BUILD OPTIONS FOR DASHBOARD DROPDOWN ---
-        options_html = ""
-        # Check if the "WC Only" checkbox exists, otherwise default to False
-        wc_only = False
-        el_cb = js.document.getElementById("hist-filter-wc")
-        if el_cb: wc_only = el_cb.checked
-
-        for t, _ in sorted_teams:
-            if wc_only and t not in sim.WC_TEAMS: continue
-            
-            sel = "selected" if t == team else ""
-            options_html += f'<option value="{t}" {sel}>{t.title()}</option>'
-
-        # --- 5. DASHBOARD HTML ---
-        html = f"""
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; background:white; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
-            <div style="flex:1;">
-                <div style="font-size:0.9em; color:#7f8c8d; letter-spacing:1px;">WORLD RANK #{rank}</div>
-                <h1 style="margin:5px 0 0 0; font-size:2.5em; text-transform:uppercase;">{team}</h1>
-                <div style="margin-top:10px;">{form_badges}</div>
-            </div>
-            
-            <div style="flex:1; text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:5px;">
-                <div style="font-size:3em; font-weight:800; color:#2c3e50; line-height:1;">{int(stats['elo'])}</div>
-                <div style="font-size:0.9em; color:#7f8c8d; margin-bottom:10px;">ELO RATING</div>
-                
-                <select id="team-select-dashboard" onchange="window.refresh_team_analysis()" style="padding:8px; border-radius:4px; border:1px solid #bdc3c7; background:#f9f9f9; font-size:1em;">
-                    {options_html}
-                </select>
-            </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:15px; margin-bottom:20px;">
-            <div style="background:white; padding:15px; border-radius:8px; border-left:4px solid #2ecc71; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-                <div style="font-size:0.75em; color:#95a5a6; font-weight:bold;">ATTACK (Goals/Gm)</div>
-                <div style="font-size:1.5em; font-weight:bold; color:#2c3e50;">{round(stats['gf_avg'], 2)}</div>
-            </div>
-            <div style="background:white; padding:15px; border-radius:8px; border-left:4px solid #e74c3c; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-                <div style="font-size:0.75em; color:#95a5a6; font-weight:bold;">DEFENSE (Conceded/Gm)</div>
-                <div style="font-size:1.5em; font-weight:bold; color:#2c3e50;">{round(stats['ga_avg'], 2)}</div>
-            </div>
-            <div style="background:white; padding:15px; border-radius:8px; border-left:4px solid {timing_color}; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-                <div style="font-size:0.75em; color:#95a5a6; font-weight:bold;">GAME PHASE</div>
-                <div style="font-size:1.2em; font-weight:bold; color:{timing_color};">{timing_text}</div>
-                <div style="font-size:0.7em; opacity:0.6;">Score {int(m_score)}' / Conc {int(m_concede)}'</div>
-            </div>
-            <div style="background:white; padding:15px; border-radius:8px; border-left:4px solid #f1c40f; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-                <div style="font-size:0.75em; color:#95a5a6; font-weight:bold;">PENALTY RELIANCE</div>
-                <div style="font-size:1.5em; font-weight:bold; color:#f39c12;">{int(stats.get('pen_pct',0)*100)}%</div>
-            </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px;">
-            <div style="background:white; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
-                <h4 style="margin:0 0 15px 0; color:#2c3e50; border-bottom:1px solid #eee; padding-bottom:10px;">Performance History</h4>
-                <div id="dashboard_chart_elo"></div>
-            </div>
-            <div style="background:white; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
-                <h4 style="margin:0 0 15px 0; color:#2c3e50; border-bottom:1px solid #eee; padding-bottom:10px;">Strategic DNA</h4>
-                <div id="dashboard_chart_radar"></div>
-            </div>
-        </div>
-        """
-        
-        container.innerHTML = html
-        
-        # --- 6. RENDER PLOTS ---
-        
-        # ELO CHART
-        dates = history['dates']
-        elos = history['elo']
-        limit = -100 if timeframe == "10y" else 0
-        
-        fig1, ax1 = plt.subplots(figsize=(8, 4))
-        ax1.plot(dates[limit:], elos[limit:], color='#34495e', linewidth=2)
-        ax1.fill_between(dates[limit:], elos[limit:], min(elos[limit:])-20, color='#34495e', alpha=0.1)
-        ax1.grid(True, linestyle='--', alpha=0.3)
-        ax1.xaxis.set_major_formatter(mdates.DateFormatter("'%y"))
-        display(fig1, target="dashboard_chart_elo")
-        plt.close(fig1)
-
-        # RADAR CHART
-        avg_gf = sim.AVG_GOALS / 2
-        avg_ga = sim.AVG_GOALS / 2
-        val_att = min(2.0, max(0.2, stats['gf_avg'] / avg_gf))
-        val_def = min(2.0, max(0.2, avg_ga / stats['ga_avg'] if stats['ga_avg'] > 0 else 2.0))
-        wins = form_str.count('W')
-        val_form = 0.5 + (wins * 0.3)
-        val_int = min(2.0, (stats['gf_avg'] + stats['ga_avg']) / (avg_gf + avg_ga))
-        val_clutch = 1.0 + (net_timing / 40.0)
-        
-        categories = ['Attack', 'Defense', 'Form', 'Intensity', 'Clutch']
-        values = [val_att, val_def, val_form, val_int, val_clutch]
-        values += values[:1]
-        
-        angles = [n / float(len(categories)) * 2 * math.pi for n in range(len(categories))]
-        angles += angles[:1]
-        
-        fig2, ax2 = plt.subplots(figsize=(4, 4), subplot_kw=dict(polar=True))
-        ax2.set_theta_offset(math.pi / 2)
-        ax2.set_theta_direction(-1)
-        ax2.set_rlabel_position(0)
-        ax2.plot(angles, values, linewidth=2, linestyle='solid', color='#e67e22')
-        ax2.fill(angles, values, '#e67e22', alpha=0.4)
-        ax2.set_xticks(angles[:-1])
-        ax2.set_xticklabels(categories, size=9, weight='bold')
-        ax2.set_yticks([]) # Hide radial numbers
-        ax2.set_ylim(0, 2.2)
-        
-        display(fig2, target="dashboard_chart_radar")
-        plt.close(fig2)
-
-    except Exception as e:
-        container.innerHTML = f"<div style='color:red; padding:20px;'>Dashboard Error: {e}</div>"
-        js.console.error(f"DASHBOARD ERROR: {e}")
 
 def update_dashboard_data():
     select = js.document.getElementById("team-select-dashboard")
@@ -662,15 +479,53 @@ def update_dashboard_data():
 
     team = select.value
     stats = sim.TEAM_STATS.get(team)
-    if not stats:
+    history = sim.TEAM_HISTORY.get(team)
+
+    if not stats or not history:
         return
 
-    # Example updates
-    js.document.getElementById("dash-elo").innerText = int(stats["elo"])
-    js.document.getElementById("dash-rank").innerText = stats["rank"]
+    # --- HEADER ---
+    header = js.document.getElementById("dashboard-header")
+    header.innerHTML = f"""
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <div>
+            <h1 style="margin:0;">{team.title()}</h1>
+            <div style="opacity:0.7;">ELO {int(stats['elo'])}</div>
+        </div>
 
-    render_elo_chart(team)
-    render_radar_chart(team)
+        <select id="team-select-dashboard"
+                onchange="window.refresh_team_analysis()"
+                style="padding:8px;">
+        </select>
+    </div>
+    """
+
+    populate_team_dropdown()
+
+    # --- METRICS ---
+    js.document.getElementById("dashboard-metrics").innerHTML = f"""
+    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-bottom:20px;">
+        <div><b>Attack</b><br>{round(stats['gf_avg'],2)}</div>
+        <div><b>Defense</b><br>{round(stats['ga_avg'],2)}</div>
+        <div><b>Form</b><br>{stats.get('form','-----')}</div>
+        <div><b>Pen %</b><br>{int(stats.get('pen_pct',0)*100)}%</div>
+    </div>
+    """
+
+    # --- ELO CHART ---
+    js.document.getElementById("dashboard_chart_elo").innerHTML = ""
+    fig, ax = plt.subplots(figsize=(8,4))
+    ax.plot(history['dates'], history['elo'])
+    ax.set_title("ELO History")
+    display(fig, target="dashboard_chart_elo")
+    plt.close(fig)
+
+    # --- RADAR ---
+    js.document.getElementById("dashboard_chart_radar").innerHTML = ""
+    fig2, ax2 = plt.subplots(figsize=(4,4), subplot_kw=dict(polar=True))
+    ax2.plot([0,1,2,3,4,0], [1,1,1,1,1,1])
+    display(fig2, target="dashboard_chart_radar")
+    plt.close(fig2)
 
 async def refresh_team_analysis(event=None):
     update_dashboard_data()
