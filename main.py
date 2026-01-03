@@ -385,29 +385,44 @@ def load_data_view(event):
 # --- 5. HISTORY & ANALYSIS ---
 # =============================================================================
 def populate_team_dropdown(wc_only=False):
+    # Try sidebar first
     select = js.document.getElementById("team-select")
-    current_val = select.value 
-    select.innerHTML = "" 
     
-    sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
+    # Fallback to dashboard select
+    if select is None:
+        select = js.document.getElementById("team-select-dashboard")
     
+    if select is None:
+        js.console.warn("populate_team_dropdown: no team select found")
+        return
+
+    current_val = getattr(select, "value", None)
+    select.innerHTML = ""
+
+    sorted_teams = sorted(
+        sim.TEAM_STATS.items(),
+        key=lambda x: x[1]['elo'],
+        reverse=True
+    )
+
     for team, stats in sorted_teams:
-        if wc_only and team not in sim.WC_TEAMS: continue
-            
+        if wc_only and team not in sim.WC_TEAMS:
+            continue
+
         opt = js.document.createElement("option")
         opt.value = team
         opt.text = team.title()
         select.appendChild(opt)
-    
+
     if current_val:
-        # Restore selection if it still exists in the filtered list
         for opt in select.options:
             if opt.value == current_val:
                 select.value = current_val
                 break
-    
+
     if not select.value and select.options.length > 0:
         select.selectedIndex = 0
+
 
 def handle_history_filter_change(event):
     is_checked = js.document.getElementById("hist-filter-wc").checked
@@ -420,35 +435,38 @@ import math
 async def view_team_history(event):
     container = js.document.getElementById("tab-history")
     
-    # --- 1. SAFE VALUE RETRIEVAL ---
-    # We need to find the team name. It might be in the 'old' sidebar 
-    # OR in the 'new' dashboard dropdown.
+    # --- 1. ROBUST INPUT RETRIEVAL ---
+    # We must assume ANY element might be missing depending on the current view.
+    
+    # A. Get Team Name
     val_team = None
     
-    # Check Standard Sidebar/Top Input
-    el_standard = js.document.getElementById("team-select")
-    if el_standard: val_team = el_standard.value
-    
-    # Check Dashboard Input (if we are reloading inside the dashboard)
+    # Try Sidebar Dropdown
+    el_sidebar = js.document.getElementById("team-select")
+    if el_sidebar: 
+        val_team = el_sidebar.value
+        
+    # Try Dashboard Dropdown (if sidebar is hidden/gone)
     if not val_team:
         el_dash = js.document.getElementById("team-select-dashboard")
-        if el_dash: val_team = el_dash.value
-        
+        if el_dash: 
+            val_team = el_dash.value
+            
+    # Fallback if both fail
     if not val_team:
-        # Fallback: Pick the first team from stats if nothing selected
         if len(sim.TEAM_STATS) > 0:
             val_team = list(sim.TEAM_STATS.keys())[0]
         else:
-            container.innerHTML = "Error: No teams available."
+            container.innerHTML = "Error: No data loaded."
             return
 
-    # Default timeframe
-    timeframe = "all" 
+    # B. Get Timeframe (Safety Check Added)
+    timeframe = "all"
     el_time = js.document.getElementById("chart-timeframe")
-    if el_time: timeframe = el_time.value
+    if el_time:
+        timeframe = el_time.value
 
-    # --- 2. LOADING STATE ---
-    # We purposefully overwrite the container now that we have the data we need
+    # --- 2. RENDER LOADING STATE ---
     container.innerHTML = """
     <div style="text-align:center; padding:50px; color:#7f8c8d;">
         <div style="font-size:2em; margin-bottom:10px;">🔄</div>
@@ -468,7 +486,11 @@ async def view_team_history(event):
 
         # --- 3. CALCULATE METRICS ---
         sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
-        rank = next((i+1 for i, (t, _) in enumerate(sorted_teams) if t == team), "-")
+        # Handle case where team might not be in sorted list (rare bug safety)
+        try:
+            rank = next((i+1 for i, (t, _) in enumerate(sorted_teams) if t == team), "-")
+        except StopIteration:
+            rank = "-"
         
         form_str = stats.get('form', '-----')
         form_badges = ""
@@ -483,17 +505,20 @@ async def view_team_history(event):
         timing_color = "#e74c3c" if net_timing > 5 else "#2980b9" if net_timing < -5 else "#7f8c8d"
         timing_text = "Late Bloomer" if net_timing > 5 else "Fast Starter" if net_timing < -5 else "Balanced"
         
-        # --- 4. POPULATE DROPDOWN OPTIONS ---
-        # We need to rebuild the dropdown options string manually
+        # --- 4. BUILD OPTIONS FOR DASHBOARD DROPDOWN ---
         options_html = ""
-        # Sort teams for the dropdown
+        # Check if the "WC Only" checkbox exists, otherwise default to False
+        wc_only = False
+        el_cb = js.document.getElementById("hist-filter-wc")
+        if el_cb: wc_only = el_cb.checked
+
         for t, _ in sorted_teams:
+            if wc_only and t not in sim.WC_TEAMS: continue
+            
             sel = "selected" if t == team else ""
-            if js.document.getElementById("hist-filter-wc").checked and t not in sim.WC_TEAMS:
-                continue
             options_html += f'<option value="{t}" {sel}>{t.title()}</option>'
 
-        # --- 5. BUILD DASHBOARD HTML ---
+        # --- 5. DASHBOARD HTML ---
         html = f"""
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; background:white; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
             <div style="flex:1;">
@@ -586,7 +611,7 @@ async def view_team_history(event):
         ax2.fill(angles, values, '#e67e22', alpha=0.4)
         ax2.set_xticks(angles[:-1])
         ax2.set_xticklabels(categories, size=9, weight='bold')
-        ax2.set_yticks([]) # Hide radial numbers for cleaner look
+        ax2.set_yticks([]) # Hide radial numbers
         ax2.set_ylim(0, 2.2)
         
         display(fig2, target="dashboard_chart_radar")
