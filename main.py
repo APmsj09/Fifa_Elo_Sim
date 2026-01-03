@@ -197,34 +197,34 @@ async def run_single_sim(event):
         
         for round_data in bracket_data:
             bracket_html += f'<div class="bracket-round"><div class="round-title">{round_data["round"]}</div>'
+            
+            # --- START OF FIXED LOOP ---
             for m in round_data['matches']:
-            c1 = "winner-text" if m['winner'] == m['t1'] else ""
-            c2 = "winner-text" if m['winner'] == m['t2'] else ""
-    
-            # IMPROVED SCORE DISPLAY
-            score_display = ""
-            if m['method'] == 'pks':
-                # If penalties, show score like "1 (4) - 1 (3)" or just "1 - 1 (P)"
-                # Since we don't simulate specific PK scores, let's just mark the winner
-                g1_txt = f"{m['g1']} (P)" if m['winner'] == m['t1'] else str(m['g1'])
-                g2_txt = f"{m['g2']} (P)" if m['winner'] == m['t2'] else str(m['g2'])
-            elif m['method'] == 'aet':
-                 g1_txt = f"{m['g1']} (AET)"
-                g2_txt = f"{m['g2']} (AET)"
-            else:
-                g1_txt = str(m['g1'])
-                g2_txt = str(m['g2'])
+                c1 = "winner-text" if m['winner'] == m['t1'] else ""
+                c2 = "winner-text" if m['winner'] == m['t2'] else ""
+                
+                # Logic to handle Penalty text display
+                score_display = ""
+                if m['method'] == 'pks':
+                    g1_txt = f"{m['g1']} (P)" if m['winner'] == m['t1'] else str(m['g1'])
+                    g2_txt = f"{m['g2']} (P)" if m['winner'] == m['t2'] else str(m['g2'])
+                elif m['method'] == 'aet':
+                    g1_txt = f"{m['g1']} (AET)"
+                    g2_txt = f"{m['g2']} (AET)"
+                else:
+                    g1_txt = str(m['g1'])
+                    g2_txt = str(m['g2'])
 
-            bracket_html += f"""
-            <div class="matchup">
-                <div class="matchup-team {c1}">
-                    <span>{m['t1'].title()}</span> <span>{g1_txt}</span>
+                bracket_html += f"""
+                <div class="matchup">
+                    <div class="matchup-team {c1}">
+                        <span>{m['t1'].title()}</span> <span>{g1_txt}</span>
+                    </div>
+                    <div class="matchup-team {c2}">
+                        <span>{m['t2'].title()}</span> <span>{g2_txt}</span>
+                    </div>
                 </div>
-            <div class="matchup-team {c2}">
-                <span>{m['t2'].title()}</span> <span>{g2_txt}</span>
-            </div>
-        </div>
-        """
+                """
             bracket_html += "</div>"
             
         js.document.getElementById("bracket-container").innerHTML = bracket_html
