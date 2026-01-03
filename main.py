@@ -12,8 +12,6 @@ LAST_SIM_RESULTS = {}
 # This list prevents the browser-to-python bridges from being deleted
 EVENT_HANDLERS = []
 
-DASHBOARD_BUILT = False
-
 # =============================================================================
 # --- STARTUP & INITIALIZATION ---
 # =============================================================================
@@ -68,6 +66,7 @@ def switch_tab(tab_id):
 def setup_interactions():
     """
     Consolidates all event binding into one safe place.
+    Includes Event Delegation for the Groups Grid.
     """
     global EVENT_HANDLERS 
 
@@ -82,7 +81,7 @@ def setup_interactions():
             # Attach it
             el.addEventListener("click", proxy)
         else:
-            js.console.warn(f"Warning: Button {btn_id} not found in HTML")
+            js.console.warn(f"Warning: Element {btn_id} not found in HTML")
 
     # --- Navigation Tabs ---
     bind_click("btn-tab-single", lambda e: switch_tab("tab-single"))
@@ -99,16 +98,14 @@ def setup_interactions():
     bind_click("btn-view-style-map", plot_style_map) 
 
     # --- Filters ---
-    # Note: Checkboxes usually use "change", but "click" works too
     bind_click("hist-filter-wc", handle_history_filter_change)
     bind_click("data-filter-wc", load_data_view)
     
-    # 1. Existing Group Popup Logic
+    # --- Expose Global Functions ---
     proxy_view_group = create_proxy(open_group_modal)
     EVENT_HANDLERS.append(proxy_view_group)
     js.window.view_group_matches = proxy_view_group
 
-    # 2. NEW: Expose History View for the Dashboard Dropdown
     proxy_view_history = create_proxy(view_team_history)
     EVENT_HANDLERS.append(proxy_view_history)
     js.window.trigger_view_history = proxy_view_history
@@ -117,6 +114,25 @@ def setup_interactions():
     EVENT_HANDLERS.append(proxy_refresh)
     js.window.refresh_team_analysis = proxy_refresh
 
+    # ============================================================
+    # --- NEW: EVENT DELEGATION FOR GROUPS ---
+    # ============================================================
+    def handle_group_grid_click(event):
+        # We start at the element clicked (event.target)
+        el = event.target
+        
+        # Traverse up the DOM until we find the container or a group card
+        # This handles clicks on the text, table, or empty space inside the card
+        while el and el.id != "groups-container":
+            if el.id and el.id.startswith("group-card-"):
+                # We found the card! Extract the group name (e.g., "A")
+                group_name = el.id.replace("group-card-", "")
+                open_group_modal(group_name)
+                return
+            el = el.parentElement
+
+    # Bind this ONE listener to the parent container
+    bind_click("groups-container", handle_group_grid_click)
     
 # =============================================================================
 # --- 2. SINGLE SIMULATION ---
@@ -149,7 +165,7 @@ async def run_single_sim(event):
         for grp_name, team_list in groups_data.items():
             group_names.append(grp_name)
             
-            # NOTE: Removed 'onclick' attribute, added 'id'
+            
             groups_html += f"""
             <div id="group-card-{grp_name}" class="group-box" style="cursor:pointer;" title="Click to view matches">
                 <div style="display:flex; justify-content:space-between;">
@@ -176,42 +192,39 @@ async def run_single_sim(event):
         
         js.document.getElementById("groups-container").innerHTML = groups_html
 
-        # --- NEW: Bind Click Listeners via Python ---
-        # This is much more reliable than HTML onclick
-        for g in group_names:
-            # We use a default arg (grp=g) to capture the current value of the loop
-            def make_handler(grp):
-                return lambda e: open_group_modal(grp)
-            
-            el = js.document.getElementById(f"group-card-{g}")
-            if el:
-                # Create proxy and save it to EVENT_HANDLERS to prevent garbage collection
-                proxy = create_proxy(make_handler(g))
-                EVENT_HANDLERS.append(proxy)
-                el.addEventListener("click", proxy)
-
         # Render Bracket (with Mobile Hint)
         bracket_html = "<div style='font-size:0.8em; color:#7f8c8d; margin-bottom:5px; display:block; text-align:right;'>👉 Swipe to see Final</div>"
         
         for round_data in bracket_data:
             bracket_html += f'<div class="bracket-round"><div class="round-title">{round_data["round"]}</div>'
             for m in round_data['matches']:
-                c1 = "winner-text" if m['winner'] == m['t1'] else ""
-                c2 = "winner-text" if m['winner'] == m['t2'] else ""
-                method_text = m['method'].upper() if m['method'] != 'reg' else ""
-                note = f"<div class='match-note' style='font-size:0.7em; color:#7f8c8d; text-align:right;'>{method_text}</div>" if method_text else ""
-                
-                bracket_html += f"""
-                <div class="matchup">
-                    <div class="matchup-team {c1}">
-                        <span>{m['t1'].title()}</span> <span>{m['g1']}</span>
-                    </div>
-                    <div class="matchup-team {c2}">
-                        <span>{m['t2'].title()}</span> <span>{m['g2']}</span>
-                    </div>
-                    {note}
+            c1 = "winner-text" if m['winner'] == m['t1'] else ""
+            c2 = "winner-text" if m['winner'] == m['t2'] else ""
+    
+            # IMPROVED SCORE DISPLAY
+            score_display = ""
+            if m['method'] == 'pks':
+                # If penalties, show score like "1 (4) - 1 (3)" or just "1 - 1 (P)"
+                # Since we don't simulate specific PK scores, let's just mark the winner
+                g1_txt = f"{m['g1']} (P)" if m['winner'] == m['t1'] else str(m['g1'])
+                g2_txt = f"{m['g2']} (P)" if m['winner'] == m['t2'] else str(m['g2'])
+            elif m['method'] == 'aet':
+                 g1_txt = f"{m['g1']} (AET)"
+                g2_txt = f"{m['g2']} (AET)"
+            else:
+                g1_txt = str(m['g1'])
+                g2_txt = str(m['g2'])
+
+            bracket_html += f"""
+            <div class="matchup">
+                <div class="matchup-team {c1}">
+                    <span>{m['t1'].title()}</span> <span>{g1_txt}</span>
                 </div>
-                """
+            <div class="matchup-team {c2}">
+                <span>{m['t2'].title()}</span> <span>{g2_txt}</span>
+            </div>
+        </div>
+        """
             bracket_html += "</div>"
             
         js.document.getElementById("bracket-container").innerHTML = bracket_html
@@ -413,29 +426,37 @@ def load_data_view(event):
     container.innerHTML = html
 
 # =============================================================================
-# --- 5. HISTORY & ANALYSIS ---
+# --- 5. HISTORY & ANALYSIS  ---
 # =============================================================================
-def populate_team_dropdown(wc_only=False):
-    # Try sidebar first
-    select = js.document.getElementById("team-select")
-    
-    # Fallback to dashboard select
-    if select is None:
-        select = js.document.getElementById("team-select-dashboard")
-    
-    if select is None:
-        js.console.warn("populate_team_dropdown: no team select found")
-        return
 
-    current_val = getattr(select, "value", None)
-    select.innerHTML = ""
+# Global flag to track if we have injected the dashboard HTML yet
+DASHBOARD_BUILT = False
 
+def populate_team_dropdown(target_id="team-select-dashboard", wc_only=False):
+    """
+    Robustly populates the team dropdown. 
+    Can target either the dashboard select or a specific ID.
+    """
+    select = js.document.getElementById(target_id)
+    
+    # If the specific target doesn't exist, try the sidebar fallback
+    if not select:
+        select = js.document.getElementById("team-select")
+        
+    if not select:
+        return # Exit if neither exists
+
+    current_val = select.value
+    select.innerHTML = "" # Clear existing options
+
+    # Sort teams by ELO
     sorted_teams = sorted(
         sim.TEAM_STATS.items(),
         key=lambda x: x[1]['elo'],
         reverse=True
     )
 
+    # Create Options
     for team, stats in sorted_teams:
         if wc_only and team not in sim.WC_TEAMS:
             continue
@@ -445,37 +466,108 @@ def populate_team_dropdown(wc_only=False):
         opt.text = team.title()
         select.appendChild(opt)
 
+    # Restore selection or default to first option
     if current_val:
-        for opt in select.options:
-            if opt.value == current_val:
-                select.value = current_val
-                break
-
+        select.value = current_val
+    
     if not select.value and select.options.length > 0:
         select.selectedIndex = 0
-
+        select.value = select.options[0].value
 
 def handle_history_filter_change(event):
     is_checked = js.document.getElementById("hist-filter-wc").checked
+    # Refresh the active view
     populate_team_dropdown(wc_only=is_checked)
-    # Also refresh data view if that tab is open
     load_data_view(None)
 
-import math 
+def build_dashboard_shell():
+    """
+    Injects the dashboard layout safely, preserving the containers 
+    needed for both History and Style Map modes.
+    """
+    container = js.document.getElementById("tab-history")
+    
+    container.innerHTML = """
+    <div style="background:white; padding:15px; border-radius:8px; display:flex; gap:10px; align-items:center; margin-bottom:20px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+        <label style="font-weight:bold; color:#2c3e50;">Select Team:</label>
+        <select id="team-select-dashboard" onchange="window.refresh_team_analysis()" style="padding:8px; border-radius:4px; border:1px solid #bdc3c7; flex-grow:1;"></select>
+        
+        <div style="width:1px; height:30px; background:#eee; margin:0 10px;"></div>
+        
+        <button id="btn-show-dashboard" class="nav-btn" style="width:auto; background:#34495e; padding:8px 15px;">📊 Profile</button>
+        <button id="btn-show-style" class="nav-btn" style="width:auto; background:#8e44ad; padding:8px 15px;">🗺️ Style Map</button>
+    </div>
+
+    <div id="view-profile">
+        <div id="dashboard-header"></div>
+        <div id="dashboard-metrics"></div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:20px;">
+            <div style="background:white; padding:20px; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+                <h4 style="margin-top:0; color:#7f8c8d;">Performance History</h4>
+                <div id="dashboard_chart_elo"></div>
+            </div>
+            <div style="background:white; padding:20px; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+                <h4 style="margin-top:0; color:#7f8c8d;">Strategic DNA</h4>
+                <div id="dashboard_chart_radar"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-style-map" style="display:none;">
+        <div style="background:white; padding:20px; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+             <div id="main-chart-container" style="min-height:500px;"></div>
+        </div>
+    </div>
+    """
+
+    # Re-bind the internal buttons since we just created them
+    # We use a helper function here or manual binding
+    def toggle_view(mode):
+        p = js.document.getElementById("view-profile")
+        s = js.document.getElementById("view-style-map")
+        if mode == 'profile':
+            p.style.display = "block"
+            s.style.display = "none"
+            update_dashboard_data()
+        else:
+            p.style.display = "none"
+            s.style.display = "block"
+            # Trigger the style map plot logic
+            asyncio.ensure_future(plot_style_map(None))
+
+    # Bind the toggle buttons
+    js.document.getElementById("btn-show-dashboard").onclick = create_proxy(lambda e: toggle_view('profile'))
+    js.document.getElementById("btn-show-style").onclick = create_proxy(lambda e: toggle_view('style'))
 
 async def view_team_history(event=None):
     global DASHBOARD_BUILT
 
+    # 1. Build the HTML shell if it doesn't exist
     if not DASHBOARD_BUILT:
         build_dashboard_shell()
+        populate_team_dropdown(target_id="team-select-dashboard")
         DASHBOARD_BUILT = True
+    
+    # 2. Ensure Profile View is visible
+    js.document.getElementById("view-profile").style.display = "block"
+    js.document.getElementById("view-style-map").style.display = "none"
 
+    # 3. Update the Data
+    await asyncio.sleep(0.01) # Yield to let DOM update
     update_dashboard_data()
 
 def update_dashboard_data():
+    # Get the select element
     select = js.document.getElementById("team-select-dashboard")
-    if select is None or not select.value:
-        return
+    
+    # Safety Check: If select isn't ready, try populating it
+    if not select or not select.value:
+        populate_team_dropdown(target_id="team-select-dashboard")
+        select = js.document.getElementById("team-select-dashboard")
+    
+    if not select or not select.value:
+        return # Still nothing? Abort.
 
     team = select.value
     stats = sim.TEAM_STATS.get(team)
@@ -487,43 +579,60 @@ def update_dashboard_data():
     # --- HEADER ---
     header = js.document.getElementById("dashboard-header")
     header.innerHTML = f"""
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-        <div>
-            <h1 style="margin:0;">{team.title()}</h1>
-            <div style="opacity:0.7;">ELO {int(stats['elo'])}</div>
-        </div>
-
-        <select id="team-select-dashboard"
-                onchange="window.refresh_team_analysis()"
-                style="padding:8px;">
-        </select>
+    <div style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:2.5em; color:#2c3e50;">{team.title()}</h1>
+        <div style="color:#7f8c8d; font-weight:bold;">Current FIFA Elo: {int(stats['elo'])}</div>
     </div>
     """
 
-    populate_team_dropdown()
-
     # --- METRICS ---
+    # Using flexbox for better responsive behavior than grid
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
-    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; margin-bottom:20px;">
-        <div><b>Attack</b><br>{round(stats['gf_avg'],2)}</div>
-        <div><b>Defense</b><br>{round(stats['ga_avg'],2)}</div>
-        <div><b>Form</b><br>{stats.get('form','-----')}</div>
-        <div><b>Pen %</b><br>{int(stats.get('pen_pct',0)*100)}%</div>
+    <div style="display:flex; gap:15px; margin-bottom:25px; flex-wrap:wrap;">
+        <div style="background:#3498db; color:white; padding:15px; borderRadius:8px; flex:1; min-width:100px; text-align:center;">
+            <div style="font-size:0.8em; opacity:0.8;">ATTACK</div>
+            <div style="font-size:1.5em; font-weight:bold;">{round(stats['gf_avg'],2)}</div>
+        </div>
+        <div style="background:#e74c3c; color:white; padding:15px; borderRadius:8px; flex:1; min-width:100px; text-align:center;">
+            <div style="font-size:0.8em; opacity:0.8;">DEFENSE</div>
+            <div style="font-size:1.5em; font-weight:bold;">{round(stats['ga_avg'],2)}</div>
+        </div>
+        <div style="background:#f1c40f; color:#2c3e50; padding:15px; borderRadius:8px; flex:1; min-width:100px; text-align:center;">
+            <div style="font-size:0.8em; opacity:0.8;">FORM</div>
+            <div style="font-size:1.5em; font-weight:bold;">{stats.get('form','-----')}</div>
+        </div>
+        <div style="background:#9b59b6; color:white; padding:15px; borderRadius:8px; flex:1; min-width:100px; text-align:center;">
+            <div style="font-size:0.8em; opacity:0.8;">STYLE</div>
+            <div style="font-size:1.2em; font-weight:bold;">{sim.TEAM_PROFILES.get(team, 'Balanced')}</div>
+        </div>
     </div>
     """
 
     # --- ELO CHART ---
     js.document.getElementById("dashboard_chart_elo").innerHTML = ""
-    fig, ax = plt.subplots(figsize=(8,4))
-    ax.plot(history['dates'], history['elo'])
-    ax.set_title("ELO History")
+    fig, ax = plt.subplots(figsize=(6,4))
+    ax.plot(history['dates'], history['elo'], color='#2980b9', linewidth=2)
+    ax.grid(True, linestyle='--', alpha=0.3)
+    ax.set_title("Rating History", fontsize=10)
+    fig.tight_layout()
     display(fig, target="dashboard_chart_elo")
     plt.close(fig)
 
-    # --- RADAR ---
+    # --- RADAR / STYLE CHART ---
+    # Simplified visual representation of Offense vs Defense
     js.document.getElementById("dashboard_chart_radar").innerHTML = ""
-    fig2, ax2 = plt.subplots(figsize=(4,4), subplot_kw=dict(polar=True))
-    ax2.plot([0,1,2,3,4,0], [1,1,1,1,1,1])
+    fig2, ax2 = plt.subplots(figsize=(4,4))
+    
+    # Simple Bar Comparison
+    metrics = ['Attack', 'Defense']
+    # Normalize roughly (2.5 is high for goals)
+    vals = [min(stats['gf_avg'], 3.0), min(stats['ga_avg'], 3.0)]
+    colors = ['#3498db', '#e74c3c']
+    
+    ax2.bar(metrics, vals, color=colors)
+    ax2.set_ylim(0, 3.5)
+    ax2.set_title("Team Balance", fontsize=10)
+    
     display(fig2, target="dashboard_chart_radar")
     plt.close(fig2)
 
@@ -531,74 +640,55 @@ async def refresh_team_analysis(event=None):
     update_dashboard_data()
 
 async def plot_style_map(event):
-    js.document.getElementById("main-chart-container").innerHTML = "Generating 5D Map..."
-    await asyncio.sleep(0.01)
+    global DASHBOARD_BUILT
+    # Ensure shell exists (so the container exists)
+    if not DASHBOARD_BUILT:
+        build_dashboard_shell()
+        DASHBOARD_BUILT = True
+        
+    # Switch Tabs manually if this was triggered from Sidebar
+    js.document.getElementById("view-profile").style.display = "none"
+    js.document.getElementById("view-style-map").style.display = "block"
+    
+    target_div = js.document.getElementById("main-chart-container")
+    target_div.innerHTML = "<div style='text-align:center; padding:50px;'>Generating 5D Style Map...</div>"
+    
+    await asyncio.sleep(0.05)
     
     fig, ax = plt.subplots(figsize=(9, 6))
-    
     wc_only = js.document.getElementById("hist-filter-wc").checked
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
-    teams_to_plot = [t for t in sorted_teams if t[0] in sim.WC_TEAMS] if wc_only else sorted_teams[:80]
+    teams_to_plot = [t for t in sorted_teams if t[0] in sim.WC_TEAMS] if wc_only else sorted_teams[:60]
 
     x_vals, y_vals, colors, sizes = [], [], [], []
-    
     for team, stats in teams_to_plot:
-        # X/Y: Offense vs Defense
         gf = stats.get('gf_avg', 0)
         ga = stats.get('ga_avg', 0)
         x_vals.append(gf)
         y_vals.append(ga) 
-        
-        # Color: Net Timing (Clutch Factor)
-        # Formula: Scored Minute - Conceded Minute
-        # Positive = Scores Late, Concedes Early (Comeback Kings / 2nd Half)
-        # Negative = Scores Early, Concedes Late (Front Runners / 1st Half)
+        # Color: Net Timing
         m_scored = stats.get('avg_minute_scored', 48)
         m_conceded = stats.get('avg_minute_conceded', 48)
-        net_timing = m_scored - m_conceded
-        colors.append(net_timing)
-        
-        # Size: Penalty Reliance
-        pen = stats.get('pen_pct', 0.05)
-        sizes.append(50 + (pen * 1200)) # Scale up for visibility
+        colors.append(m_scored - m_conceded)
+        # Size: Elo strength
+        sizes.append(stats['elo'] / 10) 
 
-        # Labels for Elite teams
-        should_label = False
-        if wc_only:
-            if team in ['argentina', 'france', 'brazil', 'usa', 'england', 'germany', 'japan', 'morocco', 'mexico']: should_label = True
-        elif stats['elo'] > 1950:
-            should_label = True
-            
-        if should_label:
-            ax.annotate(team.title(), (gf, ga), xytext=(5, 5), textcoords='offset points', fontsize=9, fontweight='bold')
+        # Label elites
+        if stats['elo'] > 1900 or (wc_only and stats['elo'] > 1700):
+            ax.annotate(team.title(), (gf, ga), xytext=(5, 5), textcoords='offset points', fontsize=8)
 
-    # Scatter Plot with Diverging Color Map (Red vs Blue)
-    # vmin/vmax set the range. +/- 15 minutes is a massive difference in football averages.
-    scatter = ax.scatter(x_vals, y_vals, c=colors, s=sizes, cmap='coolwarm', alpha=0.8, edgecolors='black', linewidth=0.5, vmin=-15, vmax=15)
-
-    # Colorbar
-    cbar = plt.colorbar(scatter, ax=ax)
-    cbar.set_label('Net Timing (Blue = 1st Half / Red = 2nd Half)')
-
-    # Quadrant Analysis
-    ax.axvline(x=1.5, color='gray', linestyle='--', alpha=0.3)
-    ax.axhline(y=1.2, color='gray', linestyle='--', alpha=0.3)
+    scatter = ax.scatter(x_vals, y_vals, c=colors, s=sizes, cmap='coolwarm', alpha=0.7, edgecolors='black', vmin=-15, vmax=15)
     
-    ax.text(2.6, 0.2, "ELITE\n(Dominant)", color='green', fontsize=9, ha='center', weight='bold')
-    ax.text(0.5, 2.5, "STRUGGLING\n(Leaky)", color='red', fontsize=9, ha='center', weight='bold')
-    
-    # Legend for Size
-    # Manually adding a text box to explain bubble size
-    ax.text(0.02, 0.95, "Size = % Goals from Pens", transform=ax.transAxes, fontsize=8, 
-            verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-
-    ax.set_title(f"Strategic Profile Map (5D Analysis)", fontsize=14, fontweight='bold')
-    ax.set_xlabel("Goals Scored per Game", fontsize=10)
-    ax.set_ylabel("Goals Conceded per Game", fontsize=10)
-    ax.invert_yaxis() # Defense: Lower is Higher
+    ax.set_title("Strategic Style Map", fontsize=14, fontweight='bold')
+    ax.set_xlabel("Goals Scored per Game")
+    ax.set_ylabel("Goals Conceded per Game")
+    ax.invert_yaxis() # Defense: Lower is better (so high up)
     ax.grid(True, linestyle='--', alpha=0.2)
+    
+    cbar = plt.colorbar(scatter, ax=ax)
+    cbar.set_label('Game Control (Blue=Early Lead, Red=Late Comeback)')
 
-    js.document.getElementById("main-chart-container").innerHTML = ""
+    target_div.innerHTML = ""
     display(fig, target="main-chart-container")
     plt.close(fig)
 
