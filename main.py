@@ -101,12 +101,15 @@ def setup_interactions():
     bind_click("hist-filter-wc", handle_history_filter_change)
     bind_click("data-filter-wc", load_data_view)
     
-    # --- Expose Global Functions for HTML 'onclick' attributes ---
-    # Specifically for the group boxes created dynamically in HTML
+    # 1. Existing Group Popup Logic
     proxy_view_group = create_proxy(open_group_modal)
     EVENT_HANDLERS.append(proxy_view_group)
     js.window.view_group_matches = proxy_view_group
 
+    # 2. NEW: Expose History View for the Dashboard Dropdown
+    proxy_view_history = create_proxy(view_team_history)
+    EVENT_HANDLERS.append(proxy_view_history)
+    js.window.trigger_view_history = proxy_view_history
 # =============================================================================
 # --- 2. SINGLE SIMULATION ---
 # =============================================================================
@@ -133,9 +136,14 @@ async def run_single_sim(event):
 
         # Render Groups
         groups_html = ""
+        group_names = [] # List to track groups for binding clicks later
+
         for grp_name, team_list in groups_data.items():
+            group_names.append(grp_name)
+            
+            # NOTE: Removed 'onclick' attribute, added 'id'
             groups_html += f"""
-            <div class="group-box" onclick="window.view_group_matches('{grp_name}')" title="Click to view matches">
+            <div id="group-card-{grp_name}" class="group-box" style="cursor:pointer;" title="Click to view matches">
                 <div style="display:flex; justify-content:space-between;">
                     <h3>Group {grp_name}</h3>
                     <span style="font-size:0.8em; color:#3498db;">ℹ️ Matches</span>
@@ -157,13 +165,28 @@ async def run_single_sim(event):
                     </tr>
                 """
             groups_html += "</tbody></table></div>"
+        
         js.document.getElementById("groups-container").innerHTML = groups_html
 
-        # Render Bracket
-        bracket_html = ""
+        # --- NEW: Bind Click Listeners via Python ---
+        # This is much more reliable than HTML onclick
+        for g in group_names:
+            # We use a default arg (grp=g) to capture the current value of the loop
+            def make_handler(grp):
+                return lambda e: open_group_modal(grp)
+            
+            el = js.document.getElementById(f"group-card-{g}")
+            if el:
+                # Create proxy and save it to EVENT_HANDLERS to prevent garbage collection
+                proxy = create_proxy(make_handler(g))
+                EVENT_HANDLERS.append(proxy)
+                el.addEventListener("click", proxy)
+
+        # Render Bracket (with Mobile Hint)
+        bracket_html = "<div style='font-size:0.8em; color:#7f8c8d; margin-bottom:5px; display:block; text-align:right;'>👉 Swipe to see Final</div>"
+        
         for round_data in bracket_data:
             bracket_html += f'<div class="bracket-round"><div class="round-title">{round_data["round"]}</div>'
-            
             for m in round_data['matches']:
                 c1 = "winner-text" if m['winner'] == m['t1'] else ""
                 c2 = "winner-text" if m['winner'] == m['t2'] else ""
@@ -191,30 +214,35 @@ async def run_single_sim(event):
 
     except Exception as e:
         js.document.getElementById("visual-loading").innerHTML = f"Error: {e}"
-        js.console.error(e)
+        js.console.error(f"SIM ERROR: {e}")
 
 # Match Modal Logic
 def open_group_modal(grp_name):
-    # This might come in as a proxy object if not careful, but usually string from HTML onclick is safe
-    if hasattr(grp_name, "target"): # Check if it accidentally got an event object
-        return 
-
-    matches = LAST_SIM_RESULTS.get("group_matches", {}).get(grp_name, [])
-    js.document.getElementById("modal-title").innerText = f"Group {grp_name} Results"
-    
-    html = ""
-    for m in matches:
-        s1 = "font-weight:bold" if m['g1'] > m['g2'] else ""
-        s2 = "font-weight:bold" if m['g2'] > m['g1'] else ""
-        html += f"""
-        <div class="result-row" style="display:flex; padding:5px; border-bottom:1px solid #eee;">
-            <span style="flex:1; text-align:right; {s1}">{m['t1'].title()}</span>
-            <span class="result-score" style="margin:0 15px; background:#eee; padding:2px 8px; border-radius:4px;">{m['g1']} - {m['g2']}</span>
-            <span style="flex:1; text-align:left; {s2}">{m['t2'].title()}</span>
-        </div>
-        """
-    js.document.getElementById("modal-matches").innerHTML = html
-    js.document.getElementById("group-modal").style.display = "block"
+    try:
+        # Retrieve matches from the last results
+        matches = LAST_SIM_RESULTS.get("group_matches", {}).get(grp_name, [])
+        
+        js.document.getElementById("modal-title").innerText = f"Group {grp_name} Results"
+        
+        html = ""
+        if not matches:
+            html = "<div style='padding:20px; text-align:center;'>No match data available.</div>"
+        else:
+            for m in matches:
+                s1 = "font-weight:bold" if m['g1'] > m['g2'] else ""
+                s2 = "font-weight:bold" if m['g2'] > m['g1'] else ""
+                html += f"""
+                <div class="result-row" style="display:flex; align-items:center; padding:10px; border-bottom:1px solid #eee;">
+                    <span style="flex:1; text-align:right; {s1}">{m['t1'].title()}</span>
+                    <span class="result-score" style="margin:0 15px; background:#f1f2f6; padding:4px 10px; border-radius:4px; font-weight:bold;">{m['g1']} - {m['g2']}</span>
+                    <span style="flex:1; text-align:left; {s2}">{m['t2'].title()}</span>
+                </div>
+                """
+        
+        js.document.getElementById("modal-matches").innerHTML = html
+        js.document.getElementById("group-modal").style.display = "block"
+    except Exception as e:
+        js.console.error(f"MODAL ERROR: {e}")
 
 # =============================================================================
 # --- 3. BULK SIMULATION ---
@@ -390,43 +418,64 @@ def handle_history_filter_change(event):
 import math 
 
 async def view_team_history(event):
-    # 1. Loading State
     container = js.document.getElementById("tab-history")
     
-    # We will inject a whole new grid layout dynamically
+    # --- 1. SAFE VALUE RETRIEVAL ---
+    # We need to find the team name. It might be in the 'old' sidebar 
+    # OR in the 'new' dashboard dropdown.
+    val_team = None
+    
+    # Check Standard Sidebar/Top Input
+    el_standard = js.document.getElementById("team-select")
+    if el_standard: val_team = el_standard.value
+    
+    # Check Dashboard Input (if we are reloading inside the dashboard)
+    if not val_team:
+        el_dash = js.document.getElementById("team-select-dashboard")
+        if el_dash: val_team = el_dash.value
+        
+    if not val_team:
+        # Fallback: Pick the first team from stats if nothing selected
+        if len(sim.TEAM_STATS) > 0:
+            val_team = list(sim.TEAM_STATS.keys())[0]
+        else:
+            container.innerHTML = "Error: No teams available."
+            return
+
+    # Default timeframe
+    timeframe = "all" 
+    el_time = js.document.getElementById("chart-timeframe")
+    if el_time: timeframe = el_time.value
+
+    # --- 2. LOADING STATE ---
+    # We purposefully overwrite the container now that we have the data we need
     container.innerHTML = """
-    <div style="text-align:center; padding:50px;">
+    <div style="text-align:center; padding:50px; color:#7f8c8d;">
         <div style="font-size:2em; margin-bottom:10px;">🔄</div>
-        <div>Generating Scout Report...</div>
+        <div>Generating Scout Report for <b>""" + val_team.title() + """</b>...</div>
     </div>
     """
-    await asyncio.sleep(0.05) # Yield to let UI render
+    await asyncio.sleep(0.05)
     
     try:
-        team = js.document.getElementById("team-select").value
-        timeframe = js.document.getElementById("chart-timeframe").value
-        
+        team = val_team
         stats = sim.TEAM_STATS.get(team)
         history = sim.TEAM_HISTORY.get(team)
         
         if not stats or not history:
-            container.innerHTML = "Error: No data found for this team."
+            container.innerHTML = f"Error: No data found for {team}."
             return
 
-        # --- 2. CALCULATE METRICS ---
-        
-        # World Rank
+        # --- 3. CALCULATE METRICS ---
         sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
         rank = next((i+1 for i, (t, _) in enumerate(sorted_teams) if t == team), "-")
         
-        # Form (Last 5)
         form_str = stats.get('form', '-----')
         form_badges = ""
         for char in form_str:
             c = "#2ecc71" if char == 'W' else "#e74c3c" if char == 'L' else "#95a5a6"
             form_badges += f"<span style='background:{c}; color:white; padding:2px 8px; border-radius:4px; margin-right:4px; font-size:0.8em; font-weight:bold;'>{char}</span>"
             
-        # Timing Stats
         m_score = stats.get('avg_minute_scored', 48)
         m_concede = stats.get('avg_minute_conceded', 48)
         net_timing = m_score - m_concede
@@ -434,73 +483,72 @@ async def view_team_history(event):
         timing_color = "#e74c3c" if net_timing > 5 else "#2980b9" if net_timing < -5 else "#7f8c8d"
         timing_text = "Late Bloomer" if net_timing > 5 else "Fast Starter" if net_timing < -5 else "Balanced"
         
-        # --- 3. BUILD HTML DASHBOARD ---
-        
+        # --- 4. POPULATE DROPDOWN OPTIONS ---
+        # We need to rebuild the dropdown options string manually
+        options_html = ""
+        # Sort teams for the dropdown
+        for t, _ in sorted_teams:
+            sel = "selected" if t == team else ""
+            if js.document.getElementById("hist-filter-wc").checked and t not in sim.WC_TEAMS:
+                continue
+            options_html += f'<option value="{t}" {sel}>{t.title()}</option>'
+
+        # --- 5. BUILD DASHBOARD HTML ---
         html = f"""
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; background:white; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
-            <div>
+            <div style="flex:1;">
                 <div style="font-size:0.9em; color:#7f8c8d; letter-spacing:1px;">WORLD RANK #{rank}</div>
                 <h1 style="margin:5px 0 0 0; font-size:2.5em; text-transform:uppercase;">{team}</h1>
                 <div style="margin-top:10px;">{form_badges}</div>
             </div>
-            <div style="text-align:right;">
-                <div style="font-size:3em; font-weight:800; color:#2c3e50;">{int(stats['elo'])}</div>
-                <div style="font-size:0.9em; color:#7f8c8d;">ELO RATING</div>
-            </div>
-        </div>
-
-        <div style="margin-bottom:20px; display:flex; gap:10px;">
-            <select id="team-select-dashboard" onchange="document.getElementById('team-select').value=this.value; document.getElementById('btn-view-history').click();" style="padding:10px; width:200px;">
-                <option value="{team}" selected>{team.title()}</option>
-            </select>
-            <button onclick="document.getElementById('btn-tab-history').click()" style="background:#34495e; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer;">Refresh / Back</button>
-        </div>
-
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:20px; margin-bottom:20px;">
             
-            <div style="background:white; padding:20px; border-radius:8px; border-left:5px solid #2ecc71; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-                <div style="font-size:0.8em; color:#95a5a6;">ATTACK RATING</div>
-                <div style="font-size:1.8em; font-weight:bold; color:#2ecc71;">{round(stats['gf_avg'], 2)} <span style="font-size:0.5em; color:#bdc3c7;">gls/gm</span></div>
+            <div style="flex:1; text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:5px;">
+                <div style="font-size:3em; font-weight:800; color:#2c3e50; line-height:1;">{int(stats['elo'])}</div>
+                <div style="font-size:0.9em; color:#7f8c8d; margin-bottom:10px;">ELO RATING</div>
+                
+                <select id="team-select-dashboard" onchange="window.trigger_view_history()" style="padding:8px; border-radius:4px; border:1px solid #bdc3c7; background:#f9f9f9; font-size:1em;">
+                    {options_html}
+                </select>
             </div>
+        </div>
 
-            <div style="background:white; padding:20px; border-radius:8px; border-left:5px solid #e74c3c; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-                <div style="font-size:0.8em; color:#95a5a6;">DEFENSE RATING</div>
-                <div style="font-size:1.8em; font-weight:bold; color:#e74c3c;">{round(stats['ga_avg'], 2)} <span style="font-size:0.5em; color:#bdc3c7;">gls/gm</span></div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:15px; margin-bottom:20px;">
+            <div style="background:white; padding:15px; border-radius:8px; border-left:4px solid #2ecc71; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+                <div style="font-size:0.75em; color:#95a5a6; font-weight:bold;">ATTACK (Goals/Gm)</div>
+                <div style="font-size:1.5em; font-weight:bold; color:#2c3e50;">{round(stats['gf_avg'], 2)}</div>
             </div>
-
-            <div style="background:white; padding:20px; border-radius:8px; border-left:5px solid {timing_color}; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-                <div style="font-size:0.8em; color:#95a5a6;">GAME PHASE</div>
-                <div style="font-size:1.4em; font-weight:bold; color:{timing_color};">{timing_text}</div>
-                <div style="font-size:0.8em; opacity:0.7;">Avg Goal: {int(m_score)}'</div>
+            <div style="background:white; padding:15px; border-radius:8px; border-left:4px solid #e74c3c; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+                <div style="font-size:0.75em; color:#95a5a6; font-weight:bold;">DEFENSE (Conceded/Gm)</div>
+                <div style="font-size:1.5em; font-weight:bold; color:#2c3e50;">{round(stats['ga_avg'], 2)}</div>
             </div>
-
-            <div style="background:white; padding:20px; border-radius:8px; border-left:5px solid #f1c40f; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-                <div style="font-size:0.8em; color:#95a5a6;">SET PIECE RELIANCE</div>
-                <div style="font-size:1.8em; font-weight:bold; color:#f39c12;">{int(stats.get('pen_pct',0)*100)}%</div>
-                <div style="font-size:0.8em; opacity:0.7;">of goals from pens</div>
+            <div style="background:white; padding:15px; border-radius:8px; border-left:4px solid {timing_color}; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+                <div style="font-size:0.75em; color:#95a5a6; font-weight:bold;">GAME PHASE</div>
+                <div style="font-size:1.2em; font-weight:bold; color:{timing_color};">{timing_text}</div>
+                <div style="font-size:0.7em; opacity:0.6;">Score {int(m_score)}' / Conc {int(m_concede)}'</div>
+            </div>
+            <div style="background:white; padding:15px; border-radius:8px; border-left:4px solid #f1c40f; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+                <div style="font-size:0.75em; color:#95a5a6; font-weight:bold;">PENALTY RELIANCE</div>
+                <div style="font-size:1.5em; font-weight:bold; color:#f39c12;">{int(stats.get('pen_pct',0)*100)}%</div>
             </div>
         </div>
 
         <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px;">
-            
             <div style="background:white; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
-                <h3 style="margin-top:0; color:#2c3e50;">Performance History</h3>
+                <h4 style="margin:0 0 15px 0; color:#2c3e50; border-bottom:1px solid #eee; padding-bottom:10px;">Performance History</h4>
                 <div id="dashboard_chart_elo"></div>
             </div>
-
             <div style="background:white; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
-                <h3 style="margin-top:0; color:#2c3e50;">Team DNA</h3>
+                <h4 style="margin:0 0 15px 0; color:#2c3e50; border-bottom:1px solid #eee; padding-bottom:10px;">Strategic DNA</h4>
                 <div id="dashboard_chart_radar"></div>
             </div>
-
         </div>
         """
         
         container.innerHTML = html
         
-        # --- 4. RENDER PLOTS ---
+        # --- 6. RENDER PLOTS ---
         
-        # A. ELO Chart
+        # ELO CHART
         dates = history['dates']
         elos = history['elo']
         limit = -100 if timeframe == "10y" else 0
@@ -508,67 +556,45 @@ async def view_team_history(event):
         fig1, ax1 = plt.subplots(figsize=(8, 4))
         ax1.plot(dates[limit:], elos[limit:], color='#34495e', linewidth=2)
         ax1.fill_between(dates[limit:], elos[limit:], min(elos[limit:])-20, color='#34495e', alpha=0.1)
-        ax1.set_title("Elo Rating Trajectory", fontsize=10)
         ax1.grid(True, linestyle='--', alpha=0.3)
         ax1.xaxis.set_major_formatter(mdates.DateFormatter("'%y"))
-        
         display(fig1, target="dashboard_chart_elo")
         plt.close(fig1)
 
-        # B. Radar Chart
-        # Normalize stats against global averages
-        avg_gf = sim.AVG_GOALS / 2 # Approx 1.25
+        # RADAR CHART
+        avg_gf = sim.AVG_GOALS / 2
         avg_ga = sim.AVG_GOALS / 2
-        
-        # Metrics: [Attack, Defense(inv), Form(W%), Intensity(Total Goals), Clutch(Late)]
-        # We clamp values between 0.2 and 2.0 to keep radar readable
-        
         val_att = min(2.0, max(0.2, stats['gf_avg'] / avg_gf))
-        val_def = min(2.0, max(0.2, avg_ga / stats['ga_avg'] if stats['ga_avg'] > 0 else 2.0)) # Invert: Low GA is good
-        
-        # Form: Count Wins in last 5 chars
+        val_def = min(2.0, max(0.2, avg_ga / stats['ga_avg'] if stats['ga_avg'] > 0 else 2.0))
         wins = form_str.count('W')
-        val_form = 0.5 + (wins * 0.3) # 0 wins = 0.5, 5 wins = 2.0
-        
-        # Intensity: Are their games high scoring?
+        val_form = 0.5 + (wins * 0.3)
         val_int = min(2.0, (stats['gf_avg'] + stats['ga_avg']) / (avg_gf + avg_ga))
-        
-        # Clutch: Late goals > Early goals
-        val_clutch = 1.0 + (net_timing / 40.0) # +/- 20 mins swing
+        val_clutch = 1.0 + (net_timing / 40.0)
         
         categories = ['Attack', 'Defense', 'Form', 'Intensity', 'Clutch']
         values = [val_att, val_def, val_form, val_int, val_clutch]
-        values += values[:1] # Close the loop
+        values += values[:1]
         
         angles = [n / float(len(categories)) * 2 * math.pi for n in range(len(categories))]
         angles += angles[:1]
         
         fig2, ax2 = plt.subplots(figsize=(4, 4), subplot_kw=dict(polar=True))
-        
-        # Draw Background
         ax2.set_theta_offset(math.pi / 2)
         ax2.set_theta_direction(-1)
         ax2.set_rlabel_position(0)
-        
-        # Draw Lines & Fill
         ax2.plot(angles, values, linewidth=2, linestyle='solid', color='#e67e22')
         ax2.fill(angles, values, '#e67e22', alpha=0.4)
-        
-        # Labels
         ax2.set_xticks(angles[:-1])
         ax2.set_xticklabels(categories, size=9, weight='bold')
-        ax2.set_yticks([1.0])
-        ax2.set_yticklabels(['Avg'], color="grey", size=7)
+        ax2.set_yticks([]) # Hide radial numbers for cleaner look
         ax2.set_ylim(0, 2.2)
-        
-        ax2.set_title("Style Profile", size=11, y=1.1)
         
         display(fig2, target="dashboard_chart_radar")
         plt.close(fig2)
 
     except Exception as e:
-        container.innerHTML = f"<div style='color:red; padding:20px;'>Error building dashboard: {e}</div>"
-        print(f"DASHBOARD ERROR: {e}")
+        container.innerHTML = f"<div style='color:red; padding:20px;'>Dashboard Error: {e}</div>"
+        js.console.error(f"DASHBOARD ERROR: {e}")
 
 async def plot_style_map(event):
     js.document.getElementById("main-chart-container").innerHTML = "Generating 5D Map..."
