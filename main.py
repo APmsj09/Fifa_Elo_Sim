@@ -576,62 +576,104 @@ def update_dashboard_data():
     if not stats or not history:
         return
 
+    # --- NEW: CALCULATE REAL WC AVERAGES ---
+    wc_gf_total = 0
+    wc_ga_total = 0
+    wc_count = 0
+    
+    # We loop through the official WC roster defined in the engine
+    for t_name in sim.WC_TEAMS:
+        t_stats = sim.TEAM_STATS.get(t_name)
+        if t_stats:
+            wc_gf_total += t_stats.get('gf_avg', 0)
+            wc_ga_total += t_stats.get('ga_avg', 0)
+            wc_count += 1
+            
+    # Avoid division by zero
+    real_avg_gf = wc_gf_total / wc_count if wc_count > 0 else 1.45
+    real_avg_ga = wc_ga_total / wc_count if wc_count > 0 else 1.30
+
     # --- HEADER ---
     header = js.document.getElementById("dashboard-header")
     header.innerHTML = f"""
-    <div style="margin-bottom:20px;">
-        <h1 style="margin:0; font-size:2.5em; color:#2c3e50;">{team.title()}</h1>
-        <div style="color:#7f8c8d; font-weight:bold;">Current FIFA Elo: {int(stats['elo'])}</div>
+    <div style="margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;">
+        <h1 style="margin:0; font-size:2.2em; color:#2c3e50;">{team.title()}</h1>
+        <div style="color:#7f8c8d; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
+            <span>Current FIFA Elo: {int(stats['elo'])}</span>
+            <span style="font-size:0.8em; color:#95a5a6;">(vs WC Field Avg: {int(real_avg_gf*100)/100}/{int(real_avg_ga*100)/100})</span>
+        </div>
     </div>
     """
 
     # --- METRICS ---
-    # Using flexbox for better responsive behavior than grid
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
     <div style="display:flex; gap:15px; margin-bottom:25px; flex-wrap:wrap;">
-        <div style="background:#3498db; color:white; padding:15px; borderRadius:8px; flex:1; min-width:100px; text-align:center;">
-            <div style="font-size:0.8em; opacity:0.8;">ATTACK</div>
-            <div style="font-size:1.5em; font-weight:bold;">{round(stats['gf_avg'],2)}</div>
+        <div style="background:#3498db; color:white; padding:15px; borderRadius:8px; flex:1; min-width:120px; text-align:center; box-shadow:0 2px 5px rgba(52, 152, 219, 0.3);">
+            <div style="font-size:0.8em; opacity:0.9;">ATTACK (GF/G)</div>
+            <div style="font-size:1.6em; font-weight:bold;">{round(stats['gf_avg'],2)}</div>
         </div>
-        <div style="background:#e74c3c; color:white; padding:15px; borderRadius:8px; flex:1; min-width:100px; text-align:center;">
-            <div style="font-size:0.8em; opacity:0.8;">DEFENSE</div>
-            <div style="font-size:1.5em; font-weight:bold;">{round(stats['ga_avg'],2)}</div>
+        <div style="background:#e74c3c; color:white; padding:15px; borderRadius:8px; flex:1; min-width:120px; text-align:center; box-shadow:0 2px 5px rgba(231, 76, 60, 0.3);">
+            <div style="font-size:0.8em; opacity:0.9;">DEFENSE (GA/G)</div>
+            <div style="font-size:1.6em; font-weight:bold;">{round(stats['ga_avg'],2)}</div>
         </div>
-        <div style="background:#f1c40f; color:#2c3e50; padding:15px; borderRadius:8px; flex:1; min-width:100px; text-align:center;">
-            <div style="font-size:0.8em; opacity:0.8;">FORM</div>
-            <div style="font-size:1.5em; font-weight:bold;">{stats.get('form','-----')}</div>
+        <div style="background:#f1c40f; color:#2c3e50; padding:15px; borderRadius:8px; flex:1; min-width:120px; text-align:center; box-shadow:0 2px 5px rgba(241, 196, 15, 0.3);">
+            <div style="font-size:0.8em; opacity:0.9;">FORM</div>
+            <div style="font-size:1.6em; font-weight:bold;">{stats.get('form','-----')}</div>
         </div>
-        <div style="background:#9b59b6; color:white; padding:15px; borderRadius:8px; flex:1; min-width:100px; text-align:center;">
-            <div style="font-size:0.8em; opacity:0.8;">STYLE</div>
-            <div style="font-size:1.2em; font-weight:bold;">{sim.TEAM_PROFILES.get(team, 'Balanced')}</div>
+        <div style="background:#9b59b6; color:white; padding:15px; borderRadius:8px; flex:1; min-width:120px; text-align:center; box-shadow:0 2px 5px rgba(155, 89, 182, 0.3);">
+            <div style="font-size:0.8em; opacity:0.9;">STYLE</div>
+            <div style="font-size:1.3em; font-weight:bold;">{sim.TEAM_PROFILES.get(team, 'Balanced')}</div>
         </div>
     </div>
     """
 
-    # --- ELO CHART ---
+    # --- 1. ELO CHART (With WC Average Line) ---
     js.document.getElementById("dashboard_chart_elo").innerHTML = ""
-    fig, ax = plt.subplots(figsize=(6,4))
-    ax.plot(history['dates'], history['elo'], color='#2980b9', linewidth=2)
+    fig, ax = plt.subplots(figsize=(6, 4.5))
+    
+    # Plot Team History
+    ax.plot(history['dates'], history['elo'], color='#2980b9', linewidth=2, label=team.title())
+    
+    # Plot "Average WC Team" Baseline (Approx 1800 Elo)
+    ax.axhline(y=1800, color='gray', linestyle='--', linewidth=1, alpha=0.7, label='WC Standard')
+    
     ax.grid(True, linestyle='--', alpha=0.3)
-    ax.set_title("Rating History", fontsize=10)
+    ax.set_title("Rating History vs World Standard", fontsize=10, fontweight='bold')
+    ax.legend(loc='upper left', fontsize='small')
+    
     fig.tight_layout()
+    
     display(fig, target="dashboard_chart_elo")
     plt.close(fig)
 
-    # --- RADAR / STYLE CHART ---
-    # Simplified visual representation of Offense vs Defense
+    # --- 2. BAR CHART (Comparison) ---
     js.document.getElementById("dashboard_chart_radar").innerHTML = ""
-    fig2, ax2 = plt.subplots(figsize=(4,4))
+    fig2, ax2 = plt.subplots(figsize=(5, 4.5))
     
-    # Simple Bar Comparison
-    metrics = ['Attack', 'Defense']
-    # Normalize roughly (2.5 is high for goals)
-    vals = [min(stats['gf_avg'], 3.0), min(stats['ga_avg'], 3.0)]
-    colors = ['#3498db', '#e74c3c']
+    metrics = ['Attack\n(Goals For)', 'Defense\n(Goals Against)']
     
-    ax2.bar(metrics, vals, color=colors)
+    # Team Values
+    team_vals = [min(stats['gf_avg'], 3.5), min(stats['ga_avg'], 3.5)]
+    
+    # Use REAL Calculated Averages
+    wc_avgs = [real_avg_gf, real_avg_ga] 
+    
+    x = [0, 1]
+    width = 0.35
+    
+    # Plot Bars side-by-side
+    rects1 = ax2.bar([p - width/2 for p in x], team_vals, width, label=team.title(), color=['#3498db', '#e74c3c'])
+    rects2 = ax2.bar([p + width/2 for p in x], wc_avgs, width, label='WC Field Avg', color='#95a5a6', alpha=0.6)
+    
+    ax2.set_ylabel('Goals per Game')
+    ax2.set_xticks(x)
+    ax2.set_xticklabels(metrics)
+    ax2.legend(fontsize='small')
     ax2.set_ylim(0, 3.5)
-    ax2.set_title("Team Balance", fontsize=10)
+    ax2.grid(axis='y', linestyle='--', alpha=0.3)
+    ax2.set_title("Performance vs Tournament Field", fontsize=10, fontweight='bold')
+    
+    fig2.tight_layout()
     
     display(fig2, target="dashboard_chart_radar")
     plt.close(fig2)
