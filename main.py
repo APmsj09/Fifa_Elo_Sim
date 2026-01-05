@@ -414,12 +414,10 @@ async def run_bulk_sim(event):
         html += "<div style='display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px;'>"
         
         # We need to map teams back to their groups. 
-        # We can use sim.WC_GROUPS (or WC_2026_GROUPS) from the engine.
-        # Assuming sim.WC_GROUPS is available and correct.
-        sorted_groups = sorted(sim.WC_GROUPS.keys())
+        sorted_groups = sorted(group_stats.keys())
         
         for grp in sorted_groups:
-            teams = sim.WC_GROUPS[grp]
+            teams = list(group_stats[grp].keys())
             html += f"""
             <div style="background:white; padding:15px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
                 <h3 style="margin:0 0 10px 0; color:#2980b9;">🔹 Group {grp}</h3>
