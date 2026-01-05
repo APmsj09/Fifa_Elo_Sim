@@ -117,6 +117,52 @@ def load_data():
 # --- PART 2: INITIALIZATION (OPTIMIZED) ---
 # =============================================================================
 
+def get_k_factor(tourney, goal_diff):
+    """
+    Determines the weight of the match based on tournament importance
+    and margin of victory.
+    """
+    t_str = str(tourney)
+    k = 30 # Default
+    
+    # --- TIER 0: FRIENDLIES ---
+    if t_str == 'Friendly':
+        k = 20
+
+    # --- TIER 1: WORLD CUP ---
+    elif 'World Cup' in t_str and 'qualification' not in t_str:
+        k = 60
+        
+    # --- TIER 2: CONTINENTAL FINALS ---
+    elif any(x in t_str for x in [
+        'Copa América', 'UEFA Euro', 'African Cup of Nations', 
+        'Asian Cup', 'Gold Cup', 'CONCACAF Championship', 
+        'Oceania Nations Cup'
+    ]) and 'qualification' not in t_str:
+        k = 50
+        
+    # --- TIER 3: QUALIFIERS & OFFICIAL ---
+    elif any(x in t_str for x in [
+        'qualification', 'Nations League', 'Confederations Cup', 
+        'Arab Cup', 'Gulf Cup'
+    ]):
+        k = 40
+        
+    # --- TIER 4: REGIONAL ---
+    elif any(x in t_str for x in [
+        'AFF Championship', 'ASEAN', 'EAFF', 'Caribbean Cup', 
+        'UNCAF', 'COSAFA', 'SAFF', 'WAFF'
+    ]):
+        k = 35
+
+    # --- MARGIN MULTIPLIER ---
+    # Rewards dominant wins
+    if goal_diff == 2: k *= 1.5
+    elif goal_diff == 3: k *= 1.75
+    elif goal_diff >= 4: k *= (1.75 + (goal_diff-3)/8)
+    
+    return k
+
 def initialize_engine():
     results_df, goalscorers_df, former_names_df = load_data()
     
@@ -160,55 +206,17 @@ def initialize_engine():
         # Elo Math
         dr = rh - ra + (100 if not neutral else 0)
         we = 1 / (10**(-dr/600) + 1)
+        
         if hs > as_: W = 1
         elif as_ > hs: W = 0
         else: W = 0.5
         
-        # 1. Determine Base K-Factor
-        # Default for Minor Tournaments (e.g., Kirin Cup, King's Cup)
-        k = 30 
-        
-        t_str = str(tourney)
-        
-        # --- TIER 0: PURE FRIENDLIES (K=20) ---
-        # "Friendly" is the standard label in the dataset for non-tournament matches
-        if t_str == 'Friendly':
-            k = 20
-
-        # --- TIER 1: THE WORLD CUP (K=60) ---
-        elif 'World Cup' in t_str and 'qualification' not in t_str:
-            k = 60
-            
-        # --- TIER 2: CONTINENTAL FINALS (K=50) ---
-        # Euros, Copa America, AFCON, Asian Cup, Gold Cup
-        elif any(x in t_str for x in [
-            'Copa América', 'UEFA Euro', 'African Cup of Nations', 
-            'Asian Cup', 'Gold Cup', 'CONCACAF Championship', 
-            'Oceania Nations Cup'
-        ]) and 'qualification' not in t_str:
-            k = 50
-            
-        # --- TIER 3: QUALIFIERS & OFFICIAL COMPETITIVE (K=40) ---
-        # World Cup Qualifiers, Nations League, Confed Cup
-        elif any(x in t_str for x in [
-            'qualification', 'Nations League', 'Confederations Cup', 
-            'Arab Cup', 'Gulf Cup'
-        ]):
-            k = 40
-            
-        # --- TIER 4: REGIONAL CHAMPIONSHIPS (K=35) ---
-        # Official sub-regional tournaments (higher than random cups, lower than Qualifiers)
-        elif any(x in t_str for x in [
-            'AFF Championship', 'ASEAN', 'EAFF', 'Caribbean Cup', 
-            'UNCAF', 'COSAFA', 'SAFF', 'WAFF'
-        ]):
-            k = 35
-
-        # 2. Determine Margin of Victory Multiplier (Keep your existing logic here)
+        # 1. Calculate GD first
         gd = abs(hs - as_)
-        if gd == 2: k *= 1.5
-        elif gd == 3: k *= 1.75
-        elif gd >= 4: k *= (1.75 + (gd-3)/8)
+        
+        # 2. Get K-Factor (includes Tournament Tier AND Margin Logic)
+        # Fix: Use 'tourney' variable from the zip loop, not 'row'
+        k = get_k_factor(tourney, gd)
     
         # 3. Apply Change
         change = k * (W - we)
@@ -635,3 +643,51 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
         "bracket_data": structured_bracket,
         "group_matches": group_matches_log
     }
+
+    # =============================================================================
+# --- 6. HISTORICAL BACKTESTING UTILS ---
+# =============================================================================
+def get_historical_elo(cutoff_date='2022-11-20'):
+    results_df, _, _ = load_data()
+    if results_df is None: return {}
+
+    results_df['date'] = pd.to_datetime(results_df['date'])
+    results_df = results_df.sort_values('date')
+    historic_df = results_df[results_df['date'] < cutoff_date]
+
+    team_elo = {}
+    INITIAL_RATING = 1200
+    
+    for _, row in historic_df.iterrows():
+        h = row['home_team'].lower().strip()
+        a = row['away_team'].lower().strip()
+        hs, as_ = row['home_score'], row['away_score']
+        
+        rh = team_elo.get(h, INITIAL_RATING)
+        ra = team_elo.get(a, INITIAL_RATING)
+        
+        # USE THE EXACT SAME LOGIC HERE
+        gd = abs(hs - as_)
+        k = get_k_factor(row['tournament'], gd)
+        
+        dr = rh - ra + (100 if not row['neutral'] else 0)
+        we = 1 / (10**(-dr/600) + 1)
+        W = 1 if hs > as_ else (0 if as_ > hs else 0.5)
+        
+        change = k * (W - we)
+        team_elo[h] = rh + change
+        team_elo[a] = ra - change
+
+    return team_elo
+
+# The 32 Teams of Qatar 2022 (Correct Groups)
+WC_2022_GROUPS = {
+    'A': ['qatar', 'ecuador', 'senegal', 'netherlands'],
+    'B': ['england', 'iran', 'united states', 'wales'],
+    'C': ['argentina', 'saudi arabia', 'mexico', 'poland'],
+    'D': ['france', 'australia', 'denmark', 'tunisia'],
+    'E': ['spain', 'costa rica', 'germany', 'japan'],
+    'F': ['belgium', 'canada', 'morocco', 'croatia'],
+    'G': ['brazil', 'serbia', 'switzerland', 'cameroon'],
+    'H': ['portugal', 'ghana', 'uruguay', 'south korea']
+}

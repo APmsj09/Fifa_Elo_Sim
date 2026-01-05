@@ -55,7 +55,7 @@ async def initialize_app():
 # =============================================================================
 def switch_tab(tab_id):
     # Hide all tabs
-    for t in ["tab-single", "tab-bulk", "tab-data", "tab-history"]:
+    for t in ["tab-single", "tab-bulk", "tab-data", "tab-history", "tab-analysis"]:
         el = js.document.getElementById(t)
         if el: el.style.display = "none"
         
@@ -88,6 +88,7 @@ def setup_interactions():
     bind_click("btn-tab-bulk", lambda e: switch_tab("tab-bulk"))
     bind_click("btn-tab-data", lambda e: switch_tab("tab-data"))
     bind_click("btn-tab-history", lambda e: switch_tab("tab-history"))
+    bind_click("btn-tab-analysis", lambda e: switch_tab("tab-analysis"))
 
     # --- Simulation Buttons ---
     bind_click("btn-run-single", run_single_sim)
@@ -212,8 +213,8 @@ async def run_single_sim(event):
                     g1_txt = f"{m['g1']} (P)" if m['winner'] == m['t1'] else str(m['g1'])
                     g2_txt = f"{m['g2']} (P)" if m['winner'] == m['t2'] else str(m['g2'])
                 elif m['method'] == 'aet':
-                    g1_txt = f"{m['g1']} (AET)"
-                    g2_txt = f"{m['g2']} (AET)"
+                    g1_txt = f"{m['g1']} (ET)"
+                    g2_txt = f"{m['g2']} (ET)"
 
                 bracket_html += f"""
                 <div class="matchup">
