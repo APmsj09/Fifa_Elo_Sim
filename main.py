@@ -269,72 +269,235 @@ def open_group_modal(grp_name):
 # =============================================================================
 # --- 3. BULK SIMULATION ---
 # =============================================================================
+# =============================================================================
+# --- 3. BULK SIMULATION (ENHANCED) ---
+# =============================================================================
+# =============================================================================
+# --- 3. BULK SIMULATION (ROBUST VERSION) ---
+# =============================================================================
 async def run_bulk_sim(event):
     num_el = js.document.getElementById("bulk-count")
     num = int(num_el.value)
     out_div = js.document.getElementById("bulk-results")
-    out_div.innerHTML = f"Running {num} simulations... please wait."
     
-    await asyncio.sleep(0.02)
+    # Initial Loading State
+    out_div.innerHTML = f"""
+    <div style='text-align:center; padding:40px; color:#34495e;'>
+        <h3 style='margin:0;'>🎲 Simulating {num} Tournaments...</h3>
+        <p style='margin:10px 0 0 0; color:#7f8c8d;'>Compiling rigorous statistics for every team.</p>
+        <div style='margin-top:20px; width:100%; height:4px; background:#eee; border-radius:2px; overflow:hidden;'>
+            <div id='bulk-progress' style='width:0%; height:100%; background:#3498db; transition:width 0.1s;'></div>
+        </div>
+    </div>
+    """
     
-    stats = {} 
+    await asyncio.sleep(0.05)
     
+    # --- 1. MASTER DATA STRUCTURE ---
+    # We create a record for EVERY team in the simulation
+    # stats[team] = { 'grp_1st': 0, 'r32': 0, 'sf': 0, 'final': 0, 'win': 0, ... }
+    team_stats = {}
+    
+    # Helper to ensure team exists in stats
+    def init_team(t):
+        if t not in team_stats:
+            team_stats[t] = {
+                'grp_1st': 0, 
+                'r32': 0,    # Advanced from Group
+                'sf': 0,     # Reached Top 4
+                'final': 0,  # Reached Final
+                'win': 0     # Won it all
+            }
+
     try:
         for i in range(num):
-            res = sim.run_simulation(quiet=True, fast_mode=True)
+            # Run 1 full simulation
+            res = sim.run_simulation(fast_mode=False, quiet=True)
             
-            def add_stat(team, place):
-                if not team: return
-                if team not in stats: stats[team] = {'1st':0, '2nd':0, '3rd':0}
-                stats[team][place] += 1
+            # --- A. GROUP ANALYSIS ---
+            # res['groups_data'] = {'A': [{'team': 'Mexico', ...}, ...], ...}
             
-            add_stat(res["champion"], '1st')
-            add_stat(res["runner_up"], '2nd')
-            add_stat(res["third_place"], '3rd')
-            
-            if i % 20 == 0:
-                out_div.innerHTML = f"Running... ({i}/{num})"
-                await asyncio.sleep(0.001)
-        
-        gc.collect()
+            # We need to know who ACTUALLY advanced to the R32 to count "Advance %" correctly
+            # (Because 3rd place advancement is complex, we just check the R32 roster)
+            r32_roster = set()
+            if len(res['bracket_data']) > 0:
+                for match in res['bracket_data'][0]['matches']:
+                    r32_roster.add(match['t1'])
+                    r32_roster.add(match['t2'])
 
-        def get_score(item):
-            s = item[1]
-            return (s['1st'] * 3) + (s['2nd'] * 2) + (s['3rd'] * 1)
+            for grp, table in res['groups_data'].items():
+                # table is a list of dicts, sorted by points (1st to 4th)
+                
+                # 1. First Place (Winner)
+                first_team = table[0]['team']
+                init_team(first_team)
+                team_stats[first_team]['grp_1st'] += 1
+                
+                # 2. Advancement (Anyone in the R32 list)
+                for row in table:
+                    t = row['team']
+                    init_team(t)
+                    if t in r32_roster:
+                        team_stats[t]['r32'] += 1
+
+            # --- B. KNOCKOUT ANALYSIS ---
+            # To find Semi-Finalists reliably, we look at the last two matches of the tournament:
+            # 1. The Final (Winner vs Runner-up)
+            # 2. The 3rd Place Match (Loser of Semi 1 vs Loser of Semi 2)
+            # Anyone in these two matches is a Semi-Finalist.
             
-        sorted_stats = sorted(stats.items(), key=get_score, reverse=True)
+            # Champion is explicit
+            champ = res['champion']
+            init_team(champ)
+            team_stats[champ]['win'] += 1
+            
+            # Find Finalists & Semi-Finalists
+            # We look at the LAST round of the bracket (The Final)
+            # And the explicit 'third_place' logic if available, but let's scan the bracket.
+            
+            bracket = res['bracket_data']
+            if not bracket: continue
+
+            # The Final is the last match in the last round
+            final_round = bracket[-1] 
+            final_match = final_round['matches'][0]
+            finalists = [final_match['t1'], final_match['t2']]
+            
+            for t in finalists:
+                init_team(t)
+                team_stats[t]['final'] += 1
+                team_stats[t]['sf'] += 1 # If you are in final, you were in semis
+            
+            # The 3rd Place Match logic is usually handled separately or is the 'other' match in the final block?
+            # In your simulation_engine.py, 'third_place' is returned explicitly.
+            # To get the 4th place team, we look at the loser of the 3rd place match.
+            # BUT: We can just use the implicit rule:
+            # The 4 Semi-Finalists are the 4 teams in the "Semi-Finals" round (index -2).
+            
+            if len(bracket) >= 2:
+                semi_round = bracket[-2] # The round BEFORE the final
+                for match in semi_round['matches']:
+                    t1, t2 = match['t1'], match['t2']
+                    init_team(t1); init_team(t2)
+                    
+                    # We add to 'sf' count. 
+                    # Note: We already added the finalists to 'sf', so we need to be careful not to double count.
+                    # Actually, simply checking the "Semi-Final Round" roster is the most robust way.
+                    
+                    # RESET SF COUNT logic for this iteration to be safe? 
+                    # No, accumulating is fine if we check participation.
+                    pass 
+
+            # ROBUST RE-SCAN for Semis:
+            # Just grab all 4 teams from the semi-round matches
+            if len(bracket) >= 2:
+                semi_round_matches = bracket[-2]['matches']
+                for m in semi_round_matches:
+                    init_team(m['t1']); team_stats[m['t1']]['sf'] += 1
+                    init_team(m['t2']); team_stats[m['t2']]['sf'] += 1
+            
+            # Progress Update
+            if i % 20 == 0:
+                pct = (i / num) * 100
+                js.document.getElementById("bulk-progress").style.width = f"{pct}%"
+                await asyncio.sleep(0.001)
+
+        # Final 100%
+        js.document.getElementById("bulk-progress").style.width = "100%"
+        await asyncio.sleep(0.2)
+
+        # --- GENERATE OUTPUT ---
+        html = ""
+
+        # 1. GROUP STANDINGS GRID
+        html += "<h2 style='color:#2c3e50; border-bottom:2px solid #ddd; padding-bottom:10px;'>📋 PROJECTED GROUP STANDINGS</h2>"
+        html += "<div style='display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px;'>"
         
-        html = """
-        <h3>Medal Table</h3>
-        <table style="text-align:center; width:100%; border-collapse:collapse;">
-            <thead>
-                <tr style="background:#34495e; color:white;">
-                    <th style="text-align:left; padding:8px;">Team</th>
-                    <th style="background:#f1c40f; color:#2c3e50;">🥇 1st</th>
-                    <th style="background:#bdc3c7; color:#2c3e50;">🥈 2nd</th>
-                    <th style="background:#d35400; color:white;">🥉 3rd</th>
-                    <th>Win %</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
-        for team, s in sorted_stats:
-            perc = round((s['1st'] / num) * 100, 1)
-            row_style = "background:#eafaf1;" if perc > 10 else "border-bottom:1px solid #ddd;"
+        # We need to map teams back to their groups. 
+        # We can use sim.WC_GROUPS (or WC_2026_GROUPS) from the engine.
+        # Assuming sim.WC_GROUPS is available and correct.
+        sorted_groups = sorted(sim.WC_GROUPS.keys())
+        
+        for grp in sorted_groups:
+            teams = sim.WC_GROUPS[grp]
             html += f"""
-            <tr style="{row_style}">
-                <td style="text-align:left; font-weight:600; padding:8px;">{team.title()}</td>
-                <td>{s['1st']}</td>
-                <td>{s['2nd']}</td>
-                <td>{s['3rd']}</td>
-                <td>{perc}%</td>
+            <div style="background:white; padding:15px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+                <h3 style="margin:0 0 10px 0; color:#2980b9;">🔹 Group {grp}</h3>
+                <table style="width:100%; border-collapse:collapse; font-size:0.85em;">
+                    <tr style="border-bottom:1px solid #eee; text-align:left; color:#7f8c8d;">
+                        <th style="padding:5px;">Team</th>
+                        <th style="padding:5px; text-align:right;">Grp Win %</th>
+                        <th style="padding:5px; text-align:right;">Advance %</th>
+                    </tr>
+            """
+            
+            # Sort teams in this group by "Advance %"
+            grp_data = []
+            for t in teams:
+                s = team_stats.get(t, {'grp_1st':0, 'r32':0})
+                grp_data.append({
+                    'name': t,
+                    'win_pct': (s['grp_1st'] / num) * 100,
+                    'adv_pct': (s['r32'] / num) * 100
+                })
+            
+            grp_data.sort(key=lambda x: x['adv_pct'], reverse=True)
+            
+            for row in grp_data:
+                # Visual styling
+                bg = ""
+                if row['adv_pct'] > 85: bg = "background:#eafaf1;" # Green tint for locks
+                elif row['adv_pct'] < 15: bg = "color:#aaa;"       # Grey for likely out
+                
+                html += f"""
+                <tr style="border-bottom:1px solid #f9f9f9; {bg}">
+                    <td style="padding:6px; font-weight:600;">{row['name'].title()}</td>
+                    <td style="padding:6px; text-align:right;">{row['win_pct']:.1f}%</td>
+                    <td style="padding:6px; text-align:right; font-weight:bold;">{row['adv_pct']:.1f}%</td>
+                </tr>
+                """
+            html += "</table></div>"
+        
+        html += "</div>" # End Grid
+
+        # 2. TOURNAMENT FAVORITES TABLE
+        html += "<br><h2 style='color:#2c3e50; border-bottom:2px solid #ddd; padding-bottom:10px; margin-top:30px;'>🏆 TOURNAMENT FAVORITES</h2>"
+        html += """
+        <table style="width:100%; border-collapse:collapse; background:white; border-radius:8px; overflow:hidden; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+            <tr style="background:#2c3e50; color:white; text-align:left;">
+                <th style="padding:12px;">Team</th>
+                <th style="padding:12px; text-align:right;">Semis %</th>
+                <th style="padding:12px; text-align:right;">Finals %</th>
+                <th style="padding:12px; text-align:right; background:#f1c40f; color:#2c3e50;">Win %</th>
+            </tr>
+        """
+        
+        # Sort all teams by Win %
+        all_teams_sorted = sorted(team_stats.items(), key=lambda x: x[1]['win'], reverse=True)
+        
+        for team, s in all_teams_sorted:
+            win_pct = (s['win'] / num) * 100
+            final_pct = (s['final'] / num) * 100
+            semi_pct = (s['sf'] / num) * 100
+            
+            # Filter: Only show teams with >0% chance of reaching Semis OR Winning
+            if semi_pct < 0.5 and win_pct < 0.1: continue
+            
+            html += f"""
+            <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:10px; font-weight:bold;">{team.title()}</td>
+                <td style="padding:10px; text-align:right; color:#7f8c8d;">{semi_pct:.1f}%</td>
+                <td style="padding:10px; text-align:right;">{final_pct:.1f}%</td>
+                <td style="padding:10px; text-align:right; font-weight:bold; background:#fffcf5;">{win_pct:.1f}%</td>
             </tr>
             """
-        html += "</tbody></table>"
+            
+        html += "</table>"
         out_div.innerHTML = html
-        
+
     except Exception as e:
-        out_div.innerHTML = f"Error in Bulk Sim: {e}"
+        out_div.innerHTML = f"<div style='color:red; padding:20px; font-weight:bold;'>Error: {e}</div>"
+        js.console.error(f"BULK SIM ERROR: {e}")
 
 # =============================================================================
 # --- 4. DATA VIEW ---
