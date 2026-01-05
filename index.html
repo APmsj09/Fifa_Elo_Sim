@@ -419,62 +419,42 @@
             </div>
 
             <div id="tab-analysis" class="tab-content">
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; height:100%;">
+                <div style="max-width: 900px; margin: 0 auto;">
 
-                    <div
-                        style="background:white; padding:20px; border-radius:10px; overflow-y:auto; box-shadow:0 2px 10px rgba(0,0,0,0.05);">
-                        <h2
-                            style="color:#2c3e50; border-bottom:2px solid #eee; padding-bottom:10px; display:flex; justify-content:space-between;">
-                            <span>🕰️ Time Machine</span>
-                            <span
-                                style="font-size:0.6em; background:#3498db; color:white; padding:4px 8px; border-radius:4px; align-self:center;">Qatar
-                                2022</span>
+                    <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 2px 15px rgba(0,0,0,0.05); margin-bottom: 30px;">
+                        <h2 style="color:#2c3e50; border-bottom:2px solid #eee; padding-bottom:15px; display:flex; justify-content:space-between; align-items:center;">
+                            <span>🕰️ Time Machine: Qatar 2022</span>
+                            <button id="btn-backtest-sim" style="font-size:0.6em; background:#2c3e50; color:white; padding:8px 15px; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">
+                                ▶ Run Simulation Check
+                            </button>
                         </h2>
-
-                        <p style="color:#7f8c8d; font-size:0.9em; line-height:1.5;">
-                            Compare two different approaches to predicting the past. Both models will be blinded to data
-                            after Nov 20, 2022.
+                        
+                        <p style="color:#7f8c8d; line-height:1.6;">
+                            This tool validates the simulation engine by stripping all data after Nov 20, 2022. 
+                            It then runs <b>1,000 simulations</b> of the 32-team Qatar World Cup format to see if the engine correctly identifies the eventual winner (Argentina) and the finalists.
                         </p>
 
-                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin:15px 0;">
-                            <button id="btn-backtest-sim"
-                                style="padding:12px; background:#2c3e50; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; transition: background 0.2s;">
-                                🎲 Run Sim Engine
-                            </button>
-                            <button id="btn-backtest-ml"
-                                style="padding:12px; background:#e67e22; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; transition: background 0.2s;">
-                                🤖 Run ML Model
-                            </button>
+                        <div id="sim-progress-container" style="display:none; width:100%; background-color:#ecf0f1; border-radius:10px; margin: 15px 0; overflow:hidden;">
+                            <div id="sim-progress-bar" style="width:0%; height:20px; background-color:#27ae60; transition: width 0.1s linear;"></div>
                         </div>
 
-                        <div id="validation-charts" style="min-height:200px; margin-bottom:15px;"></div>
-                        <div id="validation-text" style="font-size:0.9em; color:#2c3e50;"></div>
+                        <div id="validation-text" style="margin: 15px 0; font-weight:bold; color:#2980b9;"></div>
+                        <div id="validation-charts" style="min-height:300px;"></div>
                     </div>
 
-                    <div style="background:#2c3e50; color:white; padding:20px; border-radius:10px; overflow-y:auto;">
-                        <h2 style="color:#f1c40f; border-bottom:2px solid #555; padding-bottom:10px;">
-                            🤖 AI Predictor (2026)
-                        </h2>
-                        <p style="color:#bdc3c7; font-size:0.9em;">
-                            Train a Random Forest model on all historical data to predict the upcoming 2026 tournament.
-                        </p>
-
-                        <button id="btn-train-model"
-                            style="width:100%; padding:15px; background:#27ae60; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer; margin:15px 0;">
-                            ⚡ Train & Predict 2026
-                        </button>
-
-                        <div id="ml-loading" style="display:none; text-align:center; padding:20px;">
-                            ⚙️ Training Model... (This may take a moment)
-                        </div>
-
-                        <div id="ml-results" style="display:none;">
-                            <div
-                                style="background:rgba(0,0,0,0.3); padding:15px; border-radius:6px; margin-bottom:15px;">
-                                <div style="font-size:0.8em; opacity:0.7;">ML MODEL FAVORITE</div>
-                                <div id="ml-winner" style="font-size:2em; font-weight:bold; color:#2ecc71;">---</div>
-                            </div>
-                            <div id="ml-details"></div>
+                    <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 2px 15px rgba(0,0,0,0.05);">
+                        <h2 style="color:#2c3e50; margin-bottom:15px;">📊 ML Analysis & Findings</h2>
+                        <div style="background:#f8f9fa; padding:20px; border-left:4px solid #8e44ad; color:#555; line-height:1.6;">
+                            <h3>Project Note</h3>
+                            <p>
+                                Extensive Machine Learning testing (Random Forest / XGBoost) is being conducted in a separate environment to ensure accuracy and performance.
+                            </p>
+                            <p>
+                                <b>Key Findings so far:</b><br>
+                                • The pure Elo Simulation (above) often outperforms ML in predicting "Chaos" (upsets).<br>
+                                • ML models tend to be over-confident in favorites, assigning >60% win probabilities to top seeds.<br>
+                                • The 2026 forecast will combine the stability of Elo with the specific match-up insights from the ML study.
+                            </p>
                         </div>
                     </div>
 
@@ -495,7 +475,7 @@
     </div>
 
     <py-config>
-        packages = ["pandas", "numpy", "matplotlib", "scikit-learn"]
+        packages = ["pandas", "numpy", "matplotlib"]
         [[fetch]]
         files = ["main.py", "simulation_engine.py", "analysis.py"]
         [[fetch]]

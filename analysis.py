@@ -6,14 +6,12 @@ import matplotlib.pyplot as plt
 import simulation_engine as sim
 from pyodide.ffi import create_proxy
 from pyscript import display
-from sklearn.ensemble import RandomForestClassifier
 
 # ==========================================================
-# --- 1. SIMULATION ENGINE BACKTEST (Monte Carlo) ---
+# --- 2022 BACKTEST SIMULATION (Standard Engine) ---
 # ==========================================================
 
 def sim_2022_tournament(elo_snapshot):
-    # (Same tournament logic as before)
     # 1. GROUP STAGE
     group_winners = {}
     group_runners = {}
@@ -22,9 +20,15 @@ def sim_2022_tournament(elo_snapshot):
         points = {t: 0 for t in teams}
         gd = {t: 0 for t in teams} 
         
-        for i in range(len(teams)):
-            for j in range(i+1, len(teams)):
-                t1, t2 = teams[i], teams[j]
+        # Shuffle for random tie-breakers
+        teams_shuffled = teams.copy()
+        np.random.shuffle(teams_shuffled)
+        
+        for i in range(len(teams_shuffled)):
+            for j in range(i+1, len(teams_shuffled)):
+                t1, t2 = teams_shuffled[i], teams_shuffled[j]
+                
+                # Manual Match Sim
                 s1 = {'elo': elo_snapshot.get(t1, 1600), 'off': 1.0, 'def': 1.0}
                 s2 = {'elo': elo_snapshot.get(t2, 1600), 'off': 1.0, 'def': 1.0}
                 dr = s1['elo'] - s2['elo']
@@ -38,7 +42,7 @@ def sim_2022_tournament(elo_snapshot):
                 elif g2 > g1: points[t2] += 3
                 else: points[t1] += 1; points[t2] += 1
 
-        sorted_teams = sorted(teams, key=lambda t: (points[t], gd[t]), reverse=True)
+        sorted_teams = sorted(teams_shuffled, key=lambda t: (points[t], gd[t]), reverse=True)
         group_winners[grp] = sorted_teams[0]
         group_runners[grp] = sorted_teams[1]
 
@@ -67,120 +71,38 @@ def sim_2022_tournament(elo_snapshot):
     return champion, set(finalists), set(semis)
 
 async def run_sim_backtest(event):
-    await run_backtest_generic('sim')
-
-# ==========================================================
-# --- 2. ML MODEL BACKTEST (Random Forest) ---
-# ==========================================================
-
-async def run_ml_backtest(event):
-    await run_backtest_generic('ml')
-
-async def train_ml_historical(cutoff_date='2022-11-20'):
-    """Trains a model ONLY on data before the cutoff."""
-    results_df, _, _ = sim.load_data()
-    results_df['date'] = pd.to_datetime(results_df['date'])
-    
-    # Filter Data
-    train_df = results_df[(results_df['date'] < cutoff_date) & (results_df['date'] > '2014-01-01')]
-    
-    # We need historical Elo to train accurately. 
-    # For speed, we will approximate using the 'get_historical_elo' result for both teams
-    # Note: This is a simplification. A perfect ML model would calculating rolling Elo for every row.
-    # To keep it fast in browser, we assume Elo Difference is the main feature.
-    
-    # Get Elo at time of cutoff (Best approximation we have in memory)
-    elo_snapshot = sim.get_historical_elo(cutoff_date)
-    
-    X, y = [], []
-    for _, row in train_df.iterrows():
-        h, a = row['home_team'].lower().strip(), row['away_team'].lower().strip()
-        if h in elo_snapshot and a in elo_snapshot:
-            diff = elo_snapshot[h] - elo_snapshot[a]
-            X.append([diff])
-            y.append(1 if row['home_score'] > row['away_score'] else 0)
-            
-    clf = RandomForestClassifier(n_estimators=100, max_depth=3, random_state=42)
-    clf.fit(X, y)
-    return clf, elo_snapshot
-
-def sim_ml_tournament(clf, elo_snapshot):
-    """Simulates 2022 using ML probabilities instead of Poisson."""
-    # Logic is identical to Sim Engine, but the 'play_match' function changes
-    
-    # HELPER: Predict Winner using ML
-    def predict_winner(t1, t2):
-        diff = elo_snapshot.get(t1, 1200) - elo_snapshot.get(t2, 1200)
-        prob_t1 = clf.predict_proba([[diff]])[0][1] # Probability of Class 1 (Home Win)
-        return t1 if np.random.random() < prob_t1 else t2
-
-    # 1. GROUP STAGE (Simplified: ML predicts raw wins)
-    group_winners = {}
-    group_runners = {}
-    
-    for grp, teams in sim.WC_2022_GROUPS.items():
-        points = {t: 0 for t in teams}
-        # Randomized shuffle to prevent alphabetical bias in tie-breakers
-        np.random.shuffle(teams) 
-        
-        for i in range(len(teams)):
-            for j in range(i+1, len(teams)):
-                t1, t2 = teams[i], teams[j]
-                winner = predict_winner(t1, t2)
-                points[winner] += 3
-        
-        sorted_teams = sorted(teams, key=lambda t: points[t], reverse=True)
-        group_winners[grp] = sorted_teams[0]
-        group_runners[grp] = sorted_teams[1]
-
-    # 2. KNOCKOUT
-    ro16 = [
-        (group_winners['A'], group_runners['B']), (group_winners['C'], group_runners['D']),
-        (group_winners['E'], group_runners['F']), (group_winners['G'], group_runners['H']),
-        (group_winners['B'], group_runners['A']), (group_winners['D'], group_runners['C']),
-        (group_winners['F'], group_runners['E']), (group_winners['H'], group_runners['G'])
-    ]
-    
-    quarters = [predict_winner(t1, t2) for t1, t2 in ro16]
-    semis = [predict_winner(quarters[i], quarters[i+1]) for i in range(0, len(quarters), 2)]
-    finalists = [predict_winner(semis[i], semis[i+1]) for i in range(0, len(semis), 2)]
-    champion = predict_winner(finalists[0], finalists[1])
-    
-    return champion, set(finalists), set(semis)
-
-# ==========================================================
-# --- 3. SHARED UI & RUNNER ---
-# ==========================================================
-
-async def run_backtest_generic(mode):
     out_div = js.document.getElementById("validation-text")
     chart_div = js.document.getElementById("validation-charts")
+    btn = js.document.getElementById("btn-backtest-sim")
     
-    title = "🎲 SIM ENGINE" if mode == 'sim' else "🤖 ML MODEL"
-    out_div.innerHTML = f"Initializing {title} Backtest..."
+    # Progress Bar Elements
+    prog_container = js.document.getElementById("sim-progress-container")
+    prog_bar = js.document.getElementById("sim-progress-bar")
+    
+    if btn: 
+        btn.disabled = True
+        btn.innerText = "⏳ Running..."
+
+    # Reset UI
+    out_div.innerHTML = "Step 1: Calculating historical Elo (1872 - 2022)..."
     chart_div.innerHTML = ""
+    if prog_container: 
+        prog_container.style.display = "block"
+        prog_bar.style.width = "0%"
+    
     await asyncio.sleep(0.1)
 
     try:
         # 1. Prepare Data
-        if mode == 'sim':
-            elo_2022 = sim.get_historical_elo('2022-11-20')
-            runner_func = lambda: sim_2022_tournament(elo_2022)
-        else:
-            out_div.innerHTML = "Training Random Forest on 2014-2022 data..."
-            await asyncio.sleep(0.1)
-            clf, elo_2022 = await train_ml_historical()
-            runner_func = lambda: sim_ml_tournament(clf, elo_2022)
-
+        elo_2022 = sim.get_historical_elo('2022-11-20')
+        
         # 2. Run Simulations
-        out_div.innerHTML = f"Running 500 {title} Simulations..."
-        await asyncio.sleep(0.1)
+        sim_count = 1000
+        out_div.innerHTML = f"Step 2: Simulating Qatar World Cup {sim_count} times..."
         
-        sim_count = 500
         stats = {} 
-        
         for i in range(sim_count):
-            champ, finalists, semifinalists = runner_func()
+            champ, finalists, semifinalists = sim_2022_tournament(elo_2022)
             
             def track(t, key):
                 if t not in stats: stats[t] = {'win':0, 'final':0, 'semi':0}
@@ -190,60 +112,92 @@ async def run_backtest_generic(mode):
             for t in finalists: track(t, 'final')
             for t in semifinalists: track(t, 'semi')
             
-            if i % 100 == 0: await asyncio.sleep(0.001) # UI Breath
+            # Update Progress Bar every 20 iterations (keeps UI smooth)
+            if i % 20 == 0:
+                pct = (i / sim_count) * 100
+                if prog_bar: prog_bar.style.width = f"{pct}%"
+                await asyncio.sleep(0.001)
+
+        # Finalize Progress
+        if prog_bar: prog_bar.style.width = "100%"
+        await asyncio.sleep(0.2) # Small pause to let user see 100%
 
         # 3. Visualization
         sorted_by_win = sorted(stats.items(), key=lambda x: x[1]['win'], reverse=True)
         top_5 = sorted_by_win[:5]
         
-        fig, ax = plt.subplots(figsize=(6, 4))
+        fig, ax = plt.subplots(figsize=(7, 4))
         teams = [x[0].title() for x in top_5]
         probs = [(x[1]['win']/sim_count)*100 for x in top_5]
-        colors = ['#f1c40f' if 'argentina' in t.lower() else '#2c3e50' for t in teams]
+        colors = ['#f1c40f' if 'argentina' in t.lower() else '#3498db' for t in teams]
         
-        ax.bar(teams, probs, color=colors)
+        bars = ax.bar(teams, probs, color=colors)
         ax.set_ylabel("Win %")
-        ax.set_title(f"{title} Prediction (2022)", fontweight='bold')
+        ax.set_title(f"Engine Prediction for 2022 (Based on {sim_count} Sims)", fontweight='bold')
+        
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{height:.1f}%', ha='center', va='bottom', fontsize=9)
+                        
         display(fig, target="validation-charts")
         plt.close(fig)
         
         # 4. Report Card
         actual_results = [
             ('argentina', '🥇 Winner'), ('france', '🥈 Runner-up'),
-            ('croatia', '🥉 3rd'), ('morocco', '4th')
+            ('croatia', '🥉 3rd'), ('morocco', '4th'),
+            ('england', 'Q-Finals'), ('brazil', 'Q-Finals'), 
+            ('portugal', 'Q-Finals'), ('netherlands', 'Q-Finals')
         ]
         
-        html = f"""
-        <h3 style="margin-top:10px; border-bottom:1px solid #ddd;">{title} Report Card</h3>
-        <table style="width:100%; border-collapse:collapse; font-size:0.85em;">
+        html = """
+        <table style="width:100%; border-collapse:collapse; font-size:0.9em; margin-top:20px;">
             <tr style="background:#2c3e50; color:white; text-align:left;">
-                <th style="padding:8px;">Team</th>
-                <th style="padding:8px;">Real Result</th>
-                <th style="padding:8px;">Win %</th>
+                <th style="padding:10px;">Team</th>
+                <th style="padding:10px;">Real Result</th>
+                <th style="padding:10px; background:#34495e;">Reach Semis</th>
+                <th style="padding:10px; background:#2980b9;">Reach Final</th>
+                <th style="padding:10px; background:#f1c40f; color:#2c3e50;">Win Cup</th>
             </tr>
         """
         for team, result in actual_results:
-            s = stats.get(team, {'win':0})
+            s = stats.get(team, {'win':0, 'final':0, 'semi':0})
+            
+            p_semi = (s['semi'] / sim_count) * 100
+            p_final = (s['final'] / sim_count) * 100
             p_win = (s['win'] / sim_count) * 100
-            html += f"<tr><td style='padding:8px;'>{team.title()}</td><td>{result}</td><td style='font-weight:bold;'>{p_win:.1f}%</td></tr>"
+            
+            html += f"""
+            <tr style="border-bottom:1px solid #ddd;">
+                <td style="padding:10px; font-weight:bold;">{team.title()}</td>
+                <td style="padding:10px;">{result}</td>
+                <td style="padding:10px;">{p_semi:.1f}%</td>
+                <td style="padding:10px;">{p_final:.1f}%</td>
+                <td style="padding:10px; font-weight:bold;">{p_win:.1f}%</td>
+            </tr>
+            """
         html += "</table>"
         
         out_div.innerHTML = html
+        
+        # Hide progress bar after completion
+        if prog_container: prog_container.style.display = "none"
 
     except Exception as e:
         out_div.innerHTML = f"Error: {e}"
         js.console.error(e)
+        
+    finally:
+        if btn:
+            btn.disabled = False
+            btn.innerText = "▶ Run Simulation Check"
 
 # ==========================================================
-# --- 3. INIT ---
+# --- INIT ---
 # ==========================================================
 def init_analysis():
-    # Bind Sim Button
-    btn_sim = js.document.getElementById("btn-backtest-sim")
-    if btn_sim: btn_sim.onclick = create_proxy(run_sim_backtest)
-        
-    # Bind ML Button
-    btn_ml = js.document.getElementById("btn-backtest-ml")
-    if btn_ml: btn_ml.onclick = create_proxy(run_ml_backtest)
+    btn = js.document.getElementById("btn-backtest-sim")
+    if btn: btn.onclick = create_proxy(run_sim_backtest)
 
 init_analysis()
