@@ -90,6 +90,9 @@ def setup_interactions():
     bind_click("btn-tab-history", lambda e: switch_tab("tab-history"))
     bind_click("btn-tab-analysis", lambda e: switch_tab("tab-analysis"))
 
+    build_dashboard_shell()
+    populate_team_dropdown(target_id="team-select-dashboard")
+
     # --- Simulation Buttons ---
     bind_click("btn-run-single", run_single_sim)
     bind_click("btn-run-bulk", run_bulk_sim)
