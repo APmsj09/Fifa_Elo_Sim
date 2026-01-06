@@ -504,7 +504,6 @@ def load_data_view(event):
     sidebar_checkbox = js.document.getElementById("hist-filter-wc")
     wc_only = sidebar_checkbox.checked if sidebar_checkbox else False
     
-    # 1. TABLE START (Using class 'rankings-table')
     html = """
     <div style="margin-bottom:10px; font-size:0.8em; color:#7f8c8d; text-align:right;">
         *Stats based on matches since Jan 1, 2022
@@ -533,11 +532,15 @@ def load_data_view(event):
     
     rank_counter = 0
     for team, stats in sorted_teams:
+        # Filter 1: WC Teams Only (If checkbox checked)
         if wc_only and team not in sim.WC_TEAMS: continue
         
-        rank_counter += 1
+        # Filter 2: "Ghost Team" Filter (Must have played since 2022)
         matches = stats.get('matches', 0)
-        if matches == 0: continue 
+        if matches < 1: continue 
+
+        # Increment rank only AFTER passing filters
+        rank_counter += 1
 
         # Form Formatting
         raw_form = stats.get('form', '-----')
@@ -554,7 +557,6 @@ def load_data_view(event):
         late_goals = stats.get('late_goals', 0)
         pens = stats.get('penalties', 0)
         
-        # 2. ROWS (No inline styles needed anymore)
         html += f"""
         <tr>
             <td style="font-weight:bold;">#{rank_counter}</td>
