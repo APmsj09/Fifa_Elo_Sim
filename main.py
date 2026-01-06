@@ -196,8 +196,8 @@ async def run_single_sim(event):
         
         js.document.getElementById("groups-container").innerHTML = groups_html
 
-        # Render Bracket (with Mobile Hint)
-        bracket_html = "<div style='font-size:0.8em; color:#7f8c8d; margin-bottom:5px; display:block; text-align:right;'>👉 Swipe to see Final</div>"
+        # Render Bracket
+        bracket_html = ""
         
         for round_data in bracket_data:
             bracket_html += f'<div class="bracket-round"><div class="round-title">{round_data["round"]}</div>'
@@ -272,9 +272,7 @@ def open_group_modal(grp_name):
 # =============================================================================
 # --- 3. BULK SIMULATION ---
 # =============================================================================
-# =============================================================================
-# --- 3. BULK SIMULATION (ENHANCED) ---
-# =============================================================================
+
 async def run_bulk_sim(event):
     # 1. Get Elements
     num_el = js.document.getElementById("bulk-count")
@@ -502,22 +500,28 @@ def load_data_view(event):
     container = js.document.getElementById("data-table-container")
     if not container: return
     
-    container.innerHTML = "<div style='padding:20px; text-align:center;'>Loading data...</div>" 
-    
+    container.innerHTML = "<div style='padding:20px; text-align:center;'>Loading raw data...</div>" 
     sidebar_checkbox = js.document.getElementById("hist-filter-wc")
     wc_only = sidebar_checkbox.checked if sidebar_checkbox else False
     
     html = """
+    <div style="margin-bottom:10px; font-size:0.8em; color:#7f8c8d; text-align:right;">
+        *Stats based on matches since Jan 1, 2022
+    </div>
     <table class="data-table">
         <thead>
-            <tr>
-                <th>Rank</th>
+            <tr style="font-size:0.85em; background:#f8f9fa; border-bottom:2px solid #ddd;">
+                <th style="padding:10px;">Rank</th>
                 <th>Team</th>
-                <th>Rating</th>
-                <th>Form</th>
-                <th title="Goals Scored per Game (Last 2 Years)">GF / Gm</th>
-                <th title="Goals Allowed per Game (Last 2 Years)">GA / Gm</th>
-                <th>Style</th>
+                <th>Elo</th>
+                <th title="Total Matches Played">Matches</th>
+                <th title="Total Goals For">GF</th>
+                <th title="Total Goals Against">GA</th>
+                <th title="Total Clean Sheets (Count)">CS</th>
+                <th title="Matches where Both Teams Scored">BTTS</th>
+                <th title="Goals Scored in 1st Half">1H G</th>
+                <th title="Goals Scored in 75th min or later">Late G</th>
+                <th title="Penalty Goals">Pens</th>
             </tr>
         </thead>
         <tbody>
@@ -530,37 +534,71 @@ def load_data_view(event):
         if wc_only and team not in sim.WC_TEAMS: continue
         
         rank_counter += 1
-        style = sim.TEAM_PROFILES.get(team, "Balanced")
         
-        form_html = ""
-        form_raw = stats.get('form', '-----')
-        for char in form_raw:
-            color = "#ccc"
-            if char == "W": color = "#2ecc71"
-            elif char == "L": color = "#e74c3c"
-            elif char == "D": color = "#f1c40f"
-            form_html += f"<span style='color:{color}; font-weight:bold; margin-right:2px;'>{char}</span>"
-
-        gf = round(stats.get('gf_avg', 0), 2)
-        ga = round(stats.get('ga_avg', 0), 2)
+        # Raw Counts
+        matches = stats.get('matches', 0)
+        gf_total = int(stats.get('gf_avg', 0) * matches) # approximate if we stored avg
+        # Actually, let's use the explicit totals if available, or calculate back
+        # In engine we tracked aggregates, let's assume stats has 'clean_sheets' etc as INTs
         
-        gf_color = "green" if gf > 2.0 else "#555"
-        ga_color = "red" if ga > 1.5 else "#555"
-
+        cs = stats.get('clean_sheets', 0)
+        btts = stats.get('btts', 0)
+        first_half = stats.get('first_half', 0)
+        late_goals = stats.get('late_goals', 0)
+        pens = stats.get('penalties', 0)
+        
         html += f"""
-        <tr>
-            <td>#{rank_counter}</td>
+        <tr style="border-bottom:1px solid #eee;">
+            <td style="padding:8px;">#{rank_counter}</td>
             <td style='font-weight:600'>{team.title()}</td>
-            <td>{int(stats['elo'])}</td>
-            <td style='letter-spacing:1px; font-size:0.9em'>{form_html}</td>
-            <td style='color:{gf_color}; font-weight:bold;'>{gf}</td>
-            <td style='color:{ga_color};'>{ga}</td>
-            <td>{style}</td>
+            <td style="font-weight:bold; color:#2c3e50;">{int(stats['elo'])}</td>
+            <td style="background:#f9f9f9; text-align:center;">{matches}</td>
+            <td style="color:#2980b9;">{int(stats.get('gf_avg',0) * matches)}</td>
+            <td style="color:#c0392b;">{int(stats.get('ga_avg',0) * matches)}</td>
+            <td style="font-weight:bold;">{cs}</td>
+            <td>{btts}</td>
+            <td>{first_half}</td>
+            <td>{late_goals}</td>
+            <td>{pens}</td>
         </tr>
         """
     
     html += "</tbody></table>"
     container.innerHTML = html
+
+    def generate_scout_report(stats):
+    """
+    Analyzes raw stats to generate a text-based scouting profile.
+    """
+    tags = []
+    
+    # 1. Defense Style
+    if stats.get('cs_pct', 0) > 45:
+        tags.append("🛡️ <b>Iron Curtain:</b> Elite defensive structure.")
+    elif stats.get('cs_pct', 0) < 15:
+        tags.append("⚠️ <b>Leaky Backline:</b> Vulnerable to conceding.")
+        
+    # 2. Chaos Factor (BTTS)
+    if stats.get('btts_pct', 0) > 60:
+        tags.append("🎢 <b>Chaotic:</b> High-scoring, open games.")
+    elif stats.get('btts_pct', 0) < 30:
+        tags.append("🔒 <b>Controlled:</b> Low-event, tight matches.")
+        
+    # 3. Pacing (1st Half vs Late)
+    if stats.get('fh_pct', 0) > 55:
+        tags.append("⚡ <b>Fast Starters:</b> Dangerous in the first 45.")
+    elif stats.get('late_pct', 0) > 25:
+        tags.append("⏱️ <b>Clutch:</b> High percentage of late goals.")
+        
+    # 4. Set Pieces
+    if stats.get('pen_pct', 0) > 15:
+        tags.append("🎯 <b>Set-Piece Reliant:</b> High % of goals from spot.")
+        
+    # Default
+    if not tags:
+        tags.append("⚖️ <b>Balanced Profile:</b> No statistical extremes.")
+        
+    return "<br>".join(tags)
 
 # =============================================================================
 # --- 5. HISTORY & ANALYSIS  ---
@@ -695,30 +733,27 @@ async def view_team_history(event=None):
     update_dashboard_data()
 
 def update_dashboard_data():
-    # Get the select element
+    # 1. GET TEAM SELECTION
     select = js.document.getElementById("team-select-dashboard")
     
-    # Safety Check: If select isn't ready, try populating it
+    # Safety Check: Auto-populate if empty
     if not select or not select.value:
         populate_team_dropdown(target_id="team-select-dashboard")
         select = js.document.getElementById("team-select-dashboard")
     
-    if not select or not select.value:
-        return # Still nothing? Abort.
+    if not select or not select.value: return 
 
     team = select.value
     stats = sim.TEAM_STATS.get(team)
     history = sim.TEAM_HISTORY.get(team)
 
-    if not stats or not history:
-        return
+    if not stats or not history: return
 
-    # --- NEW: CALCULATE REAL WC AVERAGES ---
+    # 2. CALCULATE WC FIELD AVERAGES
     wc_gf_total = 0
     wc_ga_total = 0
     wc_count = 0
     
-    # We loop through the official WC roster defined in the engine
     for t_name in sim.WC_TEAMS:
         t_stats = sim.TEAM_STATS.get(t_name)
         if t_stats:
@@ -726,92 +761,107 @@ def update_dashboard_data():
             wc_ga_total += t_stats.get('ga_avg', 0)
             wc_count += 1
             
-    # Avoid division by zero
     real_avg_gf = wc_gf_total / wc_count if wc_count > 0 else 1.45
     real_avg_ga = wc_ga_total / wc_count if wc_count > 0 else 1.30
 
-    # --- HEADER ---
+    # 3. GENERATE TEXT REPORT
+    scout_report = generate_scout_report(stats)
+
+    # 4. RENDER HEADER
     header = js.document.getElementById("dashboard-header")
     header.innerHTML = f"""
     <div style="margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;">
         <h1 style="margin:0; font-size:2.2em; color:#2c3e50;">{team.title()}</h1>
         <div style="color:#7f8c8d; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
-            <span>Current FIFA Elo: {int(stats['elo'])}</span>
-            <span style="font-size:0.8em; color:#95a5a6;">(vs WC Field Avg: {int(real_avg_gf*100)/100}/{int(real_avg_ga*100)/100})</span>
+            <span>Current FIFA Elo: <span style="color:#2c3e50;">{int(stats['elo'])}</span></span>
+            <span style="font-size:0.8em; color:#95a5a6;">(vs WC Field Avg: {round(real_avg_gf,2)} GF / {round(real_avg_ga,2)} GA)</span>
         </div>
     </div>
     """
 
-    # --- METRICS ---
+    # 5. RENDER METRICS & REPORT
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
-    <div style="display:flex; gap:15px; margin-bottom:25px; flex-wrap:wrap;">
-        <div style="background:#3498db; color:white; padding:15px; borderRadius:8px; flex:1; min-width:120px; text-align:center; box-shadow:0 2px 5px rgba(52, 152, 219, 0.3);">
-            <div style="font-size:0.8em; opacity:0.9;">ATTACK (GF/G)</div>
-            <div style="font-size:1.6em; font-weight:bold;">{round(stats['gf_avg'],2)}</div>
+    <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:20px;">
+        
+        <div>
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <div style="background:#3498db; color:white; padding:15px; borderRadius:8px; flex:1; text-align:center;">
+                    <div style="font-size:0.75em; opacity:0.9;">ATTACK</div>
+                    <div style="font-size:1.5em; font-weight:bold;">{round(stats.get('gf_avg',0),2)}</div>
+                </div>
+                <div style="background:#e74c3c; color:white; padding:15px; borderRadius:8px; flex:1; text-align:center;">
+                    <div style="font-size:0.75em; opacity:0.9;">DEFENSE</div>
+                    <div style="font-size:1.5em; font-weight:bold;">{round(stats.get('ga_avg',0),2)}</div>
+                </div>
+                <div style="background:#f1c40f; color:#2c3e50; padding:15px; borderRadius:8px; flex:1; text-align:center;">
+                    <div style="font-size:0.75em; opacity:0.9;">CLEAN SHEETS</div>
+                    <div style="font-size:1.5em; font-weight:bold;">{int(stats.get('cs_pct',0))}%</div>
+                </div>
+            </div>
+            
+            <h4 style="margin:0 0 10px 0; color:#7f8c8d; border-bottom:1px solid #eee; padding-bottom:5px;">🧬 Tactical DNA (Post-2022)</h4>
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
+                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; borderRadius:8px; text-align:center;">
+                    <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{int(stats.get('fh_pct',0))}%</div>
+                    <div style="font-size:0.7em; color:#7f8c8d;">1st Half</div>
+                </div>
+                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; borderRadius:8px; text-align:center;">
+                    <div style="font-size:1.1em; font-weight:bold; color:#e67e22;">{int(stats.get('late_pct',0))}%</div>
+                    <div style="font-size:0.7em; color:#7f8c8d;">Late (75'+)</div>
+                </div>
+                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; borderRadius:8px; text-align:center;">
+                    <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{int(stats.get('pen_pct',0))}%</div>
+                    <div style="font-size:0.7em; color:#7f8c8d;">Pens</div>
+                </div>
+                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; borderRadius:8px; text-align:center;">
+                    <div style="font-size:1.1em; font-weight:bold; color:#e74c3c;">{int(stats.get('btts_pct',0))}%</div>
+                    <div style="font-size:0.7em; color:#7f8c8d;">BTTS</div>
+                </div>
+            </div>
         </div>
-        <div style="background:#e74c3c; color:white; padding:15px; borderRadius:8px; flex:1; min-width:120px; text-align:center; box-shadow:0 2px 5px rgba(231, 76, 60, 0.3);">
-            <div style="font-size:0.8em; opacity:0.9;">DEFENSE (GA/G)</div>
-            <div style="font-size:1.6em; font-weight:bold;">{round(stats['ga_avg'],2)}</div>
+
+        <div style="background:#2c3e50; color:white; padding:20px; border-radius:10px; display:flex; flex-direction:column; justify-content:center;">
+            <h4 style="margin-top:0; color:#f1c40f; border-bottom:1px solid #555; padding-bottom:10px;">📋 Scouting Report</h4>
+            <div style="font-size:0.9em; line-height:1.6;">
+                {scout_report}
+            </div>
         </div>
-        <div style="background:#f1c40f; color:#2c3e50; padding:15px; borderRadius:8px; flex:1; min-width:120px; text-align:center; box-shadow:0 2px 5px rgba(241, 196, 15, 0.3);">
-            <div style="font-size:0.8em; opacity:0.9;">FORM</div>
-            <div style="font-size:1.6em; font-weight:bold;">{stats.get('form','-----')}</div>
-        </div>
-        <div style="background:#9b59b6; color:white; padding:15px; borderRadius:8px; flex:1; min-width:120px; text-align:center; box-shadow:0 2px 5px rgba(155, 89, 182, 0.3);">
-            <div style="font-size:0.8em; opacity:0.9;">STYLE</div>
-            <div style="font-size:1.3em; font-weight:bold;">{sim.TEAM_PROFILES.get(team, 'Balanced')}</div>
-        </div>
+        
     </div>
     """
 
-    # --- 1. ELO CHART (With WC Average Line) ---
+    # 6. RENDER ELO CHART
     js.document.getElementById("dashboard_chart_elo").innerHTML = ""
     fig, ax = plt.subplots(figsize=(6, 4.5))
-    
-    # Plot Team History
     ax.plot(history['dates'], history['elo'], color='#2980b9', linewidth=2, label=team.title())
-    
-    # Plot "Average WC Team" Baseline (Approx 1800 Elo)
     ax.axhline(y=1800, color='gray', linestyle='--', linewidth=1, alpha=0.7, label='WC Standard')
-    
     ax.grid(True, linestyle='--', alpha=0.3)
     ax.set_title("Rating History vs World Standard", fontsize=10, fontweight='bold')
     ax.legend(loc='upper left', fontsize='small')
-    
     fig.tight_layout()
-    
     display(fig, target="dashboard_chart_elo")
     plt.close(fig)
 
-    # --- 2. BAR CHART (Comparison) ---
+    # 7. RENDER COMPARISON CHART
     js.document.getElementById("dashboard_chart_radar").innerHTML = ""
     fig2, ax2 = plt.subplots(figsize=(5, 4.5))
     
-    metrics = ['Attack\n(Goals For)', 'Defense\n(Goals Against)']
-    
-    # Team Values
+    metrics = ['Attack', 'Defense']
     team_vals = [min(stats['gf_avg'], 3.5), min(stats['ga_avg'], 3.5)]
-    
-    # Use REAL Calculated Averages
     wc_avgs = [real_avg_gf, real_avg_ga] 
     
-    x = [0, 1]
-    width = 0.35
-    
-    # Plot Bars side-by-side
-    rects1 = ax2.bar([p - width/2 for p in x], team_vals, width, label=team.title(), color=['#3498db', '#e74c3c'])
-    rects2 = ax2.bar([p + width/2 for p in x], wc_avgs, width, label='WC Field Avg', color='#95a5a6', alpha=0.6)
+    x = [0, 1]; width = 0.35
+    ax2.bar([p - width/2 for p in x], team_vals, width, label=team.title(), color=['#3498db', '#e74c3c'])
+    ax2.bar([p + width/2 for p in x], wc_avgs, width, label='WC Avg', color='#95a5a6', alpha=0.6)
     
     ax2.set_ylabel('Goals per Game')
-    ax2.set_xticks(x)
-    ax2.set_xticklabels(metrics)
+    ax2.set_xticks(x); ax2.set_xticklabels(metrics)
     ax2.legend(fontsize='small')
     ax2.set_ylim(0, 3.5)
     ax2.grid(axis='y', linestyle='--', alpha=0.3)
     ax2.set_title("Performance vs Tournament Field", fontsize=10, fontweight='bold')
     
     fig2.tight_layout()
-    
     display(fig2, target="dashboard_chart_radar")
     plt.close(fig2)
 

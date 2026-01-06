@@ -123,11 +123,11 @@ def get_k_factor(tourney, goal_diff):
     and margin of victory.
     """
     t_str = str(tourney)
-    k = 30 # Default
+    k = 25 # Default
     
     # --- TIER 0: FRIENDLIES ---
     if t_str == 'Friendly':
-        k = 20
+        k = 15
 
     # --- TIER 1: WORLD CUP ---
     elif 'World Cup' in t_str and 'qualification' not in t_str:
@@ -153,7 +153,7 @@ def get_k_factor(tourney, goal_diff):
         'AFF Championship', 'ASEAN', 'EAFF', 'Caribbean Cup', 
         'UNCAF', 'COSAFA', 'SAFF', 'WAFF'
     ]):
-        k = 35
+        k = 30
 
     # --- MARGIN MULTIPLIER ---
     # Rewards dominant wins
@@ -164,11 +164,17 @@ def get_k_factor(tourney, goal_diff):
     return k
 
 def initialize_engine():
-    results_df, goalscorers_df, former_names_df = load_data()
+    # Load DataFrames
+    try:
+        df_names = pd.read_csv(open_url("former_names.csv"))
+        NAME_MAP = dict(zip(df_names['old_name'], df_names['new_name']))
+    except:
+        NAME_MAP = {}
+
+    results_df, scorers_df, _ = load_data()
     
     if results_df is None:
-        # Return defaults if data fails to load so app doesn't crash
-        return {}, {}, 2.5 
+        return {}, {}, 2.5
 
     # --- 1. CLEAN DATA ---
     results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
@@ -176,30 +182,33 @@ def initialize_engine():
     results_df = results_df.astype({'home_score': int, 'away_score': int})
     
     # Standardize Names
-    results_df['home_team'] = results_df['home_team'].str.lower().str.strip()
-    results_df['away_team'] = results_df['away_team'].str.lower().str.strip()
+    results_df['home_team'] = results_df['home_team'].str.lower().str.strip().replace(NAME_MAP)
+    results_df['away_team'] = results_df['away_team'].str.lower().str.strip().replace(NAME_MAP)
     
-    if former_names_df is not None:
-        former_map = dict(zip(former_names_df['former'].str.lower(), former_names_df['current'].str.lower()))
-        results_df['home_team'] = results_df['home_team'].replace(former_map)
-        results_df['away_team'] = results_df['away_team'].replace(former_map)
-    
+    # Sort for Elo (Critical)
     elo_df = results_df.sort_values('date')
 
-    # --- 2. CALCULATE ELO (Standard) ---
+    # ----------------------------------------------------
+    # PHASE 1: CUSTOM ELO CALCULATION
+    # ----------------------------------------------------
     team_elo = {}
     INITIAL_RATING = 1200
     global TEAM_HISTORY
     TEAM_HISTORY = {} 
+    
+    # Init master stats container
+    global TEAM_STATS
+    TEAM_STATS = {}
 
-    # Loop through matches to build Elo
-    matches_data = zip(elo_df['home_team'], elo_df['away_team'], elo_df['home_score'], elo_df['away_score'], elo_df['tournament'], elo_df['neutral'], elo_df['date'])
+    matches_data = zip(elo_df['home_team'], elo_df['away_team'], 
+                       elo_df['home_score'], elo_df['away_score'], 
+                       elo_df['tournament'], elo_df['neutral'], elo_df['date'])
     
     for h, a, hs, as_, tourney, neutral, date in matches_data:
         rh = team_elo.get(h, INITIAL_RATING)
         ra = team_elo.get(a, INITIAL_RATING)
         
-        # Init history if needed
+        # Init history
         if h not in TEAM_HISTORY: TEAM_HISTORY[h] = {'dates': [], 'elo': []}
         if a not in TEAM_HISTORY: TEAM_HISTORY[a] = {'dates': [], 'elo': []}
         
@@ -211,103 +220,132 @@ def initialize_engine():
         elif as_ > hs: W = 0
         else: W = 0.5
         
-        # 1. Calculate GD first
+        # K-Factor
         gd = abs(hs - as_)
-        
-        # 2. Get K-Factor (includes Tournament Tier AND Margin Logic)
-        # Fix: Use 'tourney' variable from the zip loop, not 'row'
-        k = get_k_factor(tourney, gd)
+        k = get_k_factor(tourney, gd) # Uses your custom helper
     
-        # 3. Apply Change
+        # Apply Change
         change = k * (W - we)
-        
         team_elo[h] = rh + change
         team_elo[a] = ra - change
         
         TEAM_HISTORY[h]['dates'].append(date); TEAM_HISTORY[h]['elo'].append(team_elo[h])
         TEAM_HISTORY[a]['dates'].append(date); TEAM_HISTORY[a]['elo'].append(team_elo[a])
 
-    # --- 3. RECENT STATS (Form & Averages) ---
-    # We use a recent window (e.g., last 2-3 years of data)
-    recent_date = pd.Timestamp('2022-01-01') 
-    recent_df = elo_df[elo_df['date'] > recent_date]
+    # Transfer Elo to TEAM_STATS
+    all_teams = set(team_elo.keys())
+    for t in all_teams:
+        TEAM_STATS[t] = {
+            'elo': team_elo[t],
+            # Initialize other fields to avoid KeyErrors later
+            'gf_avg': 0, 'ga_avg': 0, 'off': 1.0, 'def': 1.0,
+            'matches': 0, 'clean_sheets': 0, 'btts': 0, 
+            'penalties': 0, 'first_half': 0, 'late_goals': 0, 'total_goals_recorded': 0,
+            'form': [] # List to hold recent results for string generation
+        }
+
+    # ----------------------------------------------------
+    # PHASE 2: RECENT FORM & STATS (Post-2022)
+    # ----------------------------------------------------
+    RELEVANCE_CUTOFF = '2022-01-01'
+    recent_df = elo_df[elo_df['date'] > RELEVANCE_CUTOFF]
     
-    # Calculate Global Average for Normalization
+    # Calculate Global Average for Normalization (Required for off/def)
     if len(recent_df) > 0:
         avg_goals_global = (recent_df['home_score'].mean() + recent_df['away_score'].mean()) / 2
     else:
         avg_goals_global = 1.25
 
-    # Group Stats
-    home_stats = recent_df.groupby('home_team').agg({'home_score': 'sum', 'away_score': 'sum', 'date': 'count'})
-    away_stats = recent_df.groupby('away_team').agg({'away_score': 'sum', 'home_score': 'sum', 'date': 'count'})
+    team_recent_aggregates = {t: {'gf':0, 'ga':0, 'games':0} for t in all_teams}
     
-    all_teams = set(team_elo.keys())
-    team_stats = {}
-    team_profiles = {} # Simple profiles, no deep player analysis
-    team_form = {}
-
-    # --- 4. BUILD TEAM PROFILES ---
-    for team in all_teams:
-        # A. CALCULATE FORM (Last 5 Games)
-        last_games = elo_df[(elo_df['home_team'] == team) | (elo_df['away_team'] == team)].tail(5)
-        form_str = ""
-        for _, row in last_games.iterrows():
-            if row['home_team'] == team:
-                if row['home_score'] > row['away_score']: form_str += "W"
-                elif row['home_score'] < row['away_score']: form_str += "L"
-                else: form_str += "D"
-            else: # Away
-                if row['away_score'] > row['home_score']: form_str += "W"
-                elif row['away_score'] < row['home_score']: form_str += "L"
-                else: form_str += "D"
-        team_form[team] = form_str
-
-        # B. CALCULATE GOAL AVERAGES
-        h_s = home_stats.loc[team] if team in home_stats.index else pd.Series({'home_score':0, 'away_score':0, 'date':0})
-        a_s = away_stats.loc[team] if team in away_stats.index else pd.Series({'away_score':0, 'home_score':0, 'date':0})
+    for _, row in recent_df.iterrows():
+        h, a = row['home_team'], row['away_team']
+        hs, as_ = row['home_score'], row['away_score']
         
-        total_matches = h_s['date'] + a_s['date']
+        # 1. Update Form (W/D/L)
+        if h in TEAM_STATS:
+            res = 'W' if hs > as_ else ('L' if hs < as_ else 'D')
+            TEAM_STATS[h]['form'].append(res)
         
-        if total_matches < 5:
-            # Not enough data
-            gf_avg, ga_avg = 0.0, 0.0
-            off, def_ = 1.0, 1.0
-            style = "Balanced"
+        if a in TEAM_STATS:
+            res = 'W' if as_ > hs else ('L' if as_ < hs else 'D')
+            TEAM_STATS[a]['form'].append(res)
+
+        # 2. Track Stats
+        if h in TEAM_STATS: 
+            TEAM_STATS[h]['matches'] += 1
+            team_recent_aggregates[h]['gf'] += hs; team_recent_aggregates[h]['ga'] += as_; team_recent_aggregates[h]['games'] += 1
+            if as_ == 0: TEAM_STATS[h]['clean_sheets'] += 1
+            if hs > 0 and as_ > 0: TEAM_STATS[h]['btts'] += 1
+            
+        if a in TEAM_STATS: 
+            TEAM_STATS[a]['matches'] += 1
+            team_recent_aggregates[a]['gf'] += as_; team_recent_aggregates[a]['ga'] += hs; team_recent_aggregates[a]['games'] += 1
+            if hs == 0: TEAM_STATS[a]['clean_sheets'] += 1
+            if hs > 0 and as_ > 0: TEAM_STATS[a]['btts'] += 1
+
+    # ----------------------------------------------------
+    # PHASE 3: TIMING & PENALTIES
+    # ----------------------------------------------------
+    if scorers_df is not None:
+        scorers_df['team'] = scorers_df['team'].str.lower().str.strip().replace(NAME_MAP)
+        scorers_df['date'] = pd.to_datetime(scorers_df['date'])
+        modern_scorers = scorers_df[scorers_df['date'] > RELEVANCE_CUTOFF]
+        
+        for _, row in modern_scorers.iterrows():
+            t = row['team']
+            if t in TEAM_STATS:
+                TEAM_STATS[t]['total_goals_recorded'] += 1
+                if row['penalty']: TEAM_STATS[t]['penalties'] += 1
+                try:
+                    minute = float(str(row['minute']).split('+')[0])
+                    if minute <= 45: TEAM_STATS[t]['first_half'] += 1
+                    if minute >= 75: TEAM_STATS[t]['late_goals'] += 1
+                except: pass
+
+    # ----------------------------------------------------
+    # PHASE 4: FINALIZE (Calc Averages & Form String)
+    # ----------------------------------------------------
+    TEAM_PROFILES = {}
+    
+    for t, s in TEAM_STATS.items():
+        # A. Calculate Averages (Recent)
+        agg = team_recent_aggregates[t]
+        if agg['games'] > 0:
+            s['gf_avg'] = agg['gf'] / agg['games']
+            s['ga_avg'] = agg['ga'] / agg['games']
         else:
-            gs = h_s['home_score'] + a_s['away_score']
-            gc = h_s['away_score'] + a_s['home_score']
+            s['gf_avg'] = 1.0; s['ga_avg'] = 1.0
             
-            # RAW AVERAGES 
-            gf_avg = gs / total_matches
-            ga_avg = gc / total_matches
-            
-            # NORMALIZED RATINGS (For Engine)
-            off = gf_avg / avg_goals_global
-            def_ = ga_avg / avg_goals_global
-            
-            # Simple Style Logic (Goal Heavy = Fast Paced, Low Scoring = Endurance)
-            total_goals_per_game = gf_avg + ga_avg
-            if total_goals_per_game > 3.0: style = "Fast-Paced"
-            elif total_goals_per_game < 2.0: style = "Endurance"
-            elif gf_avg > 2.0: style = "Aggressive"
-            else: style = "Balanced"
+        # B. Normalize for Engine (Required for run_simulation)
+        s['off'] = s['gf_avg'] / avg_goals_global
+        s['def'] = s['ga_avg'] / avg_goals_global
 
-        team_profiles[team] = style
+        # C. Form String (Take last 5)
+        recent_form = s['form'][-5:] 
+        s['form'] = "".join(recent_form) if recent_form else "-----"
+
+        # D. Percentages for Dashboard
+        m = s['matches']
+        g = s['total_goals_recorded']
         
-        # Store Data
-        team_stats[team] = {
-            'elo': team_elo[team],
-            'off': off,
-            'def': def_,
-            'gf_avg': gf_avg, # <--- NEW
-            'ga_avg': ga_avg, # <--- NEW
-            'form': team_form.get(team, "-----"),
-            'style_x': 0.5, # Default coords since we removed player analysis
-            'style_y': 0.5
-        }
+        s['cs_pct'] = (s['clean_sheets'] / m * 100) if m > 0 else 0
+        s['btts_pct'] = (s['btts'] / m * 100) if m > 0 else 0
+        s['pen_pct'] = (s['penalties'] / g * 100) if g > 0 else 0
+        s['fh_pct'] = (s['first_half'] / g * 100) if g > 0 else 0
+        s['late_pct'] = (s['late_goals'] / g * 100) if g > 0 else 0
+        
+        # E. Simple Style Label
+        total_g = s['gf_avg'] + s['ga_avg']
+        if total_g > 3.0: style = "Fast-Paced"
+        elif total_g < 2.0: style = "Endurance"
+        elif s['gf_avg'] > 2.0: style = "Aggressive"
+        elif s['cs_pct'] > 40: style = "Defensive"
+        else: style = "Balanced"
+        
+        TEAM_PROFILES[t] = style
 
-    return team_stats, team_profiles, avg_goals_global
+    return TEAM_STATS, TEAM_PROFILES, avg_goals_global
 
 # =============================================================================
 # --- PART 3: SIMULATION ---
