@@ -246,42 +246,57 @@ def initialize_engine():
         }
 
     # ----------------------------------------------------
-    # PHASE 2: RECENT FORM & STATS (Post-2022)
+    # PHASE 2: RECENT FORM & OPPONENT STRENGTH (Post-2022)
     # ----------------------------------------------------
     RELEVANCE_CUTOFF = '2022-01-01'
     recent_df = elo_df[elo_df['date'] > RELEVANCE_CUTOFF]
     
-    # Calculate Global Average for Normalization (Required for off/def)
+    # 1. Calculate Global Averages (Goals & Elo)
     if len(recent_df) > 0:
         avg_goals_global = (recent_df['home_score'].mean() + recent_df['away_score'].mean()) / 2
     else:
         avg_goals_global = 1.25
 
-    team_recent_aggregates = {t: {'gf':0, 'ga':0, 'games':0} for t in all_teams}
+    # Calculate average Elo of active teams to serve as the baseline
+    active_elos = [s['elo'] for s in TEAM_STATS.values()]
+    GLOBAL_ELO_MEAN = sum(active_elos) / len(active_elos) if active_elos else 1500
+
+    # Init tracker for Opponent Strength
+    # { 'Brazil': {'gf': 0, 'ga': 0, 'games': 0, 'opp_elo_sum': 0} }
+    team_recent_aggregates = {t: {'gf':0, 'ga':0, 'games':0, 'opp_elo_sum':0} for t in all_teams}
     
     for _, row in recent_df.iterrows():
         h, a = row['home_team'], row['away_team']
         hs, as_ = row['home_score'], row['away_score']
         
-        # 1. Update Form (W/D/L)
+        # Look up current Elo for Strength of Schedule calc
+        h_elo = TEAM_STATS.get(h, {}).get('elo', 1200)
+        a_elo = TEAM_STATS.get(a, {}).get('elo', 1200)
+
+        # 1. Update Form Strings
         if h in TEAM_STATS:
             res = 'W' if hs > as_ else ('L' if hs < as_ else 'D')
             TEAM_STATS[h]['form'].append(res)
-        
         if a in TEAM_STATS:
             res = 'W' if as_ > hs else ('L' if as_ < hs else 'D')
             TEAM_STATS[a]['form'].append(res)
 
-        # 2. Track Stats
+        # 2. Track Stats & Opponent Elo
         if h in TEAM_STATS: 
             TEAM_STATS[h]['matches'] += 1
-            team_recent_aggregates[h]['gf'] += hs; team_recent_aggregates[h]['ga'] += as_; team_recent_aggregates[h]['games'] += 1
+            agg = team_recent_aggregates[h]
+            agg['gf'] += hs; agg['ga'] += as_; agg['games'] += 1
+            agg['opp_elo_sum'] += a_elo # Add AWAY team elo to HOME team's difficulty
+            
             if as_ == 0: TEAM_STATS[h]['clean_sheets'] += 1
             if hs > 0 and as_ > 0: TEAM_STATS[h]['btts'] += 1
             
         if a in TEAM_STATS: 
             TEAM_STATS[a]['matches'] += 1
-            team_recent_aggregates[a]['gf'] += as_; team_recent_aggregates[a]['ga'] += hs; team_recent_aggregates[a]['games'] += 1
+            agg = team_recent_aggregates[a]
+            agg['gf'] += as_; agg['ga'] += hs; agg['games'] += 1
+            agg['opp_elo_sum'] += h_elo # Add HOME team elo to AWAY team's difficulty
+            
             if hs == 0: TEAM_STATS[a]['clean_sheets'] += 1
             if hs > 0 and as_ > 0: TEAM_STATS[a]['btts'] += 1
 
@@ -305,28 +320,60 @@ def initialize_engine():
                 except: pass
 
     # ----------------------------------------------------
-    # PHASE 4: FINALIZE (Calc Averages & Form String)
+    # PHASE 4: FINALIZE (Standardization & SOS Adjustment)
     # ----------------------------------------------------
     TEAM_PROFILES = {}
     
+    # Regression Params
+    REGRESSION_DUMMY_GAMES = 10
+    SOS_DAMPENING = 800 # Higher = Less adjustment. 800 means 800 Elo diff = 2x multiplier
+    
     for t, s in TEAM_STATS.items():
-        # A. Calculate Averages (Recent)
         agg = team_recent_aggregates[t]
+        
+        # A. Basic Averages with Regression (Smoothing)
+        numerator_gf = agg['gf'] + (REGRESSION_DUMMY_GAMES * avg_goals_global)
+        numerator_ga = agg['ga'] + (REGRESSION_DUMMY_GAMES * avg_goals_global)
+        denominator = agg['games'] + REGRESSION_DUMMY_GAMES
+        
+        raw_gf_avg = numerator_gf / denominator
+        raw_ga_avg = numerator_ga / denominator
+        
+        s['gf_avg'] = raw_gf_avg
+        s['ga_avg'] = raw_ga_avg # Store the "Visual" avg before adjusting for engine
+        
+        # B. CALCULATE STRENGTH OF SCHEDULE (SOS) FACTOR
         if agg['games'] > 0:
-            s['gf_avg'] = agg['gf'] / agg['games']
-            s['ga_avg'] = agg['ga'] / agg['games']
+            avg_opp_elo = agg['opp_elo_sum'] / agg['games']
         else:
-            s['gf_avg'] = 1.0; s['ga_avg'] = 1.0
+            avg_opp_elo = GLOBAL_ELO_MEAN # Default for 0 games
             
-        # B. Normalize for Engine (Required for run_simulation)
-        s['off'] = s['gf_avg'] / avg_goals_global
-        s['def'] = s['ga_avg'] / avg_goals_global
+        # SOS Factor: >1.0 means they played tougher teams
+        # We blend it with the dummy games to prevent wild swings for low sample size
+        # (SOS * Games + Global * Dummy) / Total
+        weighted_opp_elo = (avg_opp_elo * agg['games'] + GLOBAL_ELO_MEAN * REGRESSION_DUMMY_GAMES) / denominator
+        
+        elo_diff = weighted_opp_elo - GLOBAL_ELO_MEAN
+        
+        # Math: 1.0 + (Diff / 1000). 
+        # Ex: Played teams 200 pts better -> Factor 1.2
+        sos_factor = 1.0 + (elo_diff / SOS_DAMPENING)
+        
+        # C. APPLY SOS TO RATINGS
+        # Attack: If SOS > 1 (Harder), we BOOST attack (It was harder to score)
+        # Defense: If SOS > 1 (Harder), we REDUCE defense (It was harder to stop them, so we forgive conceded goals)
+        
+        adjusted_off = (raw_gf_avg / avg_goals_global) * sos_factor
+        adjusted_def = (raw_ga_avg / avg_goals_global) / sos_factor 
+        
+        # D. CLAMPING
+        s['off'] = max(0.6, min(adjusted_off, 1.8))
+        s['def'] = max(0.6, min(adjusted_def, 1.8))
 
-        # C. Form String (Take last 5)
+        # E. REST OF STATS
         recent_form = s['form'][-5:] 
         s['form'] = "".join(recent_form) if recent_form else "-----"
 
-        # D. Percentages for Dashboard
         m = s['matches']
         g = s['total_goals_recorded']
         
@@ -448,27 +495,22 @@ def calculate_confed_strength():
 
 def sim_match(t1, t2, knockout=False):
     
+    # 1. GET BASE STATS
     s1 = TEAM_STATS.get(t1, {'elo':1200, 'off':1.0, 'def':1.0})
     s2 = TEAM_STATS.get(t2, {'elo':1200, 'off':1.0, 'def':1.0})
     
+    # 2. CALCULATE ELO WIN EXPECTANCY
     dr = s1['elo'] - s2['elo']
     we = 1 / (10**(-dr/600) + 1)
     
+    # 3. GET STYLES & CONFEDS
     style1 = TEAM_PROFILES.get(t1, 'Balanced')
     style2 = TEAM_PROFILES.get(t2, 'Balanced')
-    
-    # Style modifiers
     mod1 = STYLE_MATRIX.get((style1, style2), 1.0)
     mod2 = STYLE_MATRIX.get((style2, style1), 1.0)
     
-    elo_scale = 1 + (we - 0.5)
-
-    # GET CONFEDERATIONS
     c1 = TEAM_CONFEDS.get(t1, 'OFC')
     c2 = TEAM_CONFEDS.get(t2, 'OFC')
-    
-    # GET DYNAMIC MULTIPLIERS
-    # Default to 0.8 if something goes wrong, but usually it's calculated
     tier1 = CONFED_MULTIPLIERS.get(c1, 0.8)
     tier2 = CONFED_MULTIPLIERS.get(c2, 0.8)
     
@@ -477,10 +519,28 @@ def sim_match(t1, t2, knockout=False):
     home_boost = 1.15 if t1 in hosts else 1.0
     away_boost = 1.15 if t2 in hosts else 1.0
 
-    # 1. REGULAR TIME (90 Mins)
-    lam1 = AVG_GOALS * s1['off'] * s2['def'] * elo_scale * mod1 * home_boost * tier1
-    lam2 = AVG_GOALS * s2['off'] * s1['def'] * (2 - elo_scale) * mod2 * away_boost * tier2
+    # 4. FORM BIAS ADJUSTMENT (The Critical Change)
+    # OLD: 0.4 (We didn't trust the data)
+    # NEW: 0.8 (We trust the SOS-adjusted data, but keep 20% anchoring to history)
+    FORM_WEIGHT = 0.8 
     
+    off1_adj = 1.0 + (s1['off'] - 1.0) * FORM_WEIGHT
+    def1_adj = 1.0 + (s1['def'] - 1.0) * FORM_WEIGHT
+    
+    off2_adj = 1.0 + (s2['off'] - 1.0) * FORM_WEIGHT
+    def2_adj = 1.0 + (s2['def'] - 1.0) * FORM_WEIGHT
+    
+    # 5. ELO SCALING
+    # This dictates how much "Class" (Elo) matters vs "Form" (Goals)
+    # (we - 0.5) shifts the baseline. 
+    # If Elo says you have 60% win chance, this scales your goals up slightly.
+    elo_scale = 1 + (we - 0.5)
+
+    # 6. CALCULATE EXPECTED GOALS (Poisson Lambda)
+    lam1 = AVG_GOALS * off1_adj * def2_adj * elo_scale * mod1 * home_boost * tier1
+    lam2 = AVG_GOALS * off2_adj * def1_adj * (2 - elo_scale) * mod2 * away_boost * tier2
+    
+    # 7. RUN SIMULATION
     g1 = np.random.poisson(lam1)
     g2 = np.random.poisson(lam2)
     
@@ -492,32 +552,31 @@ def sim_match(t1, t2, knockout=False):
         if knockout: return t2, g1, g2, 'reg'
         return t2, g1, g2
     else:
-        # IT IS A DRAW
+        # DRAW
         if not knockout:
             return 'draw', g1, g2
             
-        # 2. EXTRA TIME (30 Mins) if Knockout
-        # ET is approx 1/3 the length of regular time, often tighter defensively
-        et_scale = 0.33 
+        # EXTRA TIME (Knockout Only)
+        # We lower the volatility further in ET. Fatigue sets in.
+        et_scale = 0.33
         
-        # We re-roll goals for the extra period
-        g1_et = np.random.poisson(lam1 * et_scale)
-        g2_et = np.random.poisson(lam2 * et_scale)
+        # In ET, we revert closer to pure Elo (Experience matters more)
+        lam1_et = lam1 * et_scale * 0.85 
+        lam2_et = lam2 * et_scale * 0.85
         
-        # Add ET goals to total score
+        g1_et = np.random.poisson(lam1_et)
+        g2_et = np.random.poisson(lam2_et)
+        
         g1 += g1_et
         g2 += g2_et
         
-        if g1 > g2:
-            return t1, g1, g2, 'aet' # After Extra Time
-        elif g2 > g1:
-            return t2, g1, g2, 'aet'
+        if g1 > g2: return t1, g1, g2, 'aet'
+        elif g2 > g1: return t2, g1, g2, 'aet'
             
-        # 3. PENALTIES (Only if still tied)
-        p1_bonus = 0.1 if style1 == 'Dark Arts' else 0
-        p2_bonus = 0.1 if style2 == 'Dark Arts' else 0
+        # PENALTIES
+        p1_bonus = 0.1 if style1 == 'Set-Piece Reliant' else 0
+        p2_bonus = 0.1 if style2 == 'Set-Piece Reliant' else 0
         
-        # Higher Elo has slight mental edge + style bonus
         pk_prob = 0.5 + (dr/4000) + (p1_bonus - p2_bonus)
         winner = t1 if random.random() < pk_prob else t2
         
