@@ -329,6 +329,53 @@
             color: #e74c3c;
             text-decoration: none;
         }
+
+
+        /* --- RANKINGS TABLE STYLING --- */
+        .rankings-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            margin-top: 15px;
+            border-radius: 10px;
+            overflow: hidden;
+            /* Ensures the corners stay rounded */
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            font-size: 0.9em;
+        }
+
+        .rankings-table thead tr {
+            background-color: #2c3e50;
+            /* Matches your sidebar */
+            color: #ffffff;
+            text-align: left;
+            font-weight: bold;
+        }
+
+        .rankings-table th,
+        .rankings-table td {
+            padding: 12px 15px;
+            /* Adds the breathing room you were missing */
+        }
+
+        .rankings-table tbody tr {
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .rankings-table tbody tr:nth-of-type(even) {
+            background-color: #f8f9fa;
+            /* Zebra striping for readability */
+        }
+
+        .rankings-table tbody tr:last-of-type {
+            border-bottom: 2px solid #2c3e50;
+        }
+
+        .rankings-table tbody tr:hover {
+            background-color: #eaf2f8;
+            /* Highlight row on hover */
+            cursor: default;
+        }
     </style>
 </head>
 
@@ -421,39 +468,52 @@
             <div id="tab-analysis" class="tab-content">
                 <div style="max-width: 900px; margin: 0 auto;">
 
-                    <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 2px 15px rgba(0,0,0,0.05); margin-bottom: 30px;">
-                        <h2 style="color:#2c3e50; border-bottom:2px solid #eee; padding-bottom:15px; display:flex; justify-content:space-between; align-items:center;">
+                    <div
+                        style="background:white; padding:30px; border-radius:10px; box-shadow:0 2px 15px rgba(0,0,0,0.05); margin-bottom: 30px;">
+                        <h2
+                            style="color:#2c3e50; border-bottom:2px solid #eee; padding-bottom:15px; display:flex; justify-content:space-between; align-items:center;">
                             <span>🕰️ Time Machine: Qatar 2022</span>
-                            <button id="btn-backtest-sim" style="font-size:0.6em; background:#2c3e50; color:white; padding:8px 15px; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">
+                            <button id="btn-backtest-sim"
+                                style="font-size:0.6em; background:#2c3e50; color:white; padding:8px 15px; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">
                                 ▶ Run Simulation Check
                             </button>
                         </h2>
-                        
+
                         <p style="color:#7f8c8d; line-height:1.6;">
-                            This tool validates the simulation engine by stripping all data after Nov 20, 2022. 
-                            It then runs <b>1,000 simulations</b> of the 32-team Qatar World Cup format to see if the engine correctly identifies the eventual winner (Argentina) and the finalists.
+                            This tool validates the simulation engine by stripping all data after Nov 20, 2022.
+                            It then runs <b>1,000 simulations</b> of the 32-team Qatar World Cup format to see if the
+                            engine correctly identifies the eventual winner (Argentina) and the finalists.
                         </p>
 
-                        <div id="sim-progress-container" style="display:none; width:100%; background-color:#ecf0f1; border-radius:10px; margin: 15px 0; overflow:hidden;">
-                            <div id="sim-progress-bar" style="width:0%; height:20px; background-color:#27ae60; transition: width 0.1s linear;"></div>
+                        <div id="sim-progress-container"
+                            style="display:none; width:100%; background-color:#ecf0f1; border-radius:10px; margin: 15px 0; overflow:hidden;">
+                            <div id="sim-progress-bar"
+                                style="width:0%; height:20px; background-color:#27ae60; transition: width 0.1s linear;">
+                            </div>
                         </div>
 
                         <div id="validation-text" style="margin: 15px 0; font-weight:bold; color:#2980b9;"></div>
                         <div id="validation-charts" style="min-height:300px;"></div>
                     </div>
 
-                    <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 2px 15px rgba(0,0,0,0.05);">
+                    <div
+                        style="background:white; padding:30px; border-radius:10px; box-shadow:0 2px 15px rgba(0,0,0,0.05);">
                         <h2 style="color:#2c3e50; margin-bottom:15px;">📊 ML Analysis & Findings</h2>
-                        <div style="background:#f8f9fa; padding:20px; border-left:4px solid #8e44ad; color:#555; line-height:1.6;">
+                        <div
+                            style="background:#f8f9fa; padding:20px; border-left:4px solid #8e44ad; color:#555; line-height:1.6;">
                             <h3>Project Note</h3>
                             <p>
-                                Extensive Machine Learning testing (Random Forest / XGBoost) is being conducted in a separate environment to ensure accuracy and performance.
+                                Extensive Machine Learning testing (Random Forest / XGBoost) is being conducted in a
+                                separate environment to ensure accuracy and performance.
                             </p>
                             <p>
                                 <b>Key Findings so far:</b><br>
-                                • The pure Elo Simulation (above) often outperforms ML in predicting "Chaos" (upsets).<br>
-                                • ML models tend to be over-confident in favorites, assigning >60% win probabilities to top seeds.<br>
-                                • The 2026 forecast will combine the stability of Elo with the specific match-up insights from the ML study.
+                                • The pure Elo Simulation (above) often outperforms ML in predicting "Chaos"
+                                (upsets).<br>
+                                • ML models tend to be over-confident in favorites, assigning >60% win probabilities to
+                                top seeds.<br>
+                                • The 2026 forecast will combine the stability of Elo with the specific match-up
+                                insights from the ML study.
                             </p>
                         </div>
                     </div>

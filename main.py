@@ -504,24 +504,26 @@ def load_data_view(event):
     sidebar_checkbox = js.document.getElementById("hist-filter-wc")
     wc_only = sidebar_checkbox.checked if sidebar_checkbox else False
     
+    # 1. TABLE START (Using class 'rankings-table')
     html = """
     <div style="margin-bottom:10px; font-size:0.8em; color:#7f8c8d; text-align:right;">
         *Stats based on matches since Jan 1, 2022
     </div>
-    <table class="data-table">
+    <table class="rankings-table">
         <thead>
-            <tr style="font-size:0.85em; background:#f8f9fa; border-bottom:2px solid #ddd;">
-                <th style="padding:10px;">Rank</th>
+            <tr>
+                <th>Rank</th>
                 <th>Team</th>
                 <th>Elo</th>
-                <th title="Total Matches Played">Matches</th>
-                <th title="Total Goals For">GF</th>
-                <th title="Total Goals Against">GA</th>
-                <th title="Total Clean Sheets (Count)">CS</th>
-                <th title="Matches where Both Teams Scored">BTTS</th>
-                <th title="Goals Scored in 1st Half">1H G</th>
-                <th title="Goals Scored in 75th min or later">Late G</th>
-                <th title="Penalty Goals">Pens</th>
+                <th>Form</th>
+                <th>Matches</th>
+                <th>GF</th>
+                <th>GA</th>
+                <th>CS</th>
+                <th>BTTS</th>
+                <th>1H G</th>
+                <th>Late G</th>
+                <th>Pens</th>
             </tr>
         </thead>
         <tbody>
@@ -534,28 +536,35 @@ def load_data_view(event):
         if wc_only and team not in sim.WC_TEAMS: continue
         
         rank_counter += 1
-        
-        # Raw Counts
         matches = stats.get('matches', 0)
-        gf_total = int(stats.get('gf_avg', 0) * matches) # approximate if we stored avg
-        # Actually, let's use the explicit totals if available, or calculate back
-        # In engine we tracked aggregates, let's assume stats has 'clean_sheets' etc as INTs
-        
+        if matches == 0: continue 
+
+        # Form Formatting
+        raw_form = stats.get('form', '-----')
+        formatted_form = ""
+        for char in raw_form:
+            if char == 'W': color = "#27ae60"
+            elif char == 'L': color = "#e74c3c"
+            else: color = "#bdc3c7"
+            formatted_form += f"<span style='color:{color}; font-weight:bold;'>{char}</span>"
+
         cs = stats.get('clean_sheets', 0)
         btts = stats.get('btts', 0)
         first_half = stats.get('first_half', 0)
         late_goals = stats.get('late_goals', 0)
         pens = stats.get('penalties', 0)
         
+        # 2. ROWS (No inline styles needed anymore)
         html += f"""
-        <tr style="border-bottom:1px solid #eee;">
-            <td style="padding:8px;">#{rank_counter}</td>
-            <td style='font-weight:600'>{team.title()}</td>
+        <tr>
+            <td style="font-weight:bold;">#{rank_counter}</td>
+            <td style="font-weight:600">{team.title()}</td>
             <td style="font-weight:bold; color:#2c3e50;">{int(stats['elo'])}</td>
-            <td style="background:#f9f9f9; text-align:center;">{matches}</td>
-            <td style="color:#2980b9;">{int(stats.get('gf_avg',0) * matches)}</td>
+            <td style="font-family:monospace; letter-spacing:2px;">{formatted_form}</td>
+            <td style="text-align:center;">{matches}</td>
+            <td style="color:#2980b9; font-weight:bold;">{int(stats.get('gf_avg',0) * matches)}</td>
             <td style="color:#c0392b;">{int(stats.get('ga_avg',0) * matches)}</td>
-            <td style="font-weight:bold;">{cs}</td>
+            <td>{cs}</td>
             <td>{btts}</td>
             <td>{first_half}</td>
             <td>{late_goals}</td>
@@ -568,12 +577,14 @@ def load_data_view(event):
 
 def generate_scout_report(stats):
     """
-    Analyzes stats to generate a nuanced, narrative profile.
-    Prioritizes 'Combination Archetypes' before falling back to single stats.
+    Generates a smart, multi-line report.
+    Uses 'covered_concepts' to ensure subsequent lines do not repeat 
+    information already implied by the main headline.
     """
-    tags = []
+    bullets = []
+    covered_concepts = set() # Tracks what we have already said
     
-    # Extract values for easier reading
+    # Extract values
     gf = stats.get('gf_avg', 0)
     ga = stats.get('ga_avg', 0)
     cs = stats.get('cs_pct', 0)
@@ -582,63 +593,75 @@ def generate_scout_report(stats):
     fh = stats.get('fh_pct', 0)
     pen = stats.get('pen_pct', 0)
 
-    # --- 1. CHECK FOR "SUPER PROFILES" (Combinations) ---
-    # These match the logic in the simulation engine
-    
-    match_found = False
+    # --- 1. THE HEADLINE (The Core Identity) ---
     
     if gf > 2.2 and cs > 50:
-        tags.append("🔥 <b>Dominant Force:</b> Elite at both scoring and defending. A nightmare opponent.")
-        match_found = True
-    elif late > 30 and cs > 45:
-        tags.append("🧠 <b>Resilient:</b> Strong defense combined with a knack for winning games late.")
-        match_found = True
-    elif gf > 2.0 and ga > 1.5:
-        tags.append("🎢 <b>High Risk / Reward:</b> Explosive attack, but very leaky defense. Expect goals.")
-        match_found = True
-    elif btts > 65 and late > 30:
-        tags.append("🍿 <b>Late Drama:</b> Chaotic matches that are often decided in the final 15 minutes.")
-        match_found = True
+        bullets.append("🌟 <b>World Class:</b> Elite at both scoring and defending. A title contender.")
+        covered_concepts.add("good_attack")
+        covered_concepts.add("good_defense")
+        
+    elif gf > 2.0 and ga > 1.4:
+        bullets.append("🍿 <b>Entertainers:</b> High-octane offense that leaves gaps at the back.")
+        covered_concepts.add("good_attack")
+        covered_concepts.add("bad_defense")
+        
     elif gf < 1.0 and cs > 45:
-        tags.append("🧱 <b>Defensive Wall:</b> Very limited attack, but incredibly difficult to break down.")
-        match_found = True
+        bullets.append("🧱 <b>The Rock:</b> Extremely difficult to break down, but struggles to score.")
+        covered_concepts.add("good_defense")
+        covered_concepts.add("bad_attack")
+        
+    elif btts > 60 and late > 25:
+        bullets.append("🎢 <b>Chaos Agents:</b> Their games are unpredictable and often decided late.")
+        covered_concepts.add("chaos")
+        covered_concepts.add("late_goals")
+
     elif btts < 30 and ga < 1.0:
-        tags.append("📏 <b>Disciplined:</b> Organized, low-event football. They rarely make mistakes.")
-        match_found = True
-    elif fh > 60 and gf > 1.5:
-        tags.append("⚡ <b>Aggressive Starter:</b> They blitz opponents early to take control of the game.")
-        match_found = True
-    elif pen > 20 and gf < 1.5:
-        tags.append("⚠️ <b>Set-Piece Reliant:</b> Struggles in open play; relies heavily on penalties and fouls.")
-        match_found = True
+        bullets.append("📏 <b>Disciplined:</b> Organized, low-event football. They rarely make mistakes.")
+        covered_concepts.add("boring")
+        covered_concepts.add("good_defense")
 
-    # --- 2. ADD SUPPORTING DETAILS (If no super profile, or to add context) ---
-    
-    # If we haven't found a defining personality yet, look for single traits
-    if not match_found:
-        if cs > 50: tags.append("🛡️ <b>Solid Defense:</b> Keeps clean sheets in over half their games.")
-        elif gf > 2.0: tags.append("⚔️ <b>Strong Attack:</b> consistently scores 2+ goals per game.")
-        elif btts > 65: tags.append("🎢 <b>Entertaining:</b> Matches usually see both teams scoring.")
-        elif ga < 0.9: tags.append("🔒 <b>Tight Backline:</b> Very hard to score against.")
-    
-    # --- 3. ADD "FLAVOR" STATS (Always check these) ---
-    # These are interesting quirks that can exist alongside any profile
-    
-    # Timing Quirks (only add if not already covered by Aggressive/Resilient above)
-    if fh > 60 and not match_found: 
-        tags.append("⚡ <b>Fast Starters:</b> Most dangerous in the first half.")
-    if late > 30 and not match_found: 
-        tags.append("⏱️ <b>Late Surge:</b> Dangerous in the final 15 minutes.")
-        
-    # Penalty Warning (Always show if high)
-    if pen > 18 and "Set-Piece" not in str(tags):
-        tags.append("🎯 <b>Penalty Threat:</b> A high % of goals come from the spot.")
+    else:
+        # Fallbacks
+        if gf > 1.8: 
+            bullets.append("⚔️ <b>Attacking Threat:</b> Consistently poses a danger to opponents.")
+            covered_concepts.add("good_attack")
+        elif cs > 40: 
+            bullets.append("🛡️ <b>Defensive Unit:</b> Prioritizes organization over risk.")
+            covered_concepts.add("good_defense")
+        else: 
+            bullets.append("⚖️ <b>Balanced Setup:</b> No glaring weaknesses, but lacks a 'superpower'.")
 
-    # Default
-    if not tags:
-        tags.append("⚖️ <b>Balanced:</b> A standard profile with no extreme strengths or weaknesses.")
-        
-    return "<br><br>".join(tags)
+    # --- 2. TACTICAL QUIRKS (Add only if not redundant) ---
+
+    # Timing: Fast Starters
+    if fh > 55:
+        bullets.append("⚡ <b>Fast Starters:</b> They tend to blitz opponents in the first half.")
+
+    # Timing: Late Surge (Skip if we already called them 'Chaos Agents' who win late)
+    if late > 30 and "late_goals" not in covered_concepts:
+        bullets.append("⏱️ <b>Late Surge:</b> Fitness is a strength; they score heavily in the final 15 mins.")
+
+    # Set Pieces
+    if pen > 18:
+        bullets.append("🎯 <b>Set-Piece Specialists:</b> A suspiciously high % of goals come from penalties.")
+
+    # Volatility (BTTS) - Skip if we already said they have bad defense or are chaos agents
+    if btts > 65 and "bad_defense" not in covered_concepts and "chaos" not in covered_concepts:
+        bullets.append("👐 <b>Open Games:</b> They rarely keep clean sheets, but rarely get shut out.")
+
+    # Defense Strength - Skip if we already said they are World Class or The Rock
+    if cs > 50 and "good_defense" not in covered_concepts:
+        bullets.append("🔒 <b>Clean Sheet Machine:</b> They shut out opponents in over half their games.")
+
+    # --- 3. RED FLAGS (Only if extreme) ---
+    
+    if ga > 1.8 and "bad_defense" not in covered_concepts:
+         bullets.append("⚠️ <b>Leaky Defense:</b> Conceding nearly 2 goals per game on average.")
+         
+    if gf < 0.8 and "bad_attack" not in covered_concepts:
+        bullets.append("⚠️ <b>Goal Shy:</b> Major struggles creating chances in open play.")
+
+    return "<br><br>".join(bullets)
 
 # =============================================================================
 # --- 5. HISTORY & ANALYSIS  ---
