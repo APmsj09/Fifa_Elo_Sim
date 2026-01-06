@@ -814,49 +814,48 @@ def update_dashboard_data():
 
     if not stats or not history: return
 
-    # 2. CALCULATE WC FIELD AVERAGES
-    wc_gf_total = 0
-    wc_ga_total = 0
-    wc_count = 0
+    # --- 1. CALCULATE SOS-ADJUSTED "EFFECTIVE" STATS ---
+    # Convert the SOS Multipliers (off/def) back into "Goals per Game"
+    eff_attack = stats['off'] * sim.AVG_GOALS
+    eff_defense = stats['def'] * sim.AVG_GOALS
     
-    for t_name in sim.WC_TEAMS:
-        t_stats = sim.TEAM_STATS.get(t_name)
-        if t_stats:
-            wc_gf_total += t_stats.get('gf_avg', 0)
-            wc_ga_total += t_stats.get('ga_avg', 0)
-            wc_count += 1
-            
-    real_avg_gf = wc_gf_total / wc_count if wc_count > 0 else 1.45
-    real_avg_ga = wc_ga_total / wc_count if wc_count > 0 else 1.30
+    # --- 2. PREPARE DATA FOR SCOUTING REPORT ---
+    # CRITICAL FIX: We create a copy of stats and OVERWRITE the averages 
+    # with the SOS-Adjusted versions. This ensures the text report uses 
+    # the same "smart" logic as the simulation engine.
+    
+    adjusted_stats = stats.copy()
+    adjusted_stats['gf_avg'] = eff_attack
+    adjusted_stats['ga_avg'] = eff_defense
+    
+    # Generate report using the Adjusted numbers
+    scout_report = generate_scout_report(adjusted_stats)
 
-    # 3. GENERATE TEXT REPORT
-    scout_report = generate_scout_report(stats)
-
-    # 4. RENDER HEADER
+    # 3. RENDER HEADER
     header = js.document.getElementById("dashboard-header")
     header.innerHTML = f"""
     <div style="margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;">
         <h1 style="margin:0; font-size:2.2em; color:#2c3e50;">{team.title()}</h1>
         <div style="color:#7f8c8d; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
-            <span>Current FIFA Elo: <span style="color:#2c3e50;">{int(stats['elo'])}</span></span>
-            <span style="font-size:0.8em; color:#95a5a6;">(vs WC Field Avg: {round(real_avg_gf,2)} GF / {round(real_avg_ga,2)} GA)</span>
+            <span>FIFA Elo: <span style="color:#2c3e50;">{int(stats['elo'])}</span></span>
+            <span style="font-size:0.8em; color:#e67e22; background:#fff3e0; padding:2px 6px; border-radius:4px;">SOS Adjusted Data</span>
         </div>
     </div>
     """
 
-    # 5. RENDER METRICS & REPORT
+    # 4. RENDER METRICS (Displaying Adjusted Stats)
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
     <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:20px;">
         
         <div>
             <div style="display:flex; gap:10px; margin-bottom:15px;">
                 <div style="background:#3498db; color:white; padding:15px; borderRadius:8px; flex:1; text-align:center;">
-                    <div style="font-size:0.75em; opacity:0.9;">ATTACK</div>
-                    <div style="font-size:1.5em; font-weight:bold;">{round(stats.get('gf_avg',0),2)}</div>
+                    <div style="font-size:0.75em; opacity:0.9;">ADJ. ATTACK</div>
+                    <div style="font-size:1.5em; font-weight:bold;">{round(eff_attack, 2)}</div>
                 </div>
                 <div style="background:#e74c3c; color:white; padding:15px; borderRadius:8px; flex:1; text-align:center;">
-                    <div style="font-size:0.75em; opacity:0.9;">DEFENSE</div>
-                    <div style="font-size:1.5em; font-weight:bold;">{round(stats.get('ga_avg',0),2)}</div>
+                    <div style="font-size:0.75em; opacity:0.9;">ADJ. DEFENSE</div>
+                    <div style="font-size:1.5em; font-weight:bold;">{round(eff_defense, 2)}</div>
                 </div>
                 <div style="background:#f1c40f; color:#2c3e50; padding:15px; borderRadius:8px; flex:1; text-align:center;">
                     <div style="font-size:0.75em; opacity:0.9;">CLEAN SHEETS</div>
@@ -864,7 +863,7 @@ def update_dashboard_data():
                 </div>
             </div>
             
-            <h4 style="margin:0 0 10px 0; color:#7f8c8d; border-bottom:1px solid #eee; padding-bottom:5px;">🧬 Tactical DNA (Post-2022)</h4>
+            <h4 style="margin:0 0 10px 0; color:#7f8c8d; border-bottom:1px solid #eee; padding-bottom:5px;">🧬 Tactical DNA</h4>
             <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
                 <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; borderRadius:8px; text-align:center;">
                     <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{int(stats.get('fh_pct',0))}%</div>
@@ -895,36 +894,38 @@ def update_dashboard_data():
     </div>
     """
 
-    # 6. RENDER ELO CHART
+    # 5. RENDER ELO CHART
     js.document.getElementById("dashboard_chart_elo").innerHTML = ""
     fig, ax = plt.subplots(figsize=(6, 4.5))
     ax.plot(history['dates'], history['elo'], color='#2980b9', linewidth=2, label=team.title())
-    ax.axhline(y=1800, color='gray', linestyle='--', linewidth=1, alpha=0.7, label='WC Standard')
+    ax.axhline(y=1800, color='gray', linestyle='--', linewidth=1, alpha=0.7, label='Elite Tier')
     ax.grid(True, linestyle='--', alpha=0.3)
-    ax.set_title("Rating History vs World Standard", fontsize=10, fontweight='bold')
+    ax.set_title("Rating History", fontsize=10, fontweight='bold')
     ax.legend(loc='upper left', fontsize='small')
     fig.tight_layout()
     display(fig, target="dashboard_chart_elo")
     plt.close(fig)
 
-    # 7. RENDER COMPARISON CHART
+    # 6. RENDER RADAR CHART
     js.document.getElementById("dashboard_chart_radar").innerHTML = ""
     fig2, ax2 = plt.subplots(figsize=(5, 4.5))
     
     metrics = ['Attack', 'Defense']
-    team_vals = [min(stats['gf_avg'], 3.5), min(stats['ga_avg'], 3.5)]
-    wc_avgs = [real_avg_gf, real_avg_ga] 
+    team_vals = [eff_attack, eff_defense] 
+    
+    # Global Avg reference
+    global_avgs = [sim.AVG_GOALS, sim.AVG_GOALS] 
     
     x = [0, 1]; width = 0.35
     ax2.bar([p - width/2 for p in x], team_vals, width, label=team.title(), color=['#3498db', '#e74c3c'])
-    ax2.bar([p + width/2 for p in x], wc_avgs, width, label='WC Avg', color='#95a5a6', alpha=0.6)
+    ax2.bar([p + width/2 for p in x], global_avgs, width, label='Global Avg', color='#95a5a6', alpha=0.6)
     
-    ax2.set_ylabel('Goals per Game')
+    ax2.set_ylabel('SOS-Adj Goals per Game')
     ax2.set_xticks(x); ax2.set_xticklabels(metrics)
     ax2.legend(fontsize='small')
-    ax2.set_ylim(0, 3.5)
+    ax2.set_ylim(0, 3.0)
     ax2.grid(axis='y', linestyle='--', alpha=0.3)
-    ax2.set_title("Performance vs Tournament Field", fontsize=10, fontweight='bold')
+    ax2.set_title("Performance vs Global Avg", fontsize=10, fontweight='bold')
     
     fig2.tight_layout()
     display(fig2, target="dashboard_chart_radar")
