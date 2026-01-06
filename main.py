@@ -566,39 +566,79 @@ def load_data_view(event):
     html += "</tbody></table>"
     container.innerHTML = html
 
-    def generate_scout_report(stats):
+def generate_scout_report(stats):
     """
-    Analyzes raw stats to generate a text-based scouting profile.
+    Analyzes stats to generate a nuanced, narrative profile.
+    Prioritizes 'Combination Archetypes' before falling back to single stats.
     """
     tags = []
     
-    # 1. Defense Style
-    if stats.get('cs_pct', 0) > 45:
-        tags.append("🛡️ <b>Iron Curtain:</b> Elite defensive structure.")
-    elif stats.get('cs_pct', 0) < 15:
-        tags.append("⚠️ <b>Leaky Backline:</b> Vulnerable to conceding.")
+    # Extract values for easier reading
+    gf = stats.get('gf_avg', 0)
+    ga = stats.get('ga_avg', 0)
+    cs = stats.get('cs_pct', 0)
+    btts = stats.get('btts_pct', 0)
+    late = stats.get('late_pct', 0)
+    fh = stats.get('fh_pct', 0)
+    pen = stats.get('pen_pct', 0)
+
+    # --- 1. CHECK FOR "SUPER PROFILES" (Combinations) ---
+    # These match the logic in the simulation engine
+    
+    match_found = False
+    
+    if gf > 2.2 and cs > 50:
+        tags.append("🔥 <b>Dominant Force:</b> Elite at both scoring and defending. A nightmare opponent.")
+        match_found = True
+    elif late > 30 and cs > 45:
+        tags.append("🧠 <b>Resilient:</b> Strong defense combined with a knack for winning games late.")
+        match_found = True
+    elif gf > 2.0 and ga > 1.5:
+        tags.append("🎢 <b>High Risk / Reward:</b> Explosive attack, but very leaky defense. Expect goals.")
+        match_found = True
+    elif btts > 65 and late > 30:
+        tags.append("🍿 <b>Late Drama:</b> Chaotic matches that are often decided in the final 15 minutes.")
+        match_found = True
+    elif gf < 1.0 and cs > 45:
+        tags.append("🧱 <b>Defensive Wall:</b> Very limited attack, but incredibly difficult to break down.")
+        match_found = True
+    elif btts < 30 and ga < 1.0:
+        tags.append("📏 <b>Disciplined:</b> Organized, low-event football. They rarely make mistakes.")
+        match_found = True
+    elif fh > 60 and gf > 1.5:
+        tags.append("⚡ <b>Aggressive Starter:</b> They blitz opponents early to take control of the game.")
+        match_found = True
+    elif pen > 20 and gf < 1.5:
+        tags.append("⚠️ <b>Set-Piece Reliant:</b> Struggles in open play; relies heavily on penalties and fouls.")
+        match_found = True
+
+    # --- 2. ADD SUPPORTING DETAILS (If no super profile, or to add context) ---
+    
+    # If we haven't found a defining personality yet, look for single traits
+    if not match_found:
+        if cs > 50: tags.append("🛡️ <b>Solid Defense:</b> Keeps clean sheets in over half their games.")
+        elif gf > 2.0: tags.append("⚔️ <b>Strong Attack:</b> consistently scores 2+ goals per game.")
+        elif btts > 65: tags.append("🎢 <b>Entertaining:</b> Matches usually see both teams scoring.")
+        elif ga < 0.9: tags.append("🔒 <b>Tight Backline:</b> Very hard to score against.")
+    
+    # --- 3. ADD "FLAVOR" STATS (Always check these) ---
+    # These are interesting quirks that can exist alongside any profile
+    
+    # Timing Quirks (only add if not already covered by Aggressive/Resilient above)
+    if fh > 60 and not match_found: 
+        tags.append("⚡ <b>Fast Starters:</b> Most dangerous in the first half.")
+    if late > 30 and not match_found: 
+        tags.append("⏱️ <b>Late Surge:</b> Dangerous in the final 15 minutes.")
         
-    # 2. Chaos Factor (BTTS)
-    if stats.get('btts_pct', 0) > 60:
-        tags.append("🎢 <b>Chaotic:</b> High-scoring, open games.")
-    elif stats.get('btts_pct', 0) < 30:
-        tags.append("🔒 <b>Controlled:</b> Low-event, tight matches.")
-        
-    # 3. Pacing (1st Half vs Late)
-    if stats.get('fh_pct', 0) > 55:
-        tags.append("⚡ <b>Fast Starters:</b> Dangerous in the first 45.")
-    elif stats.get('late_pct', 0) > 25:
-        tags.append("⏱️ <b>Clutch:</b> High percentage of late goals.")
-        
-    # 4. Set Pieces
-    if stats.get('pen_pct', 0) > 15:
-        tags.append("🎯 <b>Set-Piece Reliant:</b> High % of goals from spot.")
-        
+    # Penalty Warning (Always show if high)
+    if pen > 18 and "Set-Piece" not in str(tags):
+        tags.append("🎯 <b>Penalty Threat:</b> A high % of goals come from the spot.")
+
     # Default
     if not tags:
-        tags.append("⚖️ <b>Balanced Profile:</b> No statistical extremes.")
+        tags.append("⚖️ <b>Balanced:</b> A standard profile with no extreme strengths or weaknesses.")
         
-    return "<br>".join(tags)
+    return "<br><br>".join(tags)
 
 # =============================================================================
 # --- 5. HISTORY & ANALYSIS  ---

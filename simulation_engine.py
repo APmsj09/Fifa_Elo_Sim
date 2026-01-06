@@ -3,6 +3,7 @@ import numpy as np
 import random
 import math
 import js
+from pyodide.http import open_url
 
 # =============================================================================
 # --- PART 1: SETUP & DATA LOADING ---
@@ -335,13 +336,40 @@ def initialize_engine():
         s['fh_pct'] = (s['first_half'] / g * 100) if g > 0 else 0
         s['late_pct'] = (s['late_goals'] / g * 100) if g > 0 else 0
         
-        # E. Simple Style Label
-        total_g = s['gf_avg'] + s['ga_avg']
-        if total_g > 3.0: style = "Fast-Paced"
-        elif total_g < 2.0: style = "Endurance"
-        elif s['gf_avg'] > 2.0: style = "Aggressive"
-        elif s['cs_pct'] > 40: style = "Defensive"
-        else: style = "Balanced"
+        # E. Advanced Style Label (Simplified for Clarity)
+        
+        # 1. "ELITE" COMBINATIONS (The best of the best)
+        if s['gf_avg'] > 2.2 and s['cs_pct'] > 50:
+            style = "Dominant"              # Elite Attack + Elite Defense (e.g. Prime Brazil)
+        elif s['late_pct'] > 30 and s['cs_pct'] > 45:
+            style = "Resilient"             # Good defense + Wins games late (e.g. Real Madrid)
+            
+        # 2. "CHAOS" COMBINATIONS (High Event)
+        elif s['gf_avg'] > 2.0 and s['ga_avg'] > 1.5:
+            style = "High Risk / Reward"    # Scores a lot, but defense leaks (e.g. Germany 2024)
+        elif s['btts_pct'] > 65 and s['late_pct'] > 30:
+            style = "Late Drama"            # Chaotic games usually decided in final minutes
+            
+        # 3. "CONTROL" COMBINATIONS (Low Event)
+        elif s['gf_avg'] < 1.0 and s['cs_pct'] > 45:
+            style = "Defensive Wall"        # Can't score much, but refuses to concede (e.g. Morocco)
+        elif s['btts_pct'] < 30 and s['ga_avg'] < 1.0:
+            style = "Disciplined"           # Very organized, boring low-scoring wins
+            
+        # 4. "TIMING" SPECIALISTS
+        elif s['fh_pct'] > 60 and s['gf_avg'] > 1.5:
+            style = "Aggressive Starter"    # Blitzes opponents early to take control
+        elif s['pen_pct'] > 20 and s['gf_avg'] < 1.5:
+            style = "Set-Piece Reliant"     # Struggles in open play, relies on fouls/corners
+            
+        # 5. FALLBACKS (Single Stat Dominance)
+        elif s['gf_avg'] > 2.0: style = "Strong Attack"
+        elif s['cs_pct'] > 45:  style = "Solid Defense"
+        elif s['btts_pct'] > 60: style = "Open Games"
+        elif s['gf_avg'] < 1.0: style = "Low Scoring"
+        
+        else:
+            style = "Balanced"
         
         TEAM_PROFILES[t] = style
 
@@ -532,7 +560,7 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
         'B': ['canada', 'switzerland', 'qatar', slots['Path A']],
         'C': ['brazil', 'morocco', 'haiti', 'scotland'],
         'D': ['united states', 'paraguay', 'australia', slots['Path C']],
-        'E': ['germany', 'curacao', 'ivory coast', 'ecuador'],
+        'E': ['germany', 'curaçao', 'ivory coast', 'ecuador'],
         'F': ['netherlands', 'japan', 'tunisia', slots['Path B']],
         'G': ['belgium', 'egypt', 'iran', 'new zealand'],
         'H': ['spain', 'cape verde', 'saudi arabia', 'uruguay'],
