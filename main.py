@@ -506,7 +506,7 @@ def load_data_view(event):
     
     html = """
     <div style="margin-bottom:10px; font-size:0.8em; color:#7f8c8d; text-align:right;">
-        *Stats based on matches since Jan 1, 2022
+        *Tactical stats (1H, Late, Pens) based on available scorer data
     </div>
     <table class="rankings-table">
         <thead>
@@ -516,13 +516,13 @@ def load_data_view(event):
                 <th>Elo</th>
                 <th>Form</th>
                 <th>Matches</th>
-                <th>Goals For</th>
-                <th>Goals Against</th>
+                <th>Gls ForF</th>
+                <th>Gls Against</th>
                 <th>Clean Sheets</th>
-                <th>BTTS</th>
-                <th>1st Half Goals</th>
-                <th>Late Goals</th>
-                <th>Pens</th>
+                <th>Both Teams Scores</th>
+                <th title="% of 1st Half Gls">1H%</th>
+                <th title="% of Gls After 75'">Late%</th>
+                <th title="% of Pen Gls">Pen%</th>
             </tr>
         </thead>
         <tbody>
@@ -530,19 +530,29 @@ def load_data_view(event):
     
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
     
+    DUMMY_GAMES = 10 
+    GLOBAL_AVG = sim.AVG_GOALS if sim.AVG_GOALS > 0 else 1.25
+
     rank_counter = 0
     for team, stats in sorted_teams:
-        # Filter 1: WC Teams Only (If checkbox checked)
         if wc_only and team not in sim.WC_TEAMS: continue
         
-        # Filter 2: "Ghost Team" Filter (Must have played since 2022)
         matches = stats.get('matches', 0)
         if matches < 1: continue 
 
-        # Increment rank only AFTER passing filters
         rank_counter += 1
 
-        # Form Formatting
+        # 1. Reverse-Engineer True Totals
+        reg_gf_avg = stats.get('gf_avg', 0)
+        reg_ga_avg = stats.get('ga_avg', 0)
+        
+        true_gf = (reg_gf_avg * (matches + DUMMY_GAMES)) - (DUMMY_GAMES * GLOBAL_AVG)
+        true_ga = (reg_ga_avg * (matches + DUMMY_GAMES)) - (DUMMY_GAMES * GLOBAL_AVG)
+        
+        total_gf = max(0, int(round(true_gf)))
+        total_ga = max(0, int(round(true_ga)))
+
+        # 2. Form Formatting
         raw_form = stats.get('form', '-----')
         formatted_form = ""
         for char in raw_form:
@@ -551,11 +561,15 @@ def load_data_view(event):
             else: color = "#bdc3c7"
             formatted_form += f"<span style='color:{color}; font-weight:bold;'>{char}</span>"
 
+        # 3. Get Counts & Percentages
         cs = stats.get('clean_sheets', 0)
         btts = stats.get('btts', 0)
-        first_half = stats.get('first_half', 0)
-        late_goals = stats.get('late_goals', 0)
-        pens = stats.get('penalties', 0)
+        
+        # We use the PERCENTAGES calculated in initialize_engine
+        # These are accurate even if the raw count is low
+        fh_pct = int(stats.get('fh_pct', 0))
+        late_pct = int(stats.get('late_pct', 0))
+        pen_pct = int(stats.get('pen_pct', 0))
         
         html += f"""
         <tr>
@@ -564,13 +578,13 @@ def load_data_view(event):
             <td style="font-weight:bold; color:#2c3e50;">{int(stats['elo'])}</td>
             <td style="font-family:monospace; letter-spacing:2px;">{formatted_form}</td>
             <td style="text-align:center;">{matches}</td>
-            <td style="color:#2980b9; font-weight:bold;">{int(stats.get('gf_avg',0) * matches)}</td>
-            <td style="color:#c0392b;">{int(stats.get('ga_avg',0) * matches)}</td>
+            <td style="color:#2980b9; font-weight:bold;">{total_gf}</td>
+            <td style="color:#c0392b;">{total_ga}</td>
             <td>{cs}</td>
             <td>{btts}</td>
-            <td>{first_half}</td>
-            <td>{late_goals}</td>
-            <td>{pens}</td>
+            <td style="color:#7f8c8d;">{fh_pct}%</td>
+            <td style="color:#e67e22;">{late_pct}%</td>
+            <td style="color:#7f8c8d;">{pen_pct}%</td>
         </tr>
         """
     
