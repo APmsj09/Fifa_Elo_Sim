@@ -367,8 +367,8 @@ def initialize_engine():
         adjusted_def = (raw_ga_avg / avg_goals_global) / sos_factor 
         
         # D. CLAMPING
-        s['off'] = max(0.6, min(adjusted_off, 1.8))
-        s['def'] = max(0.6, min(adjusted_def, 1.8))
+        s['off'] = max(0.5, min(adjusted_off, 3.0))
+        s['def'] = max(0.4, min(adjusted_def, 3.0))
 
         s['adj_gf'] = s['off'] * avg_goals_global
         s['adj_ga'] = s['def'] * avg_goals_global
@@ -499,32 +499,28 @@ def calculate_confed_strength():
 def sim_match(t1, t2, knockout=False):
     
     # 1. GET BASE STATS
+    # These inputs can now be as high as 3.0 due to your SOS changes
     s1 = TEAM_STATS.get(t1, {'elo':1200, 'off':1.0, 'def':1.0})
     s2 = TEAM_STATS.get(t2, {'elo':1200, 'off':1.0, 'def':1.0})
     
-    # 2. CALCULATE ELO WIN EXPECTANCY
+    # 2. ELO WIN EXPECTANCY
     dr = s1['elo'] - s2['elo']
     we = 1 / (10**(-dr/600) + 1)
     
-    # 3. GET STYLES & CONFEDS
+    # 3. STYLES
     style1 = TEAM_PROFILES.get(t1, 'Balanced')
     style2 = TEAM_PROFILES.get(t2, 'Balanced')
     mod1 = STYLE_MATRIX.get((style1, style2), 1.0)
     mod2 = STYLE_MATRIX.get((style2, style1), 1.0)
     
-    c1 = TEAM_CONFEDS.get(t1, 'OFC')
-    c2 = TEAM_CONFEDS.get(t2, 'OFC')
-    tier1 = CONFED_MULTIPLIERS.get(c1, 0.8)
-    tier2 = CONFED_MULTIPLIERS.get(c2, 0.8)
-    
-    # Home Advantage
-    hosts = ['united states', 'mexico', 'canada']
-    home_boost = 1.15 if t1 in hosts else 1.0
-    away_boost = 1.15 if t2 in hosts else 1.0
+    # Home Advantage (Hosts)
+    home_boost = 1.15 if t1 in ['united states', 'mexico', 'canada'] else 1.0
+    away_boost = 1.15 if t2 in ['united states', 'mexico', 'canada'] else 1.0
 
-    # 4. FORM BIAS ADJUSTMENT
-    # NEW: 0.8 (We trust the SOS-adjusted data, but keep 20% anchoring to history)
-    FORM_WEIGHT = 0.8 
+    # 4. FORM BIAS (0.5)
+    # We use 0.5 because the inputs (off/def) are already very strong/accurate.
+    # This blends 50% "Recent Performance" with 50% "Historical Average".
+    FORM_WEIGHT = 0.5 
     
     off1_adj = 1.0 + (s1['off'] - 1.0) * FORM_WEIGHT
     def1_adj = 1.0 + (s1['def'] - 1.0) * FORM_WEIGHT
@@ -532,17 +528,33 @@ def sim_match(t1, t2, knockout=False):
     off2_adj = 1.0 + (s2['off'] - 1.0) * FORM_WEIGHT
     def2_adj = 1.0 + (s2['def'] - 1.0) * FORM_WEIGHT
     
-    # 5. ELO SCALING
-    # This dictates how much "Class" (Elo) matters vs "Form" (Goals)
-    # (we - 0.5) shifts the baseline. 
-    # If Elo says you have 60% win chance, this scales your goals up slightly.
+    # Elo Scaling (Class difference)
     elo_scale = 1 + (we - 0.5)
 
-    # 6. CALCULATE EXPECTED GOALS (Poisson Lambda)
-    lam1 = AVG_GOALS * off1_adj * def2_adj * elo_scale * mod1 * home_boost * tier1
-    lam2 = AVG_GOALS * off2_adj * def1_adj * (2 - elo_scale) * mod2 * away_boost * tier2
+    # 5. LOGARITHMIC COMPRESSION (The "Safety Valve")
+    # This allows strong teams to be strong, but prevents them from scoring 6 goals.
+    # Input 2.5 -> Output ~1.6 (Still dominant, but realistic)
+    m1_raw = off1_adj * def2_adj
+    m2_raw = off2_adj * def1_adj
     
-    # 7. RUN SIMULATION
+    def compress(val):
+        if val <= 1.2: return val
+        return 1.2 + np.log(val - 0.2) * 0.5 
+
+    m1 = compress(m1_raw)
+    m2 = compress(m2_raw)
+
+    # 6. TOURNAMENT INTENSITY (0.82)
+    # Global qualifiers avg ~2.8 goals. World Cup avg ~2.3 goals.
+    # This scalar simulates the tighter, more cautious play of a tournament.
+    TOURNAMENT_INTENSITY = 0.82
+    
+    # 7. CALCULATE EXPECTED GOALS (Poisson Lambda)
+    # Note: No 'tier1' or 'tier2' (Confed multiplier removed)
+    lam1 = AVG_GOALS * m1 * elo_scale * mod1 * home_boost * TOURNAMENT_INTENSITY
+    lam2 = AVG_GOALS * m2 * (2 - elo_scale) * mod2 * away_boost * TOURNAMENT_INTENSITY
+    
+    # 8. RUN SIMULATION
     g1 = np.random.poisson(lam1)
     g2 = np.random.poisson(lam2)
     
@@ -559,12 +571,9 @@ def sim_match(t1, t2, knockout=False):
             return 'draw', g1, g2
             
         # EXTRA TIME (Knockout Only)
-        # We lower the volatility further in ET. Fatigue sets in.
         et_scale = 0.33
-        
-        # In ET, we revert closer to pure Elo (Experience matters more)
-        lam1_et = lam1 * et_scale * 0.85 
-        lam2_et = lam2 * et_scale * 0.85
+        lam1_et = lam1 * et_scale * 0.80 # Tighter in ET
+        lam2_et = lam2 * et_scale * 0.80
         
         g1_et = np.random.poisson(lam1_et)
         g2_et = np.random.poisson(lam2_et)
@@ -579,7 +588,10 @@ def sim_match(t1, t2, knockout=False):
         p1_bonus = 0.1 if style1 == 'Set-Piece Reliant' else 0
         p2_bonus = 0.1 if style2 == 'Set-Piece Reliant' else 0
         
-        pk_prob = 0.5 + (dr/4000) + (p1_bonus - p2_bonus)
+        pk_prob = np.clip(
+            0.5 + dr / 4000 + (p1_bonus - p2_bonus),
+            0.35, 0.65
+        )
         winner = t1 if random.random() < pk_prob else t2
         
         return winner, g1, g2, 'pks'

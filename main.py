@@ -516,12 +516,12 @@ def load_data_view(event):
                 <th>Elo</th>
                 <th>Form</th>
                 <th>Matches</th>
-                <th>GF</th>
-                <th>GA</th>
-                <th>CS</th>
+                <th>Goals For</th>
+                <th>Goals Against</th>
+                <th>Clean Sheets</th>
                 <th>BTTS</th>
-                <th>1H G</th>
-                <th>Late G</th>
+                <th>1st Half Goals</th>
+                <th>Late Goals</th>
                 <th>Pens</th>
             </tr>
         </thead>
