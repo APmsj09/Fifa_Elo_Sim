@@ -517,10 +517,8 @@ def sim_match(t1, t2, knockout=False):
     home_boost = 1.15 if t1 in ['united states', 'mexico', 'canada'] else 1.0
     away_boost = 1.15 if t2 in ['united states', 'mexico', 'canada'] else 1.0
 
-    # 4. FORM BIAS (0.5)
-    # We use 0.5 because the inputs (off/def) are already very strong/accurate.
-    # This blends 50% "Recent Performance" with 50% "Historical Average".
-    FORM_WEIGHT = 0.5 
+    # 4. FORM BIAS
+    FORM_WEIGHT = 0.6 
     
     off1_adj = 1.0 + (s1['off'] - 1.0) * FORM_WEIGHT
     def1_adj = 1.0 + (s1['def'] - 1.0) * FORM_WEIGHT
@@ -539,7 +537,7 @@ def sim_match(t1, t2, knockout=False):
     
     def compress(val):
         if val <= 1.2: return val
-        return 1.2 + np.log(val - 0.2) * 0.5 
+        return 1.2 + np.log(val - 0.2) * 0.62 
 
     m1 = compress(m1_raw)
     m2 = compress(m2_raw)
