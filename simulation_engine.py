@@ -370,6 +370,9 @@ def initialize_engine():
         s['off'] = max(0.6, min(adjusted_off, 1.8))
         s['def'] = max(0.6, min(adjusted_def, 1.8))
 
+        s['adj_gf'] = s['off'] * avg_goals_global
+        s['adj_ga'] = s['def'] * avg_goals_global
+
         # E. REST OF STATS
         recent_form = s['form'][-5:] 
         s['form'] = "".join(recent_form) if recent_form else "-----"
@@ -519,8 +522,7 @@ def sim_match(t1, t2, knockout=False):
     home_boost = 1.15 if t1 in hosts else 1.0
     away_boost = 1.15 if t2 in hosts else 1.0
 
-    # 4. FORM BIAS ADJUSTMENT (The Critical Change)
-    # OLD: 0.4 (We didn't trust the data)
+    # 4. FORM BIAS ADJUSTMENT
     # NEW: 0.8 (We trust the SOS-adjusted data, but keep 20% anchoring to history)
     FORM_WEIGHT = 0.8 
     

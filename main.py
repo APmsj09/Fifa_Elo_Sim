@@ -801,7 +801,7 @@ def update_dashboard_data():
     # 1. GET TEAM SELECTION
     select = js.document.getElementById("team-select-dashboard")
     
-    # Safety Check: Auto-populate if empty
+    # Auto-populate if empty
     if not select or not select.value:
         populate_team_dropdown(target_id="team-select-dashboard")
         select = js.document.getElementById("team-select-dashboard")
@@ -814,21 +814,26 @@ def update_dashboard_data():
 
     if not stats or not history: return
 
-    # --- 1. CALCULATE SOS-ADJUSTED "EFFECTIVE" STATS ---
-    # Convert the SOS Multipliers (off/def) back into "Goals per Game"
-    eff_attack = stats['off'] * sim.AVG_GOALS
-    eff_defense = stats['def'] * sim.AVG_GOALS
+    # --- 1. GET THE STANDARDIZED METRICS ---
+    # These are the SOS-Adjusted Goals Per Game we saved in the engine.
+    # If the key is missing (e.g. before reload), default to 1.0
+    std_attack = stats.get('adj_gf', 1.0)
+    std_defense = stats.get('adj_ga', 1.0)
     
-    # --- 2. PREPARE DATA FOR SCOUTING REPORT ---
-    # CRITICAL FIX: We create a copy of stats and OVERWRITE the averages 
-    # with the SOS-Adjusted versions. This ensures the text report uses 
-    # the same "smart" logic as the simulation engine.
+    # Calculate Relative Strength (Multiplier) for context
+    # Example: 1.20 = "20% better than average"
+    # We use a safe fallback of 1.25 for global avg to prevent div/0
+    global_avg = sim.AVG_GOALS if sim.AVG_GOALS > 0 else 1.25
+    rel_att_strength = (std_attack / global_avg) * 100
+    rel_def_strength = (std_defense / global_avg) * 100
     
+    # --------------------------------------------------
+
+    # 2. PREPARE DATA FOR SCOUTING REPORT (Use Standardized #s)
     adjusted_stats = stats.copy()
-    adjusted_stats['gf_avg'] = eff_attack
-    adjusted_stats['ga_avg'] = eff_defense
+    adjusted_stats['gf_avg'] = std_attack
+    adjusted_stats['ga_avg'] = std_defense
     
-    # Generate report using the Adjusted numbers
     scout_report = generate_scout_report(adjusted_stats)
 
     # 3. RENDER HEADER
@@ -838,28 +843,40 @@ def update_dashboard_data():
         <h1 style="margin:0; font-size:2.2em; color:#2c3e50;">{team.title()}</h1>
         <div style="color:#7f8c8d; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
             <span>FIFA Elo: <span style="color:#2c3e50;">{int(stats['elo'])}</span></span>
-            <span style="font-size:0.8em; color:#e67e22; background:#fff3e0; padding:2px 6px; border-radius:4px;">SOS Adjusted Data</span>
+            <span style="font-size:0.8em; color:#2980b9; background:#eaf2f8; padding:4px 8px; border-radius:4px;">
+                SOS Standardized Ratings
+            </span>
         </div>
     </div>
     """
 
-    # 4. RENDER METRICS (Displaying Adjusted Stats)
+    # 4. RENDER METRICS
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
     <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:20px;">
         
         <div>
             <div style="display:flex; gap:10px; margin-bottom:15px;">
+                
                 <div style="background:#3498db; color:white; padding:15px; borderRadius:8px; flex:1; text-align:center;">
-                    <div style="font-size:0.75em; opacity:0.9;">ADJ. ATTACK</div>
-                    <div style="font-size:1.5em; font-weight:bold;">{round(eff_attack, 2)}</div>
+                    <div style="font-size:0.75em; opacity:0.9;">STD. ATTACK (Goals/Gm)</div>
+                    <div style="font-size:1.8em; font-weight:bold;">{round(std_attack, 2)}</div>
+                    <div style="font-size:0.7em; background:rgba(0,0,0,0.2); padding:2px 5px; border-radius:4px; margin-top:5px;">
+                        {int(rel_att_strength)}% of Avg
+                    </div>
                 </div>
+
                 <div style="background:#e74c3c; color:white; padding:15px; borderRadius:8px; flex:1; text-align:center;">
-                    <div style="font-size:0.75em; opacity:0.9;">ADJ. DEFENSE</div>
-                    <div style="font-size:1.5em; font-weight:bold;">{round(eff_defense, 2)}</div>
+                    <div style="font-size:0.75em; opacity:0.9;">STD. DEFENSE (Conceded/Gm)</div>
+                    <div style="font-size:1.8em; font-weight:bold;">{round(std_defense, 2)}</div>
+                    <div style="font-size:0.7em; background:rgba(0,0,0,0.2); padding:2px 5px; border-radius:4px; margin-top:5px;">
+                        {int(rel_def_strength)}% of Avg
+                    </div>
                 </div>
+
                 <div style="background:#f1c40f; color:#2c3e50; padding:15px; borderRadius:8px; flex:1; text-align:center;">
                     <div style="font-size:0.75em; opacity:0.9;">CLEAN SHEETS</div>
-                    <div style="font-size:1.5em; font-weight:bold;">{int(stats.get('cs_pct',0))}%</div>
+                    <div style="font-size:1.8em; font-weight:bold;">{int(stats.get('cs_pct',0))}%</div>
+                     <div style="font-size:0.7em; opacity:0.7; margin-top:8px;">Frequency</div>
                 </div>
             </div>
             
@@ -911,21 +928,21 @@ def update_dashboard_data():
     fig2, ax2 = plt.subplots(figsize=(5, 4.5))
     
     metrics = ['Attack', 'Defense']
-    team_vals = [eff_attack, eff_defense] 
+    team_vals = [std_attack, std_defense] 
     
-    # Global Avg reference
-    global_avgs = [sim.AVG_GOALS, sim.AVG_GOALS] 
+    # Global Avg for comparison (Dynamic)
+    global_avgs = [global_avg, global_avg] 
     
     x = [0, 1]; width = 0.35
     ax2.bar([p - width/2 for p in x], team_vals, width, label=team.title(), color=['#3498db', '#e74c3c'])
     ax2.bar([p + width/2 for p in x], global_avgs, width, label='Global Avg', color='#95a5a6', alpha=0.6)
     
-    ax2.set_ylabel('SOS-Adj Goals per Game')
+    ax2.set_ylabel('Standardized Goals/Game')
     ax2.set_xticks(x); ax2.set_xticklabels(metrics)
     ax2.legend(fontsize='small')
     ax2.set_ylim(0, 3.0)
     ax2.grid(axis='y', linestyle='--', alpha=0.3)
-    ax2.set_title("Performance vs Global Avg", fontsize=10, fontweight='bold')
+    ax2.set_title("Standardized Performance vs Avg", fontsize=10, fontweight='bold')
     
     fig2.tight_layout()
     display(fig2, target="dashboard_chart_radar")
