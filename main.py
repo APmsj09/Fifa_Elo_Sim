@@ -536,7 +536,7 @@ def load_data_view(event):
         if wc_only and team not in sim.WC_TEAMS: continue
         
         matches = stats.get('matches', 0)
-        if matches < 1: continue 
+        if matches < 7: continue 
 
         rank_counter += 1
 
