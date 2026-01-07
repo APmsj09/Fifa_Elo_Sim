@@ -223,7 +223,7 @@ def initialize_engine():
         
         # K-Factor
         gd = abs(hs - as_)
-        k = get_k_factor(tourney, gd) # Uses your custom helper
+        k = get_k_factor(tourney, gd)
     
         # Apply Change
         change = k * (W - we)
@@ -238,20 +238,19 @@ def initialize_engine():
     for t in all_teams:
         TEAM_STATS[t] = {
             'elo': team_elo[t],
-            # Initialize other fields to avoid KeyErrors later
             'gf_avg': 0, 'ga_avg': 0, 'off': 1.0, 'def': 1.0,
             'matches': 0, 'clean_sheets': 0, 'btts': 0, 
             'penalties': 0, 'first_half': 0, 'late_goals': 0, 'total_goals_recorded': 0,
-            'form': [] # List to hold recent results for string generation
+            'form': [] 
         }
 
     # ----------------------------------------------------
-    # PHASE 2: RECENT FORM & OPPONENT STRENGTH (Post-2022)
+    # PHASE 2: RECENT FORM & OPPONENT STRENGTH
     # ----------------------------------------------------
-    RELEVANCE_CUTOFF = '2022-01-01'
+    RELEVANCE_CUTOFF = '2021-01-01'
     recent_df = elo_df[elo_df['date'] > RELEVANCE_CUTOFF]
     
-    # 1. Calculate Global Averages (Goals & Elo)
+    # 1. Calculate Global Averages
     if len(recent_df) > 0:
         avg_goals_global = (recent_df['home_score'].mean() + recent_df['away_score'].mean()) / 2
     else:
@@ -261,15 +260,13 @@ def initialize_engine():
     active_elos = [s['elo'] for s in TEAM_STATS.values()]
     GLOBAL_ELO_MEAN = sum(active_elos) / len(active_elos) if active_elos else 1500
 
-    # Init tracker for Opponent Strength
-    # { 'Brazil': {'gf': 0, 'ga': 0, 'games': 0, 'opp_elo_sum': 0} }
+    # Init tracker
     team_recent_aggregates = {t: {'gf':0, 'ga':0, 'games':0, 'opp_elo_sum':0} for t in all_teams}
     
     for _, row in recent_df.iterrows():
         h, a = row['home_team'], row['away_team']
         hs, as_ = row['home_score'], row['away_score']
         
-        # Look up current Elo for Strength of Schedule calc
         h_elo = TEAM_STATS.get(h, {}).get('elo', 1200)
         a_elo = TEAM_STATS.get(a, {}).get('elo', 1200)
 
@@ -286,7 +283,7 @@ def initialize_engine():
             TEAM_STATS[h]['matches'] += 1
             agg = team_recent_aggregates[h]
             agg['gf'] += hs; agg['ga'] += as_; agg['games'] += 1
-            agg['opp_elo_sum'] += a_elo # Add AWAY team elo to HOME team's difficulty
+            agg['opp_elo_sum'] += a_elo 
             
             if as_ == 0: TEAM_STATS[h]['clean_sheets'] += 1
             if hs > 0 and as_ > 0: TEAM_STATS[h]['btts'] += 1
@@ -295,7 +292,7 @@ def initialize_engine():
             TEAM_STATS[a]['matches'] += 1
             agg = team_recent_aggregates[a]
             agg['gf'] += as_; agg['ga'] += hs; agg['games'] += 1
-            agg['opp_elo_sum'] += h_elo # Add HOME team elo to AWAY team's difficulty
+            agg['opp_elo_sum'] += h_elo 
             
             if hs == 0: TEAM_STATS[a]['clean_sheets'] += 1
             if hs > 0 and as_ > 0: TEAM_STATS[a]['btts'] += 1
@@ -320,13 +317,12 @@ def initialize_engine():
                 except: pass
 
     # ----------------------------------------------------
-    # PHASE 4: FINALIZE (Standardization & SOS Adjustment)
+    # PHASE 4: FINALIZE (Power Curve & Clamping)
     # ----------------------------------------------------
     TEAM_PROFILES = {}
     
     # Regression Params
     REGRESSION_DUMMY_GAMES = 10
-    SOS_DAMPENING = 800 # Higher = Less adjustment. 800 means 800 Elo diff = 2x multiplier
     
     for t, s in TEAM_STATS.items():
         agg = team_recent_aggregates[t]
@@ -339,36 +335,47 @@ def initialize_engine():
         raw_gf_avg = numerator_gf / denominator
         raw_ga_avg = numerator_ga / denominator
         
-        s['gf_avg'] = raw_gf_avg
-        s['ga_avg'] = raw_ga_avg # Store the "Visual" avg before adjusting for engine
+        s['gf_avg'] = raw_gf_avg # Used for "True Total" calc in table
+        s['ga_avg'] = raw_ga_avg 
         
-        # B. CALCULATE STRENGTH OF SCHEDULE (SOS) FACTOR
+        # B. CALCULATE STRENGTH OF SCHEDULE (SOS) - POWER CURVE
+        # -----------------------------------------------------
         if agg['games'] > 0:
             avg_opp_elo = agg['opp_elo_sum'] / agg['games']
         else:
-            avg_opp_elo = GLOBAL_ELO_MEAN # Default for 0 games
+            avg_opp_elo = GLOBAL_ELO_MEAN
             
-        # SOS Factor: >1.0 means they played tougher teams
-        # We blend it with the dummy games to prevent wild swings for low sample size
-        # (SOS * Games + Global * Dummy) / Total
+        # Blend SOS with a dummy baseline to prevent wild swings for low sample size
+        # (OppAvg * Games + 1500 * 10) / Total
         weighted_opp_elo = (avg_opp_elo * agg['games'] + GLOBAL_ELO_MEAN * REGRESSION_DUMMY_GAMES) / denominator
         
-        elo_diff = weighted_opp_elo - GLOBAL_ELO_MEAN
+        # 1. Calculate Difficulty Ratio (e.g. 0.9 or 1.1)
+        difficulty_ratio = weighted_opp_elo / GLOBAL_ELO_MEAN
         
-        # Math: 1.0 + (Diff / 1000). 
-        # Ex: Played teams 200 pts better -> Factor 1.2
-        sos_factor = 1.0 + (elo_diff / SOS_DAMPENING)
+        # 2. Apply Power Curve (Squared)
+        # 0.9 -> 0.81 (Heavy Penalty for easy schedule)
+        # 1.1 -> 1.21 (Reward for hard schedule)
+        sos_factor = difficulty_ratio ** 2.5 
+        def_sos_factor = difficulty_ratio ** 1.5 # Softer curve for defense
         
-        # C. APPLY SOS TO RATINGS
-        # Attack: If SOS > 1 (Harder), we BOOST attack (It was harder to score)
-        # Defense: If SOS > 1 (Harder), we REDUCE defense (It was harder to stop them, so we forgive conceded goals)
-        
+        # 3. Apply to Ratings
         adjusted_off = (raw_gf_avg / avg_goals_global) * sos_factor
-        adjusted_def = (raw_ga_avg / avg_goals_global) / sos_factor 
+        adjusted_def = (raw_ga_avg / avg_goals_global) / def_sos_factor
         
-        # D. CLAMPING
-        s['off'] = max(0.5, min(adjusted_off, 3.0))
-        s['def'] = max(0.4, min(adjusted_def, 3.0))
+        # C. ELO BLENDING & CLAMPING (The "Argentina Fix")
+        # ------------------------------------------------
+        # We blend the stats-based rating with the Elo-based expectation.
+        
+        # 1. Elo Floor Expectation (Arg 2150 -> ~1.5 floor)
+        elo_floor = (s['elo'] - 1200) / 600
+        
+        # 2. Blend (70% Stats / 30% Reputation)
+        final_off = (adjusted_off * 0.7) + (max(0.8, elo_floor) * 0.3)
+        final_def = (adjusted_def * 0.7) + (max(0.5, 2.0 - elo_floor) * 0.3)
+        
+        # 3. Hard Clamps (0.5 to 3.0)
+        s['off'] = max(0.5, min(final_off, 3.0))
+        s['def'] = max(0.4, min(final_def, 3.0))
 
         s['adj_gf'] = s['off'] * avg_goals_global
         s['adj_ga'] = s['def'] * avg_goals_global
@@ -386,7 +393,7 @@ def initialize_engine():
         s['fh_pct'] = (s['first_half'] / g * 100) if g > 0 else 0
         s['late_pct'] = (s['late_goals'] / g * 100) if g > 0 else 0
         
-        # E. Advanced Style Label (Simplified for Clarity)
+        # E. Advanced Style Label
         
         # 1. "ELITE" COMBINATIONS (The best of the best)
         if s['gf_avg'] > 2.2 and s['cs_pct'] > 50:
