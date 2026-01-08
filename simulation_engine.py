@@ -254,7 +254,7 @@ def initialize_engine():
         
         # K-Factor
         gd = abs(hs - as_)
-        k = get_k_factor(tourney, gd)
+        k = get_k_factor(tourney, gd, h, a)
     
         # Apply Change
         change = k * (W - we)
@@ -914,7 +914,7 @@ def get_historical_elo(cutoff_date='2022-11-20'):
         
         # USE THE EXACT SAME LOGIC HERE
         gd = abs(hs - as_)
-        k = get_k_factor(row['tournament'], gd)
+        k = get_k_factor(row['tournament'], gd, h, a)
         
         dr = rh - ra + (100 if not row['neutral'] else 0)
         we = 1 / (10**(-dr/600) + 1)
