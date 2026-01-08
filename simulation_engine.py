@@ -443,12 +443,8 @@ def initialize_engine():
         m = s['matches']
         g = s['total_goals_recorded']
         
-        if agg['eff_games'] > 0:
-            s['cs_pct'] = (agg['weighted_cs'] / agg['eff_games']) * 100
-            s['btts_pct'] = (agg['weighted_btts'] / agg['eff_games']) * 100
-        else:
-            s['cs_pct'] = 0; s['btts_pct'] = 0
-            
+        s['cs_pct'] = (s['clean_sheets'] / m * 100) if m > 0 else 0
+        s['btts_pct'] = (s['btts'] / m * 100) if m > 0 else 0            
         s['pen_pct'] = (s['penalties'] / g * 100) if g > 0 else 0
         s['fh_pct'] = (s['first_half'] / g * 100) if g > 0 else 0
         s['late_pct'] = (s['late_goals'] / g * 100) if g > 0 else 0
