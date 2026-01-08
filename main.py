@@ -829,23 +829,26 @@ def update_dashboard_data():
     # --- 1. GET THE STANDARDIZED METRICS ---
     # These are the SOS-Adjusted Goals Per Game we saved in the engine.
     # If the key is missing (e.g. before reload), default to 1.0
-    std_attack = stats.get('adj_gf', 1.0)
-    std_defense = stats.get('adj_ga', 1.0)
+    atk_index = stats.get('off', 1.0)
+    def_index = stats.get('def', 1.0)
+
+    exp_gf = stats.get('adj_gf', sim.AVG_GOALS)
+    exp_ga = stats.get('adj_ga', sim.AVG_GOALS)
     
     # Calculate Relative Strength (Multiplier) for context
     # Example: 1.20 = "20% better than average"
     # We use a safe fallback of 1.25 for global avg to prevent div/0
     global_avg = sim.AVG_GOALS if sim.AVG_GOALS > 0 else 1.25
-    rel_att_strength = (std_attack / global_avg) * 100
-    rel_def_strength = (std_defense / global_avg) * 100
+    rel_att_strength = atk_index * 100
+    rel_def_strength = def_index * 100
     
     # --------------------------------------------------
 
     # 2. PREPARE DATA FOR SCOUTING REPORT (Use Standardized #s)
     adjusted_stats = stats.copy()
-    adjusted_stats['gf_avg'] = std_attack
-    adjusted_stats['ga_avg'] = std_defense
-    
+    adjusted_stats['gf_avg'] = stats.get('adj_gf', sim.AVG_GOALS)
+    adjusted_stats['ga_avg'] = stats.get('adj_ga', sim.AVG_GOALS)
+
     scout_report = generate_scout_report(adjusted_stats)
 
     # 3. RENDER HEADER
@@ -870,16 +873,16 @@ def update_dashboard_data():
             <div style="display:flex; gap:10px; margin-bottom:15px;">
                 
                 <div style="background:#3498db; color:white; padding:15px; borderRadius:8px; flex:1; text-align:center;">
-                    <div style="font-size:0.75em; opacity:0.9;">STD. ATTACK (Goals/Gm)</div>
-                    <div style="font-size:1.8em; font-weight:bold;">{round(std_attack, 2)}</div>
+                    <div style="font-size:0.75em; opacity:0.9;">STD. ATTACK (Index) (Goals/Gm)</div>
+                    <div style="font-size:1.8em; font-weight:bold;">{round(exp_gf, 2)} xG vs Avg</div>
                     <div style="font-size:0.7em; background:rgba(0,0,0,0.2); padding:2px 5px; border-radius:4px; margin-top:5px;">
                         {int(rel_att_strength)}% of Avg
                     </div>
                 </div>
 
                 <div style="background:#e74c3c; color:white; padding:15px; borderRadius:8px; flex:1; text-align:center;">
-                    <div style="font-size:0.75em; opacity:0.9;">STD. DEFENSE (Conceded/Gm)</div>
-                    <div style="font-size:1.8em; font-weight:bold;">{round(std_defense, 2)}</div>
+                    <div style="font-size:0.75em; opacity:0.9;">STD. DEFENSE (Index)</div>
+                    <div style="font-size:1.8em; font-weight:bold;">{round(exp_ga, 2)} xGA vs Avg</div>
                     <div style="font-size:0.7em; background:rgba(0,0,0,0.2); padding:2px 5px; border-radius:4px; margin-top:5px;">
                         {int(rel_def_strength)}% of Avg
                     </div>
@@ -940,7 +943,8 @@ def update_dashboard_data():
     fig2, ax2 = plt.subplots(figsize=(5, 4.5))
     
     metrics = ['Attack', 'Defense']
-    team_vals = [std_attack, std_defense] 
+    team_vals = [atk_index, def_index]
+    global_avgs = [1.0, 1.0]
     
     # Global Avg for comparison (Dynamic)
     global_avgs = [global_avg, global_avg] 
@@ -949,7 +953,7 @@ def update_dashboard_data():
     ax2.bar([p - width/2 for p in x], team_vals, width, label=team.title(), color=['#3498db', '#e74c3c'])
     ax2.bar([p + width/2 for p in x], global_avgs, width, label='Global Avg', color='#95a5a6', alpha=0.6)
     
-    ax2.set_ylabel('Standardized Goals/Game')
+    ax2.set_ylabel('Standardized Index (Avg = 1.00)')
     ax2.set_xticks(x); ax2.set_xticklabels(metrics)
     ax2.legend(fontsize='small')
     ax2.set_ylim(0, 3.0)
@@ -986,8 +990,8 @@ async def plot_style_map(event):
 
     x_vals, y_vals, colors, sizes = [], [], [], []
     for team, stats in teams_to_plot:
-        gf = stats.get('gf_avg', 0)
-        ga = stats.get('ga_avg', 0)
+        gf = stats.get('adj_gf', 0)
+        ga = stats.get('adj_ga', 0)
         x_vals.append(gf)
         y_vals.append(ga) 
         # Color: Net Timing
