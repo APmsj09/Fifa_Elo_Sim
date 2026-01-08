@@ -31,7 +31,7 @@ WC_TEAMS = [
     'mexico', 'south africa', 'south korea', # Matches CSV
     'canada', 'switzerland', 'qatar', 
     'brazil', 'morocco', 'haiti', 'scotland', 
-    'united states', # FIXED: CSV uses 'United States', not 'USA'
+    'united states',
     'paraguay', 'australia', 
     'germany', 'curaçao', # FIXED: CSV uses special character 'ç'
     'ivory coast', 'ecuador', # Matches CSV
@@ -118,21 +118,44 @@ def load_data():
 # --- PART 2: INITIALIZATION (OPTIMIZED) ---
 # =============================================================================
 
-def get_k_factor(tourney, goal_diff):
+def get_k_factor(tourney, goal_diff, home_team, away_team):
     """
-    Determines the weight of the match based on tournament importance
-    and margin of victory.
+    Determines the weight of the match based on tournament importance,
+    margin of victory, and REGIONAL STRENGTH.
     """
     t_str = str(tourney)
     k = 25 # Default
     
+    # --- CONFEDERATION LOOKUP ---
+    # We define weights to fix the "All Qualifiers Are Equal" problem.
+    # UEFA/CONMEBOL = 1.0 (Base)
+    # AFC/CONCACAF = 0.85
+    # OFC = 0.75
+    tier_map = {
+        'UEFA': 1.0, 'CONMEBOL': 1.0, 
+        'CAF': 0.9, 
+        'AFC': 0.85, 'CONCACAF': 0.85, 
+        'OFC': 0.75
+    }
+    
+    h_conf = TEAM_CONFEDS.get(home_team, 'OFC') 
+    a_conf = TEAM_CONFEDS.get(away_team, 'OFC')
+    
+    # If teams are from same region, use that region's weight.
+    # If different (Intercontinental), average them.
+    if h_conf == a_conf:
+        region_weight = tier_map.get(h_conf, 0.75)
+    else:
+        region_weight = (tier_map.get(h_conf, 0.75) + tier_map.get(a_conf, 0.75)) / 2
+
     # --- TIER 0: FRIENDLIES ---
     if t_str == 'Friendly':
         k = 15
 
-    # --- TIER 1: WORLD CUP ---
+    # --- TIER 1: WORLD CUP FINALS ---
     elif 'World Cup' in t_str and 'qualification' not in t_str:
         k = 60
+        # Finals are global events; we generally don't discount them by region.
         
     # --- TIER 2: CONTINENTAL FINALS ---
     elif any(x in t_str for x in [
@@ -141,26 +164,34 @@ def get_k_factor(tourney, goal_diff):
         'Oceania Nations Cup'
     ]) and 'qualification' not in t_str:
         k = 50
+        # Optional: You can apply region_weight here if you think 
+        # the Asian Cup (50 * 0.85) is strictly less valuable than the Euros (50).
+        # For now, we leave finals relatively pure as they are title matches.
         
     # --- TIER 3: QUALIFIERS & OFFICIAL ---
     elif any(x in t_str for x in [
         'qualification', 'Nations League', 'Confederations Cup', 
         'Arab Cup', 'Gulf Cup'
     ]):
-        k = 40
+        base_k = 40
+        # *** THE CRITICAL FIX ***
+        # We apply the regional discount specifically to Qualifiers.
+        # This solves the "FIFA World Cup qualification" dataset ambiguity.
+        k = base_k * region_weight
         
     # --- TIER 4: REGIONAL ---
     elif any(x in t_str for x in [
         'AFF Championship', 'ASEAN', 'EAFF', 'Caribbean Cup', 
         'UNCAF', 'COSAFA', 'SAFF', 'WAFF'
     ]):
-        k = 30
+        # These are usually sub-regional, so we treat them lighter
+        k = 30 * region_weight
 
     # --- MARGIN MULTIPLIER ---
     # Rewards dominant wins
-    if goal_diff == 2: k *= 1.5
-    elif goal_diff == 3: k *= 1.75
-    elif goal_diff >= 4: k *= (1.75 + (goal_diff-3)/8)
+    if goal_diff == 3: k *= 1.5
+    elif goal_diff == 4: k *= 1.75
+    elif goal_diff >= 5: k *= (1.75 + (goal_diff-3)/8)
     
     return k
 
