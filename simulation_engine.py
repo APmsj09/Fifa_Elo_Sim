@@ -380,7 +380,7 @@ def initialize_engine():
             
         # Blend SOS with a dummy baseline to prevent wild swings for low sample size
         # (OppAvg * Games + 1500 * 10) / Total
-        weighted_opp_elo = (avg_opp_elo * agg['games'] + GLOBAL_ELO_MEAN * REGRESSION_DUMMY_GAMES) / denominator
+        weighted_opp_elo = (avg_opp_elo * agg['eff_games'] + GLOBAL_ELO_MEAN * REGRESSION_DUMMY_GAMES) / denominator
         
         # 1. Calculate Difficulty Ratio (e.g. 0.9 or 1.1)
         difficulty_ratio = weighted_opp_elo / GLOBAL_ELO_MEAN
