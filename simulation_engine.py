@@ -120,17 +120,13 @@ def load_data():
 
 def get_k_factor(tourney, goal_diff, home_team, away_team):
     """
-    Determines the weight of the match based on tournament importance,
-    margin of victory, and REGIONAL STRENGTH.
+    Determines match weight based on tournament importance,
+    margin of victory, and regional strength.
+    Adapted for the specific dataset provided.
     """
     t_str = str(tourney)
-    k = 25 # Default
     
-    # --- CONFEDERATION LOOKUP ---
-    # We define weights to fix the "All Qualifiers Are Equal" problem.
-    # UEFA/CONMEBOL = 1.0 (Base)
-    # AFC/CONCACAF = 0.85
-    # OFC = 0.75
+    # --- CONFEDERATION LOOKUP (Unchanged) ---
     tier_map = {
         'UEFA': 1.0, 'CONMEBOL': 1.0, 
         'CAF': 0.9, 
@@ -141,55 +137,87 @@ def get_k_factor(tourney, goal_diff, home_team, away_team):
     h_conf = TEAM_CONFEDS.get(home_team, 'OFC') 
     a_conf = TEAM_CONFEDS.get(away_team, 'OFC')
     
-    # If teams are from same region, use that region's weight.
-    # If different (Intercontinental), average them.
     if h_conf == a_conf:
         region_weight = tier_map.get(h_conf, 0.75)
     else:
-        region_weight = (tier_map.get(h_conf, 0.75) + tier_map.get(a_conf, 0.75)) / 2
+        region_weight = (tier_map.get(h_conf, 0.75) + tier_map.get(a_conf, 0.75)) / 2.0
 
-    # --- TIER 0: FRIENDLIES ---
-    if t_str == 'Friendly':
+    # =========================================================
+    # TIER -1: NON-FIFA / INDEPENDENT (The "Noise" Filter)
+    # =========================================================
+    # These tournaments are for non-FIFA members (e.g. Tibet, Kurdistan).
+    # We set K extremely low to prevent them from affecting global FIFA rankings.
+    if any(x in t_str for x in [
+        'CONIFA', 'VIVA', 'Island Games', 'Wild Cup', 'ELF Cup', 
+        'FIFI', 'Inter Games', 'Coupe de l\'Outre-Mer', 'Unity Cup'
+    ]):
+        return 5 # Negligible impact
+
+    # =========================================================
+    # TIER 0: FRIENDLIES & MINOR INVITATIONALS
+    # =========================================================
+    # Catch specific friendly tournament names from your list
+    if any(x in t_str for x in [
+        'Friendly', 'FIFA Series', 'Kirin', 'King\'s Cup', 'Merdeka', 
+        'Nehru', 'China Cup', 'Bangabandhu', 'Four Nations', 'Mundialito',
+        'Lunar New Year', 'Tournoi de France'
+    ]):
         k = 15
 
-    # --- TIER 1: WORLD CUP FINALS ---
+    # =========================================================
+    # TIER 1: WORLD CUP FINALS
+    # =========================================================
     elif 'World Cup' in t_str and 'qualification' not in t_str:
-        k = 60
-        # Finals are global events; we generally don't discount them by region.
+        k = 65
         
-    # --- TIER 2: CONTINENTAL FINALS ---
+    # =========================================================
+    # TIER 2: CONTINENTAL MAJORS (FINALS)
+    # =========================================================
     elif any(x in t_str for x in [
         'Copa América', 'UEFA Euro', 'African Cup of Nations', 
-        'Asian Cup', 'Gold Cup', 'CONCACAF Championship'
+        'Asian Cup', 'Gold Cup', 'CONCACAF Championship', 
+        'Oceania Nations Cup', 'CONMEBOL–UEFA Cup of Champions'
     ]) and 'qualification' not in t_str:
         k = 50
-        # Optional: You can apply region_weight here if you think 
-        # the Asian Cup (50 * 0.85) is strictly less valuable than the Euros (50).
-        # For now, we leave finals relatively pure as they are title matches.
         
-    # --- TIER 3: QUALIFIERS & OFFICIAL ---
+    # =========================================================
+    # TIER 3: QUALIFIERS & MAJOR OFFICIAL (Weighted by Region)
+    # =========================================================
     elif any(x in t_str for x in [
         'qualification', 'Nations League', 'Confederations Cup', 
-        'Arab Cup', 'Gulf Cup', 
-        'Oceania Nations Cup'
+        'Arab Cup', 'Gulf Cup'
     ]):
+        # "qualification" catches: World Cup, Euro, Asian Cup, Gold Cup, etc.
+        # "Nations League" catches: UEFA NL, CONCACAF NL
         base_k = 40
-        # We apply the regional discount specifically to Qualifiers.
         k = base_k * region_weight
         
-    # --- TIER 4: REGIONAL ---
+    # =========================================================
+    # TIER 4: SUB-REGIONAL & OLYMPICS (Weighted by Region)
+    # =========================================================
+    # This tier is massive in your dataset. These are official but smaller than Continental Cups.
     elif any(x in t_str for x in [
-        'AFF Championship', 'ASEAN', 'EAFF', 'Caribbean Cup', 
-        'UNCAF', 'COSAFA', 'SAFF', 'WAFF'
+        'AFF', 'ASEAN', 'EAFF', 'CAFA', 'WAFF', 'SAFF', # Asian Sub-regions
+        'CECAFA', 'COSAFA', 'WAFU', 'CEMAC',            # African Sub-regions
+        'UNCAF', 'CFU', 'Caribbean Cup',                # CONCACAF Sub-regions
+        'Baltic Cup', 'Nordic', 'British Home',         # European Sub-regions
+        'Pacific Games', 'Melanesian', 'Polynesian',    # Oceania
+        'Olympic Games', 'Asian Games', 'Pan American'  # Multi-sport Events
     ]):
-        # These are usually sub-regional, so we treat them lighter
-        k = 30
+        base_k = 25
+        k = base_k * region_weight
 
-    # --- MARGIN MULTIPLIER ---
-    # Rewards dominant wins
-    if goal_diff == 3: k *= 1.25
-    elif goal_diff == 4: k *= 1.5
-    elif goal_diff >= 5: k *= (1.5 + (goal_diff-3)/8)
+    # =========================================================
+    # DEFAULT CATCH-ALL
+    # =========================================================
+    else:
+        # If we missed it (e.g. "Copa Paz del Chaco"), treat as slightly more than friendly
+        k = 20
+
+    # --- MARGIN OF VICTORY BOOSTER ---
+    if goal_diff == 2: k *= 1.25
+    elif goal_diff == 3: k *= 1.5
+    elif goal_diff >= 4: k *= (1.5 + (goal_diff-3)/8)
     
     return k
 
