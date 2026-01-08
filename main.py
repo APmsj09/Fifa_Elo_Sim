@@ -996,6 +996,13 @@ def update_dashboard_data():
             <div style="border-top:1px solid #3e5871; padding-top:15px; font-size:0.8em; color:#95a5a6; line-height:1.5; font-style:italic;">
                 <strong style="color:#bdc3c7; font-style:normal;">📝 Analyst Note:</strong>
                 {analyst_note}
+                
+                <div style="margin-top:10px; padding-top:10px; border-top:1px dotted #5c7c91; font-size:0.9em; color:#7f8c8d;">
+                    <span style="color:#f1c40f;">*</span> Note: Ratings cited above are 
+                    <strong style="color:#bdc3c7;">Strength-of-Schedule (SOS) Adjusted</strong>. 
+                    They reflect performance normalized against global opposition, 
+                    <span style="text-decoration:underline;">not</span> raw goals per game.
+                </div>
             </div>
         </div>
     </div>
