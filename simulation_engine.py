@@ -411,8 +411,8 @@ def initialize_engine():
         elo_def_log = np.log(elo_def)
 
         # 3. Blend stats + Elo prior (weights can be dynamic if desired)
-        STAT_WEIGHT = 0.70
-        ELO_WEIGHT  = 0.30
+        STAT_WEIGHT = 0.65
+        ELO_WEIGHT  = 0.35
 
         final_off_log = STAT_WEIGHT * np.log(adjusted_off) + ELO_WEIGHT * elo_off_log
         final_def_log = STAT_WEIGHT * np.log(adjusted_def) + ELO_WEIGHT * elo_def_log
