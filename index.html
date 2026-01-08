@@ -535,13 +535,14 @@
     </div>
 
     <py-config>
-        packages = ["pandas", "numpy", "matplotlib"]
+        packages = ["pandas", "numpy", "matplotlib", "mplcursors"]
         [[fetch]]
         files = ["main.py", "simulation_engine.py", "analysis.py"]
         [[fetch]]
         from = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/main/data"
         files = ["results.csv", "goalscorers.csv", "former_names.csv"]
     </py-config>
+
 
     <py-script src="./main.py"></py-script>
     <py-script src="./analysis.py"></py-script>
