@@ -160,8 +160,7 @@ def get_k_factor(tourney, goal_diff, home_team, away_team):
     # --- TIER 2: CONTINENTAL FINALS ---
     elif any(x in t_str for x in [
         'Copa América', 'UEFA Euro', 'African Cup of Nations', 
-        'Asian Cup', 'Gold Cup', 'CONCACAF Championship', 
-        'Oceania Nations Cup'
+        'Asian Cup', 'Gold Cup', 'CONCACAF Championship'
     ]) and 'qualification' not in t_str:
         k = 50
         # Optional: You can apply region_weight here if you think 
@@ -171,7 +170,8 @@ def get_k_factor(tourney, goal_diff, home_team, away_team):
     # --- TIER 3: QUALIFIERS & OFFICIAL ---
     elif any(x in t_str for x in [
         'qualification', 'Nations League', 'Confederations Cup', 
-        'Arab Cup', 'Gulf Cup'
+        'Arab Cup', 'Gulf Cup', 
+        'Oceania Nations Cup'
     ]):
         base_k = 40
         # *** THE CRITICAL FIX ***
