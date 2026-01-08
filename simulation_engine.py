@@ -134,8 +134,8 @@ def get_k_factor(tourney, goal_diff, home_team, away_team):
     tier_map = {
         'UEFA': 1.0, 'CONMEBOL': 1.0, 
         'CAF': 0.9, 
-        'AFC': 0.85, 'CONCACAF': 0.85, 
-        'OFC': 0.75
+        'AFC': 0.8, 'CONCACAF': 0.8, 
+        'OFC': 0.7
     }
     
     h_conf = TEAM_CONFEDS.get(home_team, 'OFC') 
@@ -174,9 +174,7 @@ def get_k_factor(tourney, goal_diff, home_team, away_team):
         'Oceania Nations Cup'
     ]):
         base_k = 40
-        # *** THE CRITICAL FIX ***
         # We apply the regional discount specifically to Qualifiers.
-        # This solves the "FIFA World Cup qualification" dataset ambiguity.
         k = base_k * region_weight
         
     # --- TIER 4: REGIONAL ---
@@ -185,7 +183,7 @@ def get_k_factor(tourney, goal_diff, home_team, away_team):
         'UNCAF', 'COSAFA', 'SAFF', 'WAFF'
     ]):
         # These are usually sub-regional, so we treat them lighter
-        k = 30 * region_weight
+        k = 30
 
     # --- MARGIN MULTIPLIER ---
     # Rewards dominant wins
