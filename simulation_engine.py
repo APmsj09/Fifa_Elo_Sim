@@ -187,9 +187,9 @@ def get_k_factor(tourney, goal_diff, home_team, away_team):
 
     # --- MARGIN MULTIPLIER ---
     # Rewards dominant wins
-    if goal_diff == 3: k *= 1.5
-    elif goal_diff == 4: k *= 1.75
-    elif goal_diff >= 5: k *= (1.75 + (goal_diff-3)/8)
+    if goal_diff == 3: k *= 1.25
+    elif goal_diff == 4: k *= 1.5
+    elif goal_diff >= 5: k *= (1.5 + (goal_diff-3)/8)
     
     return k
 
