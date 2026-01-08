@@ -840,15 +840,19 @@ def update_dashboard_data():
     adjusted_stats['ga_avg'] = std_defense
     scout_report = generate_scout_report(adjusted_stats)
 
-    # --- 3. RENDER HEADER & METRICS (unchanged) ---
+    # --- 3. RENDER HEADER & METRICS ---
     header = js.document.getElementById("dashboard-header")
     header.innerHTML = f"""
     <div style="margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;">
         <h1 style="margin:0; font-size:2.2em; color:#2c3e50;">{team.title()}</h1>
         <div style="color:#7f8c8d; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
-            <span>FIFA Elo: <span style="color:#2c3e50;">{int(stats['elo'])}</span></span>
+            <span>
+                FIFA Elo: <span style="color:#2c3e50;">{int(stats['elo'])}</span>
+                <span style="color:#bdc3c7; margin:0 10px;">|</span>
+                Matches: <span style="color:#2c3e50;">{stats['matches']}</span>
+            </span>
             <span style="font-size:0.8em; color:#2980b9; background:#eaf2f8; padding:4px 8px; border-radius:4px;">
-                SOS Standardized Ratings
+                Weighted Sim Engine
             </span>
         </div>
     </div>
@@ -858,27 +862,44 @@ def update_dashboard_data():
     <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:20px;">
         <div>
             <div style="display:flex; gap:10px; margin-bottom:15px;">
-                <div style="background:#3498db; color:white; padding:15px; border-radius:8px; flex:1; text-align:center;">
-                    <div style="font-size:0.75em; opacity:0.9;">STD. ATTACK (Goals/Gm)</div>
-                    <div style="font-size:1.8em; font-weight:bold;">{round(std_attack, 2)}</div>
-                    <div style="font-size:0.7em; background:rgba(0,0,0,0.2); padding:2px 5px; border-radius:4px; margin-top:5px;">
-                        {int(rel_att_strength)}% of Avg
-                    </div>
-                </div>
-                <div style="background:#e74c3c; color:white; padding:15px; border-radius:8px; flex:1; text-align:center;">
-                    <div style="font-size:0.75em; opacity:0.9;">STD. DEFENSE (Conceded/Gm)</div>
-                    <div style="font-size:1.8em; font-weight:bold;">{round(std_defense, 2)}</div>
-                    <div style="font-size:0.7em; background:rgba(0,0,0,0.2); padding:2px 5px; border-radius:4px; margin-top:5px;">
-                        {int(rel_def_strength)}% of Avg
+                
+                <div style="background:#3498db; color:white; padding:10px 15px; border-radius:8px; flex:1; display:flex; flex-direction:column; justify-content:center;">
+                    <div style="font-size:0.75em; opacity:0.9; text-align:center; margin-bottom:5px;">ATTACK (Goals/Gm)</div>
+                    <div style="display:flex; justify-content:space-around; align-items:center;">
+                        <div style="text-align:center;">
+                            <div style="font-size:1.8em; font-weight:bold;">{round(std_attack, 2)}</div>
+                            <div style="font-size:0.6em; background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:10px;">SOS ADJ</div>
+                        </div>
+                        <div style="width:1px; height:30px; background:rgba(255,255,255,0.4);"></div>
+                        <div style="text-align:center;">
+                            <div style="font-size:1.3em; opacity:0.9;">{round(raw_attack, 2)}</div>
+                            <div style="font-size:0.6em; opacity:0.8;">RAW FORM</div>
+                        </div>
                     </div>
                 </div>
 
-                <div style="background:#f1c40f; color:#2c3e50; padding:15px; borderRadius:8px; flex:1; text-align:center;">
-                    <div style="font-size:0.75em; opacity:0.9;">CLEAN SHEETS</div>
-                    <div style="font-size:1.8em; font-weight:bold;">{int(stats.get('cs_pct',0))}%</div>
-                     <div style="font-size:0.7em; opacity:0.7; margin-top:8px;">Frequency</div>
+                <div style="background:#e74c3c; color:white; padding:10px 15px; border-radius:8px; flex:1; display:flex; flex-direction:column; justify-content:center;">
+                    <div style="font-size:0.75em; opacity:0.9; text-align:center; margin-bottom:5px;">DEFENSE (Conc/Gm)</div>
+                    <div style="display:flex; justify-content:space-around; align-items:center;">
+                        <div style="text-align:center;">
+                            <div style="font-size:1.8em; font-weight:bold;">{round(std_defense, 2)}</div>
+                            <div style="font-size:0.6em; background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:10px;">SOS ADJ</div>
+                        </div>
+                        <div style="width:1px; height:30px; background:rgba(255,255,255,0.4);"></div>
+                        <div style="text-align:center;">
+                            <div style="font-size:1.3em; opacity:0.9;">{round(raw_defense, 2)}</div>
+                            <div style="font-size:0.6em; opacity:0.8;">RAW FORM</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background:#f1c40f; color:#2c3e50; padding:15px; borderRadius:8px; width:100px; text-align:center; display:flex; flex-direction:column; justify-content:center;">
+                    <div style="font-size:0.75em; opacity:0.9;">CLEAN SHT</div>
+                    <div style="font-size:1.6em; font-weight:bold;">{int(stats.get('cs_pct',0))}%</div>
+                     <div style="font-size:0.6em; opacity:0.7;">Frequency</div>
                 </div>
             </div>
+
             <h4 style="margin:0 0 10px 0; color:#7f8c8d; border-bottom:1px solid #eee; padding-bottom:5px;">🧬 Tactical DNA</h4>
             <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
                 <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; border-radius:8px; text-align:center;">
@@ -899,7 +920,8 @@ def update_dashboard_data():
                 </div>
             </div>
         </div>
-        <div style="background:#2c3e50; color:white; padding:20px; border-radius:10px; display:flex; flex-direction:column; justify-content:center;">
+        
+        <div style="background:#2c3e50; color:white; padding:20px; border-radius:10px; display:flex; flex-direction:column;">
             <h4 style="margin-top:0; color:#f1c40f; border-bottom:1px solid #555; padding-bottom:10px;">📋 Scouting Report</h4>
             <div style="font-size:0.9em; line-height:1.6;">{scout_report}</div>
         </div>
