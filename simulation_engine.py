@@ -352,33 +352,50 @@ def initialize_engine():
         # 1. Calculate Difficulty Ratio (e.g. 0.9 or 1.1)
         difficulty_ratio = weighted_opp_elo / GLOBAL_ELO_MEAN
         
-        # 2. Apply Power Curve (Squared)
-        # 0.9 -> 0.81 (Heavy Penalty for easy schedule)
-        # 1.1 -> 1.21 (Reward for hard schedule)
-        sos_factor = difficulty_ratio ** 2.5 
-        def_sos_factor = difficulty_ratio ** 1.5 # Softer curve for defense
-        
-        # 3. Apply to Ratings
-        adjusted_off = (raw_gf_avg / avg_goals_global) * sos_factor
-        adjusted_def = (raw_ga_avg / avg_goals_global) / def_sos_factor
-        
-        # C. ELO BLENDING & CLAMPING (The "Argentina Fix")
-        # ------------------------------------------------
-        # We blend the stats-based rating with the Elo-based expectation.
-        
-        # 1. Elo Floor Expectation (Arg 2150 -> ~1.5 floor)
-        elo_floor = (s['elo'] - 1200) / 600
-        
-        # 2. Blend (70% Stats / 30% Reputation)
-        final_off = (adjusted_off * 0.7) + (max(0.8, elo_floor) * 0.3)
-        final_def = (adjusted_def * 0.7) + (max(0.5, 2.0 - elo_floor) * 0.3)
-        
-        # 3. Hard Clamps (0.5 to 3.0)
-        s['off'] = max(0.5, min(final_off, 3.0))
-        s['def'] = max(0.4, min(final_def, 3.0))
+        # 2. Apply to Ratings
+        off_log = np.log(raw_gf_avg / avg_goals_global)
+        def_log = np.log(raw_ga_avg / avg_goals_global)
 
+        # SOS as confidence, not multiplier
+        sos_weight = np.clip(difficulty_ratio, 0.85, 1.15)
+
+        adjusted_off = np.exp(off_log * sos_weight)
+        adjusted_def = np.exp(def_log * sos_weight)
+
+        
+        # C. ELO BLENDING (Log-Space Prior)
+        # -------------------------------------------------
+        # Elo acts as a stabilizing prior, not a multiplier.
+        # Blending is done in log space to preserve standardization.
+
+        # 1. Map Elo → expected strength (bounded)
+        # 1500 ≈ 1.00, 2100 ≈ 1.50
+        elo_off = np.clip((s['elo'] - 1200) / 600, 0.75, 1.50)
+        elo_def = np.clip(2.0 - elo_off, 0.75, 1.50)
+
+        # 2. Convert to log space
+        elo_off_log = np.log(elo_off)
+        elo_def_log = np.log(elo_def)
+
+        # 3. Blend stats + Elo prior (weights can be dynamic if desired)
+        STAT_WEIGHT = 0.70
+        ELO_WEIGHT  = 0.30
+
+        final_off_log = STAT_WEIGHT * np.log(adjusted_off) + ELO_WEIGHT * elo_off_log
+        final_def_log = STAT_WEIGHT * np.log(adjusted_def) + ELO_WEIGHT * elo_def_log
+
+        # 4. Convert back to standardized indices
+        s['off'] = np.exp(final_off_log)
+        s['def'] = np.exp(final_def_log)
+
+        # 5. Soft clamps (extremes handled later by sim compression)
+        s['off'] = np.clip(s['off'], 0.6, 1.6)
+        s['def'] = np.clip(s['def'], 0.6, 1.6)
+
+        # Derived goal rates (for tables / diagnostics only)
         s['adj_gf'] = s['off'] * avg_goals_global
         s['adj_ga'] = s['def'] * avg_goals_global
+
 
         # E. REST OF STATS
         recent_form = s['form'][-5:] 
