@@ -350,130 +350,155 @@ def initialize_engine():
                 except: pass
 
     # ----------------------------------------------------
-    # PHASE 4: FINALIZE (Power Curve & Clamping)
+    # PHASE 4: FINALIZE (Weighted Math & Uncapped Elo)
     # ----------------------------------------------------
     TEAM_PROFILES = {}
-    
-    # Regression Params
     REGRESSION_DUMMY_GAMES = 10
     
     for t, s in TEAM_STATS.items():
         agg = team_recent_aggregates[t]
         
-        # A. Basic Averages with Regression (Smoothing)
+        # 1. Weighted Averages (Unchanged)
+        denom = agg['eff_games'] + REGRESSION_DUMMY_GAMES
+        
         numerator_gf = agg['gf'] + (REGRESSION_DUMMY_GAMES * avg_goals_global)
         numerator_ga = agg['ga'] + (REGRESSION_DUMMY_GAMES * avg_goals_global)
-        denominator = agg['eff_games'] + REGRESSION_DUMMY_GAMES
         
-        raw_gf_avg = numerator_gf / denominator
-        raw_ga_avg = numerator_ga / denominator
+        raw_gf_avg = numerator_gf / denom
+        raw_ga_avg = numerator_ga / denom
         
-        s['gf_avg'] = raw_gf_avg # Used for "True Total" calc in table
+        s['gf_avg'] = raw_gf_avg
         s['ga_avg'] = raw_ga_avg 
         
-        # B. CALCULATE STRENGTH OF SCHEDULE (SOS) - POWER CURVE
-        # -----------------------------------------------------
+        # 2. SOS Calculation (Unchanged)
         if agg['eff_games'] > 0:
             avg_opp_elo = agg['opp_elo_sum'] / agg['eff_games']
         else:
             avg_opp_elo = GLOBAL_ELO_MEAN
             
-        # Blend SOS with a dummy baseline to prevent wild swings for low sample size
-        # (OppAvg * Games + 1500 * 10) / Total
-        weighted_opp_elo = (avg_opp_elo * agg['eff_games'] + GLOBAL_ELO_MEAN * REGRESSION_DUMMY_GAMES) / denominator
-        
-        # 1. Calculate Difficulty Ratio (e.g. 0.9 or 1.1)
+        weighted_opp_elo = (avg_opp_elo * agg['eff_games'] + GLOBAL_ELO_MEAN * REGRESSION_DUMMY_GAMES) / denom
         difficulty_ratio = weighted_opp_elo / GLOBAL_ELO_MEAN
         
-        # 2. Apply to Ratings
+        # 3. Apply SOS to Stats
+        # Offense: Power Boost (Higher is Better)
         off_log = np.log(raw_gf_avg / avg_goals_global)
-        def_log = np.log(raw_ga_avg / avg_goals_global)
+        sos_weight_off = np.clip(difficulty_ratio, 0.85, 1.15)
+        adjusted_off = np.exp(off_log * sos_weight_off)
 
-        # SOS as confidence, not multiplier
-        sos_weight = np.clip(difficulty_ratio, 0.85, 1.15)
+        # Defense: Division Forgiveness (Lower is Better)
+        sos_weight_def = difficulty_ratio ** 1.1 
+        adjusted_def = (raw_ga_avg / avg_goals_global) / sos_weight_def
 
-        adjusted_off = np.exp(off_log * sos_weight)
-        adjusted_def = np.exp(def_log * sos_weight)
-
+        # -----------------------------------------------------------
+        # C. ELO BLENDING (THE "TRUST THE SIM" UPDATE)
+        # -----------------------------------------------------------
         
-        # C. ELO BLENDING (Log-Space Prior)
-        # -------------------------------------------------
-        # Elo acts as a stabilizing prior, not a multiplier.
-        # Blending is done in log space to preserve standardization.
+        # 1. Calculate Base Ratio (Centered on 1500)
+        # 1500 -> 1.0
+        # 2100 -> 1.4
+        elo_ratio = s['elo'] / 1500.0
+        
+        # 2. Apply Power Curve (Widen the gap)
+        # A 10% Elo advantage translates to a ~20% Scoring advantage
+        elo_off = elo_ratio ** 2.0 
+        
+        # 3. Defense is the Inverse (Reciprocal)
+        # If Offense is 2.0 (Double Strength), Defense is 0.5 (Half Conceded)
+        elo_def = 1.0 / elo_off
+        
+        # 4. Wide Guardrails (Trust the Sim!)
+        # Allow multipliers to go from 0.3 (Tiny Nation) to 3.0 (Godlike)
+        elo_off = np.clip(elo_off, 0.3, 3.0)
+        elo_def = np.clip(elo_def, 0.3, 3.0)
 
-        # 1. Map Elo → expected strength (bounded)
-        # 1500 ≈ 1.00, 2100 ≈ 1.50
-        elo_off = np.clip((s['elo'] - 1200) / 600, 0.75, 1.50)
-        elo_def = np.clip(2.0 - elo_off, 0.75, 1.50)
+        # -----------------------------------------------------------
 
-        # 2. Convert to log space
         elo_off_log = np.log(elo_off)
         elo_def_log = np.log(elo_def)
 
-        # 3. Blend stats + Elo prior (weights can be dynamic if desired)
+        # 3. Blend stats + Elo prior
         STAT_WEIGHT = 0.65
         ELO_WEIGHT  = 0.35
 
+        # Offense Blend
         final_off_log = STAT_WEIGHT * np.log(adjusted_off) + ELO_WEIGHT * elo_off_log
-        final_def_log = STAT_WEIGHT * np.log(adjusted_def) + ELO_WEIGHT * elo_def_log
-
-        # 4. Convert back to standardized indices
         s['off'] = np.exp(final_off_log)
+
+        # Defense Blend
+        final_def_log = STAT_WEIGHT * np.log(adjusted_def) + ELO_WEIGHT * elo_def_log
         s['def'] = np.exp(final_def_log)
+        
+        # Final Clamps (Also Widened)
+        # We allow teams to be rated up to 3.0x Average
+        s['off'] = np.clip(s['off'], 0.4, 3.0)
+        s['def'] = np.clip(s['def'], 0.4, 3.0)
 
-        # 5. Soft clamps (extremes handled later by sim compression)
-        s['off'] = np.clip(s['off'], 0.6, 1.6)
-        s['def'] = np.clip(s['def'], 0.6, 1.6)
-
-        # Derived goal rates (for tables / diagnostics only)
+        # Display Values
         s['adj_gf'] = s['off'] * avg_goals_global
         s['adj_ga'] = s['def'] * avg_goals_global
 
-
-        # E. REST OF STATS
+        # Finalize Stats Strings
         recent_form = s['form'][-5:] 
         s['form'] = "".join(recent_form) if recent_form else "-----"
-
         m = s['matches']
         g = s['total_goals_recorded']
         
-        s['cs_pct'] = (s['clean_sheets'] / m * 100) if m > 0 else 0
-        s['btts_pct'] = (s['btts'] / m * 100) if m > 0 else 0
+        if agg['eff_games'] > 0:
+            s['cs_pct'] = (agg['weighted_cs'] / agg['eff_games']) * 100
+            s['btts_pct'] = (agg['weighted_btts'] / agg['eff_games']) * 100
+        else:
+            s['cs_pct'] = 0; s['btts_pct'] = 0
+            
         s['pen_pct'] = (s['penalties'] / g * 100) if g > 0 else 0
         s['fh_pct'] = (s['first_half'] / g * 100) if g > 0 else 0
         s['late_pct'] = (s['late_goals'] / g * 100) if g > 0 else 0
         
-        # E. Advanced Style Label
+        # -----------------------------------------------------------
+        # E. ADVANCED STYLE LABEL (Updated for SOS-Adjusted Stats)
+        # -----------------------------------------------------------
+        # We now use 'adj_gf' and 'adj_ga' so the label matches the rating.
         
-        # 1. "ELITE" COMBINATIONS (The best of the best)
-        if s['gf_avg'] > 2.2 and s['cs_pct'] > 50:
-            style = "Dominant"              # Elite Attack + Elite Defense (e.g. Prime Brazil)
+        # 1. "ELITE" COMBINATIONS
+        # Dominant: Scores huge amounts (Adjusted > 2.3) + Locks down defense (>50% Clean Sheets)
+        if s['adj_gf'] > 2.3 and s['cs_pct'] > 50:
+            style = "Dominant"              
+            
+        # Resilient: Hard to score against, wins it late. (Real Madrid DNA)
         elif s['late_pct'] > 30 and s['cs_pct'] > 45:
-            style = "Resilient"             # Good defense + Wins games late (e.g. Real Madrid)
+            style = "Resilient"             
             
-        # 2. "CHAOS" COMBINATIONS (High Event)
-        elif s['gf_avg'] > 2.0 and s['ga_avg'] > 1.5:
-            style = "High Risk / Reward"    # Scores a lot, but defense leaks (e.g. Germany 2024)
-        elif s['btts_pct'] > 65 and s['late_pct'] > 30:
-            style = "Late Drama"            # Chaotic games usually decided in final minutes
+        # 2. "CHAOS" COMBINATIONS
+        # High Risk: Scores 2+, but Concedes 1.5+. (Entertaining but flawed)
+        elif s['adj_gf'] > 2.0 and s['adj_ga'] > 1.5:
+            style = "High Risk / Reward"    
             
-        # 3. "CONTROL" COMBINATIONS (Low Event)
-        elif s['gf_avg'] < 1.0 and s['cs_pct'] > 45:
-            style = "Defensive Wall"        # Can't score much, but refuses to concede (e.g. Morocco)
-        elif s['btts_pct'] < 30 and s['ga_avg'] < 1.0:
-            style = "Disciplined"           # Very organized, boring low-scoring wins
+        # Late Drama: Both teams score often, and goals happen late.
+        elif s['btts_pct'] > 60 and s['late_pct'] > 30:
+            style = "Late Drama"            
+            
+        # 3. "CONTROL" COMBINATIONS
+        # Defensive Wall: Offense is weak (< 1.1), but Defense is Elite (> 45% CS)
+        elif s['adj_gf'] < 1.1 and s['cs_pct'] > 45:
+            style = "Defensive Wall"        
+            
+        # Disciplined: Low scoring games. Rare BTTS, Low GA.
+        elif s['btts_pct'] < 35 and s['adj_ga'] < 1.0:
+            style = "Disciplined"           
             
         # 4. "TIMING" SPECIALISTS
-        elif s['fh_pct'] > 60 and s['gf_avg'] > 1.5:
-            style = "Aggressive Starter"    # Blitzes opponents early to take control
-        elif s['pen_pct'] > 20 and s['gf_avg'] < 1.5:
-            style = "Set-Piece Reliant"     # Struggles in open play, relies on fouls/corners
+        # Aggressive Starter: Scores early and often.
+        elif s['fh_pct'] > 60 and s['adj_gf'] > 1.5:
+            style = "Aggressive Starter"    
+            
+        # Set-Piece Reliant: Weak open play (< 1.4), relies on Pens.
+        elif s['pen_pct'] > 20 and s['adj_gf'] < 1.4:
+            style = "Set-Piece Reliant"     
             
         # 5. FALLBACKS (Single Stat Dominance)
-        elif s['gf_avg'] > 2.0: style = "Strong Attack"
+        elif s['adj_gf'] > 2.1: style = "Strong Attack"
         elif s['cs_pct'] > 45:  style = "Solid Defense"
         elif s['btts_pct'] > 60: style = "Open Games"
-        elif s['gf_avg'] < 1.0: style = "Low Scoring"
+        elif s['adj_gf'] < 1.0: style = "Low Scoring"
         
         else:
             style = "Balanced"
