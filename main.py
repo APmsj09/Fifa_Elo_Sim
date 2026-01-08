@@ -840,6 +840,78 @@ def update_dashboard_data():
     adjusted_stats['ga_avg'] = std_defense
     scout_report = generate_scout_report(adjusted_stats)
 
+    import random
+
+    # =========================================================
+    # 3. GENERATE DYNAMIC ANALYST NOTE (WITH VARIETY)
+    # =========================================================
+    att_diff = int(rel_att_strength - 100)
+    def_diff = int(rel_def_strength - 100)
+    
+    txt_att = round(std_attack, 2)
+    txt_def = round(std_defense, 2)
+    txt_idx_a = round(atk_index, 2)
+    txt_idx_d = round(def_index, 2)
+
+    # --- ATTACK NARRATIVE ---
+    if att_diff >= 50:
+        # ELITE ATTACK
+        templates = [
+            f"Statistically, the attack is lethal, generating <strong style='color:#3498db;'>{txt_att} Goals/Gm</strong> (Index: {txt_idx_a}), a massive <strong>{att_diff}% above average</strong>.",
+            f"Front-line output is exceptional. They produce <strong style='color:#3498db;'>{txt_att} Goals/Gm</strong>, outperforming the global baseline by <strong>{att_diff}%</strong>.",
+            f"This is a high-volume offensive unit, scoring <strong style='color:#3498db;'>{txt_att} goals per game</strong> (Index: {txt_idx_a}), placing them in the elite tier."
+        ]
+    elif att_diff >= 10:
+        # GOOD ATTACK
+        templates = [
+            f"Offensively, they are solid, producing <strong style='color:#3498db;'>{txt_att} Goals/Gm</strong> (Index: {txt_idx_a}), which is <strong>{att_diff}% above</strong> the norm.",
+            f"Attack numbers are healthy at <strong style='color:#3498db;'>{txt_att} Goals/Gm</strong>, showing an efficiency <strong>{att_diff}% better</strong> than the average side."
+        ]
+    elif att_diff > -10:
+        # AVERAGE ATTACK
+        templates = [
+            f"Offensive output is standard, sitting at <strong style='color:#95a5a6;'>{txt_att} Goals/Gm</strong> (Index: {txt_idx_a}), roughly inline with the global average.",
+            f"They possess a balanced attack, scoring <strong style='color:#95a5a6;'>{txt_att} Goals/Gm</strong>, which matches the statistical baseline."
+        ]
+    else:
+        # WEAK ATTACK
+        templates = [
+            f"The attack struggles for consistency, managing only <strong style='color:#7f8c8d;'>{txt_att} Goals/Gm</strong> (Index: {txt_idx_a}), sitting <strong>{abs(att_diff)}% below</strong> average.",
+            f"Goal scoring is a concern. They average <strong style='color:#7f8c8d;'>{txt_att} Goals/Gm</strong>, reflecting an output <strong>{abs(att_diff)}% lower</strong> than the norm."
+        ]
+    att_text = random.choice(templates)
+
+    # --- DEFENSE NARRATIVE ---
+    if def_diff <= -30:
+        # ELITE DEFENSE
+        templates = [
+            f"Defensively, they are a fortress, conceding just <strong style='color:#2ecc71;'>{txt_def} Goals/Gm</strong> (Index: {txt_idx_d}), rated <strong>{abs(def_diff)}% superior</strong> to the baseline.",
+            f"The back-line is formidable. Allowing only <strong style='color:#2ecc71;'>{txt_def} Goals/Gm</strong> puts them <strong>{abs(def_diff)}% ahead</strong> of the average defense.",
+            f"Defensive organization is elite, with a concession rate of <strong style='color:#2ecc71;'>{txt_def} Goals/Gm</strong> (Index: {txt_idx_d})."
+        ]
+    elif def_diff <= -5:
+        # GOOD DEFENSE
+        templates = [
+            f"Defensively, they are reliable, conceding <strong style='color:#2ecc71;'>{txt_def} Goals/Gm</strong>, which is <strong>{abs(def_diff)}% better</strong> than the average.",
+            f"They maintain a disciplined shape, allowing <strong style='color:#2ecc71;'>{txt_def} Goals/Gm</strong> (Index: {txt_idx_d})."
+        ]
+    elif def_diff < 15:
+        # AVERAGE DEFENSE
+        templates = [
+            f"Defensively, they are average, conceding <strong style='color:#95a5a6;'>{txt_def} Goals/Gm</strong>, tracking closely with the global baseline.",
+            f"The defense is serviceable but permeable, allowing <strong style='color:#95a5a6;'>{txt_def} Goals/Gm</strong> (Index: {txt_idx_d})."
+        ]
+    else:
+        # WEAK DEFENSE
+        templates = [
+            f"Defensively, there are leaks, conceding <strong style='color:#e74c3c;'>{txt_def} Goals/Gm</strong> (Index: {txt_idx_d}), rated <strong>{def_diff}% more vulnerable</strong> than average.",
+            f"The back-line is fragile. They allow <strong style='color:#e74c3c;'>{txt_def} Goals/Gm</strong>, performing <strong>{def_diff}% worse</strong> than the statistical baseline."
+        ]
+    def_text = random.choice(templates)
+
+    # Combine
+    analyst_note = f"{att_text} {def_text}"
+
     # =========================================================
     # 2. RENDER HEADER
     # =========================================================
@@ -857,18 +929,20 @@ def update_dashboard_data():
     </div>
     """
 
+    # =========================================================
+    # 4. RENDER METRICS HTML
+    # =========================================================
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
     <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:20px;">
         <div>
             <div style="display:flex; gap:10px; margin-bottom:15px;">
+                
                 <div style="background:#3498db; color:white; padding:12px; border-radius:8px; flex:1; display:flex; flex-direction:column; justify-content:center; text-align:center;">
                     <div style="font-size:0.75em; opacity:0.9; margin-bottom:5px;">OFFENSIVE RATING</div>
-                    
                     <div style="margin-bottom:5px;">
                         <span style="font-size:1.9em; font-weight:bold;">{round(std_attack, 2)}</span>
                         <span style="font-size:0.7em; opacity:0.8;">Goals/Gm</span>
                     </div>
-
                     <div style="background:rgba(0,0,0,0.2); padding:4px; border-radius:4px; font-size:0.8em;">
                         Index: <strong>{round(atk_index, 2)}</strong> <span style="opacity:0.8;">({int(rel_att_strength)}% Avg)</span>
                     </div>
@@ -876,23 +950,22 @@ def update_dashboard_data():
 
                 <div style="background:#e74c3c; color:white; padding:12px; border-radius:8px; flex:1; display:flex; flex-direction:column; justify-content:center; text-align:center;">
                     <div style="font-size:0.75em; opacity:0.9; margin-bottom:5px;">DEFENSIVE RATING</div>
-                    
                     <div style="margin-bottom:5px;">
                         <span style="font-size:1.9em; font-weight:bold;">{round(std_defense, 2)}</span>
                         <span style="font-size:0.7em; opacity:0.8;">Conc/Gm</span>
                     </div>
-
                     <div style="background:rgba(0,0,0,0.2); padding:4px; border-radius:4px; font-size:0.8em;">
                         Index: <strong>{round(def_index, 2)}</strong> <span style="opacity:0.8;">({int(rel_def_strength)}% Avg)</span>
                     </div>
                 </div>
 
-                <div style="background:#f1c40f; color:#2c3e50; padding:15px; borderRadius:8px; flex:1; text-align:center;">
+                <div style="background:#f1c40f; color:#2c3e50; padding:12px; borderRadius:8px; flex:1; text-align:center; display:flex; flex-direction:column; justify-content:center;">
                     <div style="font-size:0.75em; opacity:0.9;">CLEAN SHEETS</div>
                     <div style="font-size:1.8em; font-weight:bold;">{int(stats.get('cs_pct',0))}%</div>
-                     <div style="font-size:0.7em; opacity:0.7; margin-top:8px;">Frequency</div>
+                     <div style="font-size:0.7em; opacity:0.7; margin-top:5px;">Frequency</div>
                 </div>
             </div>
+            
             <h4 style="margin:0 0 10px 0; color:#7f8c8d; border-bottom:1px solid #eee; padding-bottom:5px;">🧬 Tactical DNA</h4>
             <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
                 <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; border-radius:8px; text-align:center;">
@@ -913,9 +986,17 @@ def update_dashboard_data():
                 </div>
             </div>
         </div>
-        <div style="background:#2c3e50; color:white; padding:20px; border-radius:10px; display:flex; flex-direction:column; justify-content:center;">
-            <h4 style="margin-top:0; color:#f1c40f; border-bottom:1px solid #555; padding-bottom:10px;">📋 Scouting Report</h4>
-            <div style="font-size:0.9em; line-height:1.6;">{scout_report}</div>
+        
+        <div style="background:#2c3e50; color:white; padding:20px; border-radius:10px; display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+                <h4 style="margin-top:0; color:#f1c40f; border-bottom:1px solid #555; padding-bottom:10px;">📋 Scouting Report</h4>
+                <div style="font-size:0.9em; line-height:1.6; margin-bottom:20px;">{scout_report}</div>
+            </div>
+
+            <div style="border-top:1px solid #3e5871; padding-top:15px; font-size:0.8em; color:#95a5a6; line-height:1.5; font-style:italic;">
+                <strong style="color:#bdc3c7; font-style:normal;">📝 Analyst Note:</strong>
+                {analyst_note}
+            </div>
         </div>
     </div>
     """
