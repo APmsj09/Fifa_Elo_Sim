@@ -245,15 +245,17 @@ def initialize_engine():
         }
 
     # ----------------------------------------------------
-    # PHASE 2: RECENT FORM & OPPONENT STRENGTH
+    # PHASE 2: RECENT FORM & OPPONENT STRENGTH (Stepped Decay)
     # ----------------------------------------------------
     RELEVANCE_CUTOFF = '2021-01-01'
     recent_df = elo_df[elo_df['date'] > RELEVANCE_CUTOFF]
     
     # 1. Calculate Global Averages
     if len(recent_df) > 0:
+        LATEST_DATE = recent_df['date'].max()
         avg_goals_global = (recent_df['home_score'].mean() + recent_df['away_score'].mean()) / 2
     else:
+        LATEST_DATE = pd.to_datetime('today')
         avg_goals_global = 1.25
 
     # Calculate average Elo of active teams to serve as the baseline
@@ -261,16 +263,41 @@ def initialize_engine():
     GLOBAL_ELO_MEAN = sum(active_elos) / len(active_elos) if active_elos else 1500
 
     # Init tracker
-    team_recent_aggregates = {t: {'gf':0, 'ga':0, 'games':0, 'opp_elo_sum':0} for t in all_teams}
+    team_recent_aggregates = {t: {'gf':0, 'ga':0, 'eff_games':0, 'opp_elo_sum':0} for t in all_teams}
     
     for _, row in recent_df.iterrows():
         h, a = row['home_team'], row['away_team']
         hs, as_ = row['home_score'], row['away_score']
+        match_date = row['date']
         
         h_elo = TEAM_STATS.get(h, {}).get('elo', 1200)
         a_elo = TEAM_STATS.get(a, {}).get('elo', 1200)
 
-        # 1. Update Form Strings
+        # ----------------------------------------------
+        # NEW: STEPPED TIME DECAY
+        # ----------------------------------------------
+        days_old = (LATEST_DATE - match_date).days
+        days_old = max(0, days_old) 
+        
+        # Calculate Years Old (Integer)
+        # 0-365 days = 0
+        # 366-730 days = 1, etc.
+        years_old = int(days_old / 365)
+        
+        # Define the Step Logic
+        if years_old == 0:   # Within last year
+            weight = 1.0
+        elif years_old == 1: # 1-2 years ago
+            weight = 0.9
+        elif years_old == 2: # 2-3 years ago
+            weight = 0.8
+        elif years_old == 3: # 3-4 years ago
+            weight = 0.7
+        else:                # Ancient history (>4 years)
+            weight = 0.5     # The floor
+        # ----------------------------------------------
+
+        # 1. Update Form Strings (Unweighted)
         if h in TEAM_STATS:
             res = 'W' if hs > as_ else ('L' if hs < as_ else 'D')
             TEAM_STATS[h]['form'].append(res)
@@ -278,12 +305,15 @@ def initialize_engine():
             res = 'W' if as_ > hs else ('L' if as_ < hs else 'D')
             TEAM_STATS[a]['form'].append(res)
 
-        # 2. Track Stats & Opponent Elo
+        # 2. Track Stats (WEIGHTED)
         if h in TEAM_STATS: 
-            TEAM_STATS[h]['matches'] += 1
+            TEAM_STATS[h]['matches'] += 1 
             agg = team_recent_aggregates[h]
-            agg['gf'] += hs; agg['ga'] += as_; agg['games'] += 1
-            agg['opp_elo_sum'] += a_elo 
+            
+            agg['gf'] += (hs * weight)
+            agg['ga'] += (as_ * weight)
+            agg['eff_games'] += weight       
+            agg['opp_elo_sum'] += (a_elo * weight)
             
             if as_ == 0: TEAM_STATS[h]['clean_sheets'] += 1
             if hs > 0 and as_ > 0: TEAM_STATS[h]['btts'] += 1
@@ -291,8 +321,11 @@ def initialize_engine():
         if a in TEAM_STATS: 
             TEAM_STATS[a]['matches'] += 1
             agg = team_recent_aggregates[a]
-            agg['gf'] += as_; agg['ga'] += hs; agg['games'] += 1
-            agg['opp_elo_sum'] += h_elo 
+            
+            agg['gf'] += (as_ * weight)
+            agg['ga'] += (hs * weight)
+            agg['eff_games'] += weight
+            agg['opp_elo_sum'] += (h_elo * weight)
             
             if hs == 0: TEAM_STATS[a]['clean_sheets'] += 1
             if hs > 0 and as_ > 0: TEAM_STATS[a]['btts'] += 1
@@ -330,7 +363,7 @@ def initialize_engine():
         # A. Basic Averages with Regression (Smoothing)
         numerator_gf = agg['gf'] + (REGRESSION_DUMMY_GAMES * avg_goals_global)
         numerator_ga = agg['ga'] + (REGRESSION_DUMMY_GAMES * avg_goals_global)
-        denominator = agg['games'] + REGRESSION_DUMMY_GAMES
+        denominator = agg['eff_games'] + REGRESSION_DUMMY_GAMES
         
         raw_gf_avg = numerator_gf / denominator
         raw_ga_avg = numerator_ga / denominator
@@ -340,8 +373,8 @@ def initialize_engine():
         
         # B. CALCULATE STRENGTH OF SCHEDULE (SOS) - POWER CURVE
         # -----------------------------------------------------
-        if agg['games'] > 0:
-            avg_opp_elo = agg['opp_elo_sum'] / agg['games']
+        if agg['eff_games'] > 0:
+            avg_opp_elo = agg['opp_elo_sum'] / agg['eff_games']
         else:
             avg_opp_elo = GLOBAL_ELO_MEAN
             
