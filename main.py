@@ -6,6 +6,7 @@ import matplotlib.dates as mdates
 import simulation_engine as sim
 from pyodide.ffi import create_proxy
 from pyscript import display
+import mplcursors
 
 # GLOBAL VARIABLES
 LAST_SIM_RESULTS = {}
@@ -812,46 +813,34 @@ async def view_team_history(event=None):
 def update_dashboard_data():
     # 1. GET TEAM SELECTION
     select = js.document.getElementById("team-select-dashboard")
-    
-    # Auto-populate if empty
     if not select or not select.value:
         populate_team_dropdown(target_id="team-select-dashboard")
         select = js.document.getElementById("team-select-dashboard")
-    
     if not select or not select.value: return 
 
     team = select.value
     stats = sim.TEAM_STATS.get(team)
     history = sim.TEAM_HISTORY.get(team)
-
     if not stats or not history: return
 
-    # --- 1. GET THE STANDARDIZED METRICS ---
-    # These are the SOS-Adjusted Goals Per Game we saved in the engine.
-    # If the key is missing (e.g. before reload), default to 1.0
+    # --- 1. GET THE SOS-ADJUSTED METRICS ---
     atk_index = stats.get('off', 1.0)
     def_index = stats.get('def', 1.0)
 
-    exp_gf = stats.get('adj_gf', sim.AVG_GOALS)
-    exp_ga = stats.get('adj_ga', sim.AVG_GOALS)
-    
-    # Calculate Relative Strength (Multiplier) for context
-    # Example: 1.20 = "20% better than average"
-    # We use a safe fallback of 1.25 for global avg to prevent div/0
+    std_attack = stats.get('adj_gf', sim.AVG_GOALS)
+    std_defense = stats.get('adj_ga', sim.AVG_GOALS)
     global_avg = sim.AVG_GOALS if sim.AVG_GOALS > 0 else 1.25
+
     rel_att_strength = atk_index * 100
     rel_def_strength = def_index * 100
-    
-    # --------------------------------------------------
 
-    # 2. PREPARE DATA FOR SCOUTING REPORT (Use Standardized #s)
+    # --- 2. PREPARE SCOUT REPORT ---
     adjusted_stats = stats.copy()
-    adjusted_stats['gf_avg'] = stats.get('adj_gf', sim.AVG_GOALS)
-    adjusted_stats['ga_avg'] = stats.get('adj_ga', sim.AVG_GOALS)
-
+    adjusted_stats['gf_avg'] = std_attack
+    adjusted_stats['ga_avg'] = std_defense
     scout_report = generate_scout_report(adjusted_stats)
 
-    # 3. RENDER HEADER
+    # --- 3. RENDER HEADER & METRICS (unchanged) ---
     header = js.document.getElementById("dashboard-header")
     header.innerHTML = f"""
     <div style="margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;">
@@ -865,24 +854,20 @@ def update_dashboard_data():
     </div>
     """
 
-    # 4. RENDER METRICS
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
     <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:20px;">
-        
         <div>
             <div style="display:flex; gap:10px; margin-bottom:15px;">
-                
-                <div style="background:#3498db; color:white; padding:15px; borderRadius:8px; flex:1; text-align:center;">
-                    <div style="font-size:0.75em; opacity:0.9;">STD. ATTACK (Index) (Goals/Gm)</div>
-                    <div style="font-size:1.8em; font-weight:bold;">{round(exp_gf, 2)} xG vs Avg</div>
+                <div style="background:#3498db; color:white; padding:15px; border-radius:8px; flex:1; text-align:center;">
+                    <div style="font-size:0.75em; opacity:0.9;">STD. ATTACK (Goals/Gm)</div>
+                    <div style="font-size:1.8em; font-weight:bold;">{round(std_attack, 2)}</div>
                     <div style="font-size:0.7em; background:rgba(0,0,0,0.2); padding:2px 5px; border-radius:4px; margin-top:5px;">
                         {int(rel_att_strength)}% of Avg
                     </div>
                 </div>
-
-                <div style="background:#e74c3c; color:white; padding:15px; borderRadius:8px; flex:1; text-align:center;">
-                    <div style="font-size:0.75em; opacity:0.9;">STD. DEFENSE (Index)</div>
-                    <div style="font-size:1.8em; font-weight:bold;">{round(exp_ga, 2)} xGA vs Avg</div>
+                <div style="background:#e74c3c; color:white; padding:15px; border-radius:8px; flex:1; text-align:center;">
+                    <div style="font-size:0.75em; opacity:0.9;">STD. DEFENSE (Conceded/Gm)</div>
+                    <div style="font-size:1.8em; font-weight:bold;">{round(std_defense, 2)}</div>
                     <div style="font-size:0.7em; background:rgba(0,0,0,0.2); padding:2px 5px; border-radius:4px; margin-top:5px;">
                         {int(rel_def_strength)}% of Avg
                     </div>
@@ -894,39 +879,34 @@ def update_dashboard_data():
                      <div style="font-size:0.7em; opacity:0.7; margin-top:8px;">Frequency</div>
                 </div>
             </div>
-            
             <h4 style="margin:0 0 10px 0; color:#7f8c8d; border-bottom:1px solid #eee; padding-bottom:5px;">🧬 Tactical DNA</h4>
             <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
-                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; borderRadius:8px; text-align:center;">
+                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; border-radius:8px; text-align:center;">
                     <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{int(stats.get('fh_pct',0))}%</div>
                     <div style="font-size:0.7em; color:#7f8c8d;">1st Half</div>
                 </div>
-                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; borderRadius:8px; text-align:center;">
+                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; border-radius:8px; text-align:center;">
                     <div style="font-size:1.1em; font-weight:bold; color:#e67e22;">{int(stats.get('late_pct',0))}%</div>
                     <div style="font-size:0.7em; color:#7f8c8d;">Late (75'+)</div>
                 </div>
-                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; borderRadius:8px; text-align:center;">
+                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; border-radius:8px; text-align:center;">
                     <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{int(stats.get('pen_pct',0))}%</div>
                     <div style="font-size:0.7em; color:#7f8c8d;">Pens</div>
                 </div>
-                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; borderRadius:8px; text-align:center;">
+                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; border-radius:8px; text-align:center;">
                     <div style="font-size:1.1em; font-weight:bold; color:#e74c3c;">{int(stats.get('btts_pct',0))}%</div>
                     <div style="font-size:0.7em; color:#7f8c8d;">BTTS</div>
                 </div>
             </div>
         </div>
-
         <div style="background:#2c3e50; color:white; padding:20px; border-radius:10px; display:flex; flex-direction:column; justify-content:center;">
             <h4 style="margin-top:0; color:#f1c40f; border-bottom:1px solid #555; padding-bottom:10px;">📋 Scouting Report</h4>
-            <div style="font-size:0.9em; line-height:1.6;">
-                {scout_report}
-            </div>
+            <div style="font-size:0.9em; line-height:1.6;">{scout_report}</div>
         </div>
-        
     </div>
     """
 
-    # 5. RENDER ELO CHART
+    # --- 4. RENDER ELO HISTORY ---
     js.document.getElementById("dashboard_chart_elo").innerHTML = ""
     fig, ax = plt.subplots(figsize=(6, 4.5))
     ax.plot(history['dates'], history['elo'], color='#2980b9', linewidth=2, label=team.title())
@@ -938,28 +918,25 @@ def update_dashboard_data():
     display(fig, target="dashboard_chart_elo")
     plt.close(fig)
 
-    # 6. RENDER RADAR CHART
+    # --- 5. RENDER RADAR-STYLE BAR CHART ---
     js.document.getElementById("dashboard_chart_radar").innerHTML = ""
-    fig2, ax2 = plt.subplots(figsize=(5, 4.5))
-    
+    fig2, ax2 = plt.subplots(figsize=(6, 4))
     metrics = ['Attack', 'Defense']
     team_vals = [atk_index, def_index]
-    global_avgs = [1.0, 1.0]
-    
-    # Global Avg for comparison (Dynamic)
-    global_avgs = [global_avg, global_avg] 
-    
-    x = [0, 1]; width = 0.35
-    ax2.bar([p - width/2 for p in x], team_vals, width, label=team.title(), color=['#3498db', '#e74c3c'])
-    ax2.bar([p + width/2 for p in x], global_avgs, width, label='Global Avg', color='#95a5a6', alpha=0.6)
-    
-    ax2.set_ylabel('Standardized Index (Avg = 1.00)')
-    ax2.set_xticks(x); ax2.set_xticklabels(metrics)
-    ax2.legend(fontsize='small')
-    ax2.set_ylim(0, 3.0)
+    global_avgs = [1.0, 1.0]  # normalized SOS avg = 1.0
+
+    bars_team = ax2.bar([0,1], team_vals, width=0.35, color=['#3498db','#e74c3c'], label=team.title())
+    bars_avg  = ax2.bar([0,1], global_avgs, width=0.35, color='#95a5a6', alpha=0.6, label='Global Avg', align='edge')
+
+    ax2.set_xticks([0,1])
+    ax2.set_xticklabels(metrics)
+    ax2.set_ylabel("SOS-Adjusted Strength")
+    ax2.set_ylim(0, max(team_vals + global_avgs)*1.2)
+    ax2.set_title(f"{team.title()} vs Global Avg", fontsize=12)
+    ax2.bar_label(bars_team, fmt='%.2f', padding=3)
+    ax2.bar_label(bars_avg, fmt='%.2f', padding=3)
     ax2.grid(axis='y', linestyle='--', alpha=0.3)
-    ax2.set_title("Standardized Performance vs Avg", fontsize=10, fontweight='bold')
-    
+    ax2.legend(fontsize='small')
     fig2.tight_layout()
     display(fig2, target="dashboard_chart_radar")
     plt.close(fig2)
@@ -977,10 +954,10 @@ async def plot_style_map(event):
     # Switch Tabs manually if this was triggered from Sidebar
     js.document.getElementById("view-profile").style.display = "none"
     js.document.getElementById("view-style-map").style.display = "block"
-    
+
     target_div = js.document.getElementById("main-chart-container")
     target_div.innerHTML = "<div style='text-align:center; padding:50px;'>Generating 5D Style Map...</div>"
-    
+
     await asyncio.sleep(0.05)
     
     fig, ax = plt.subplots(figsize=(9, 6))
@@ -988,37 +965,47 @@ async def plot_style_map(event):
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
     teams_to_plot = [t for t in sorted_teams if t[0] in sim.WC_TEAMS] if wc_only else sorted_teams[:60]
 
-    x_vals, y_vals, colors, sizes = [], [], [], []
-    for team, stats in teams_to_plot:
-        gf = stats.get('adj_gf', 0)
-        ga = stats.get('adj_ga', 0)
+    fig, ax = plt.subplots(figsize=(9,6))
+    sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)[:60]
+
+    x_vals, y_vals, colors, sizes, labels = [], [], [], [], []
+    for team, stats in sorted_teams:
+        gf = stats.get('gf_avg', 0)
+        ga = stats.get('ga_avg', 0)
         x_vals.append(gf)
-        y_vals.append(ga) 
-        # Color: Net Timing
+        y_vals.append(ga)
         m_scored = stats.get('avg_minute_scored', 48)
         m_conceded = stats.get('avg_minute_conceded', 48)
         colors.append(m_scored - m_conceded)
-        # Size: Elo strength
-        sizes.append(stats['elo'] / 10) 
-
-        # Label elites
-        if stats['elo'] > 1900 or (wc_only and stats['elo'] > 1700):
-            ax.annotate(team.title(), (gf, ga), xytext=(5, 5), textcoords='offset points', fontsize=8)
+        sizes.append(stats['elo'] / 10)
+        labels.append(f"{team.title()}\nAttack: {gf:.2f}\nDefense: {ga:.2f}\nElo: {int(stats['elo'])}")
 
     scatter = ax.scatter(x_vals, y_vals, c=colors, s=sizes, cmap='coolwarm', alpha=0.7, edgecolors='black', vmin=-15, vmax=15)
-    
+
+    # Shaded quadrants
+    ax.axhspan(0, 1.0, xmin=0.5, xmax=1, facecolor='green', alpha=0.05)
+    ax.axhspan(1.0, 3.0, xmin=0, xmax=0.5, facecolor='red', alpha=0.05)
+
+    # Hover tooltips
+    cursor = mplcursors.cursor(scatter, hover=True)
+    @cursor.connect("add")
+    def on_hover(sel):
+        sel.annotation.set_text(labels[sel.index])
+        sel.annotation.get_bbox_patch().set(fc="white", alpha=0.9)
+
     ax.set_title("Strategic Style Map", fontsize=14, fontweight='bold')
     ax.set_xlabel("Goals Scored per Game")
     ax.set_ylabel("Goals Conceded per Game")
     ax.invert_yaxis() # Defense: Lower is better (so high up)
     ax.grid(True, linestyle='--', alpha=0.2)
-    
     cbar = plt.colorbar(scatter, ax=ax)
     cbar.set_label('Game Control (Blue=Early Lead, Red=Late Comeback)')
 
     target_div.innerHTML = ""
     display(fig, target="main-chart-container")
     plt.close(fig)
+
+
 
 # =============================================================================
 # --- 6. BOOTSTRAP APP ---
