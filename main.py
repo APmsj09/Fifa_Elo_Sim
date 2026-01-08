@@ -823,14 +823,18 @@ def update_dashboard_data():
     history = sim.TEAM_HISTORY.get(team)
     if not stats or not history: return
 
-    # --- 1. GET THE SOS-ADJUSTED METRICS ---
-    atk_index = stats.get('off', 1.0)
-    def_index = stats.get('def', 1.0)
-
+    # --- 1. GET METRICS ---
+    # SOS-Adjusted Stats (The "True" Rating)
     std_attack = stats.get('adj_gf', sim.AVG_GOALS)
     std_defense = stats.get('adj_ga', sim.AVG_GOALS)
-    global_avg = sim.AVG_GOALS if sim.AVG_GOALS > 0 else 1.25
+    
+    # Raw Weighted Stats (The "Actual" Goals Scored/Conceded)
+    raw_attack = stats.get('gf_avg', 0.0)
+    raw_defense = stats.get('ga_avg', 0.0)
 
+    # Relative Strengths for the percentage badges
+    atk_index = stats.get('off', 1.0)
+    def_index = stats.get('def', 1.0)
     rel_att_strength = atk_index * 100
     rel_def_strength = def_index * 100
 
@@ -846,11 +850,7 @@ def update_dashboard_data():
     <div style="margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;">
         <h1 style="margin:0; font-size:2.2em; color:#2c3e50;">{team.title()}</h1>
         <div style="color:#7f8c8d; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
-            <span>
-                FIFA Elo: <span style="color:#2c3e50;">{int(stats['elo'])}</span>
-                <span style="color:#bdc3c7; margin:0 10px;">|</span>
-                Matches: <span style="color:#2c3e50;">{stats['matches']}</span>
-            </span>
+            <span>FIFA Elo: <span style="color:#2c3e50;">{int(stats['elo'])}</span></span>
             <span style="font-size:0.8em; color:#2980b9; background:#eaf2f8; padding:4px 8px; border-radius:4px;">
                 Weighted Sim Engine
             </span>
@@ -899,7 +899,7 @@ def update_dashboard_data():
                      <div style="font-size:0.6em; opacity:0.7;">Frequency</div>
                 </div>
             </div>
-
+            
             <h4 style="margin:0 0 10px 0; color:#7f8c8d; border-bottom:1px solid #eee; padding-bottom:5px;">🧬 Tactical DNA</h4>
             <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
                 <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; border-radius:8px; text-align:center;">
@@ -920,8 +920,7 @@ def update_dashboard_data():
                 </div>
             </div>
         </div>
-        
-        <div style="background:#2c3e50; color:white; padding:20px; border-radius:10px; display:flex; flex-direction:column;">
+        <div style="background:#2c3e50; color:white; padding:20px; border-radius:10px; display:flex; flex-direction:column; justify-content:center;">
             <h4 style="margin-top:0; color:#f1c40f; border-bottom:1px solid #555; padding-bottom:10px;">📋 Scouting Report</h4>
             <div style="font-size:0.9em; line-height:1.6;">{scout_report}</div>
         </div>
