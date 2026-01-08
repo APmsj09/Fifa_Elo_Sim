@@ -823,18 +823,14 @@ def update_dashboard_data():
     history = sim.TEAM_HISTORY.get(team)
     if not stats or not history: return
 
-    # --- 1. GET METRICS ---
-    # SOS-Adjusted Stats (The "True" Rating)
-    std_attack = stats.get('adj_gf', sim.AVG_GOALS)
-    std_defense = stats.get('adj_ga', sim.AVG_GOALS)
-    
-    # Raw Weighted Stats (The "Actual" Goals Scored/Conceded)
-    raw_attack = stats.get('gf_avg', 0.0)
-    raw_defense = stats.get('ga_avg', 0.0)
-
-    # Relative Strengths for the percentage badges
+    # --- 1. GET THE SOS-ADJUSTED METRICS ---
     atk_index = stats.get('off', 1.0)
     def_index = stats.get('def', 1.0)
+
+    std_attack = stats.get('adj_gf', sim.AVG_GOALS)
+    std_defense = stats.get('adj_ga', sim.AVG_GOALS)
+    global_avg = sim.AVG_GOALS if sim.AVG_GOALS > 0 else 1.25
+
     rel_att_strength = atk_index * 100
     rel_def_strength = def_index * 100
 
@@ -844,7 +840,10 @@ def update_dashboard_data():
     adjusted_stats['ga_avg'] = std_defense
     scout_report = generate_scout_report(adjusted_stats)
 
-    # --- 3. RENDER HEADER & METRICS ---
+    # =========================================================
+    # 2. RENDER HEADER
+    # =========================================================
+    
     header = js.document.getElementById("dashboard-header")
     header.innerHTML = f"""
     <div style="margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;">
@@ -852,7 +851,7 @@ def update_dashboard_data():
         <div style="color:#7f8c8d; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
             <span>FIFA Elo: <span style="color:#2c3e50;">{int(stats['elo'])}</span></span>
             <span style="font-size:0.8em; color:#2980b9; background:#eaf2f8; padding:4px 8px; border-radius:4px;">
-                Weighted Sim Engine
+                SOS Standardized Ratings
             </span>
         </div>
     </div>
@@ -862,44 +861,38 @@ def update_dashboard_data():
     <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:20px;">
         <div>
             <div style="display:flex; gap:10px; margin-bottom:15px;">
-                
-                <div style="background:#3498db; color:white; padding:10px 15px; border-radius:8px; flex:1; display:flex; flex-direction:column; justify-content:center;">
-                    <div style="font-size:0.75em; opacity:0.9; text-align:center; margin-bottom:5px;">ATTACK (Goals/Gm)</div>
-                    <div style="display:flex; justify-content:space-around; align-items:center;">
-                        <div style="text-align:center;">
-                            <div style="font-size:1.8em; font-weight:bold;">{round(std_attack, 2)}</div>
-                            <div style="font-size:0.6em; background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:10px;">SOS ADJ</div>
-                        </div>
-                        <div style="width:1px; height:30px; background:rgba(255,255,255,0.4);"></div>
-                        <div style="text-align:center;">
-                            <div style="font-size:1.3em; opacity:0.9;">{round(raw_attack, 2)}</div>
-                            <div style="font-size:0.6em; opacity:0.8;">RAW FORM</div>
-                        </div>
+                <div style="background:#3498db; color:white; padding:12px; border-radius:8px; flex:1; display:flex; flex-direction:column; justify-content:center; text-align:center;">
+                    <div style="font-size:0.75em; opacity:0.9; margin-bottom:5px;">OFFENSIVE RATING</div>
+                    
+                    <div style="margin-bottom:5px;">
+                        <span style="font-size:1.9em; font-weight:bold;">{round(std_attack, 2)}</span>
+                        <span style="font-size:0.7em; opacity:0.8;">Goals/Gm</span>
+                    </div>
+
+                    <div style="background:rgba(0,0,0,0.2); padding:4px; border-radius:4px; font-size:0.8em;">
+                        Index: <strong>{round(atk_index, 2)}</strong> <span style="opacity:0.8;">({int(rel_att_strength)}% Avg)</span>
                     </div>
                 </div>
 
-                <div style="background:#e74c3c; color:white; padding:10px 15px; border-radius:8px; flex:1; display:flex; flex-direction:column; justify-content:center;">
-                    <div style="font-size:0.75em; opacity:0.9; text-align:center; margin-bottom:5px;">DEFENSE (Conc/Gm)</div>
-                    <div style="display:flex; justify-content:space-around; align-items:center;">
-                        <div style="text-align:center;">
-                            <div style="font-size:1.8em; font-weight:bold;">{round(std_defense, 2)}</div>
-                            <div style="font-size:0.6em; background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:10px;">SOS ADJ</div>
-                        </div>
-                        <div style="width:1px; height:30px; background:rgba(255,255,255,0.4);"></div>
-                        <div style="text-align:center;">
-                            <div style="font-size:1.3em; opacity:0.9;">{round(raw_defense, 2)}</div>
-                            <div style="font-size:0.6em; opacity:0.8;">RAW FORM</div>
-                        </div>
+                <div style="background:#e74c3c; color:white; padding:12px; border-radius:8px; flex:1; display:flex; flex-direction:column; justify-content:center; text-align:center;">
+                    <div style="font-size:0.75em; opacity:0.9; margin-bottom:5px;">DEFENSIVE RATING</div>
+                    
+                    <div style="margin-bottom:5px;">
+                        <span style="font-size:1.9em; font-weight:bold;">{round(std_defense, 2)}</span>
+                        <span style="font-size:0.7em; opacity:0.8;">Conc/Gm</span>
+                    </div>
+
+                    <div style="background:rgba(0,0,0,0.2); padding:4px; border-radius:4px; font-size:0.8em;">
+                        Index: <strong>{round(def_index, 2)}</strong> <span style="opacity:0.8;">({int(rel_def_strength)}% Avg)</span>
                     </div>
                 </div>
 
-                <div style="background:#f1c40f; color:#2c3e50; padding:15px; borderRadius:8px; width:100px; text-align:center; display:flex; flex-direction:column; justify-content:center;">
-                    <div style="font-size:0.75em; opacity:0.9;">CLEAN SHT</div>
-                    <div style="font-size:1.6em; font-weight:bold;">{int(stats.get('cs_pct',0))}%</div>
-                     <div style="font-size:0.6em; opacity:0.7;">Frequency</div>
+                <div style="background:#f1c40f; color:#2c3e50; padding:15px; borderRadius:8px; flex:1; text-align:center;">
+                    <div style="font-size:0.75em; opacity:0.9;">CLEAN SHEETS</div>
+                    <div style="font-size:1.8em; font-weight:bold;">{int(stats.get('cs_pct',0))}%</div>
+                     <div style="font-size:0.7em; opacity:0.7; margin-top:8px;">Frequency</div>
                 </div>
             </div>
-            
             <h4 style="margin:0 0 10px 0; color:#7f8c8d; border-bottom:1px solid #eee; padding-bottom:5px;">🧬 Tactical DNA</h4>
             <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
                 <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; border-radius:8px; text-align:center;">
