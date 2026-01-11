@@ -7,6 +7,7 @@ import simulation_engine as sim
 from pyodide.ffi import create_proxy
 from pyscript import display
 import mplcursors
+import random
 
 # GLOBAL VARIABLES
 LAST_SIM_RESULTS = {}
@@ -814,9 +815,12 @@ async def view_team_history(event=None):
 def update_dashboard_data():
     # 1. GET TEAM SELECTION
     select = js.document.getElementById("team-select-dashboard")
+    
+    # Safety check: if dropdown doesn't exist or has no value
     if not select or not select.value:
-        populate_team_dropdown(target_id="team-select-dashboard")
+        populate_team_dropdown(target_id="team-select-dashboard") 
         select = js.document.getElementById("team-select-dashboard")
+    
     if not select or not select.value: return 
 
     team = select.value
@@ -830,7 +834,8 @@ def update_dashboard_data():
 
     std_attack = stats.get('adj_gf', sim.AVG_GOALS)
     std_defense = stats.get('adj_ga', sim.AVG_GOALS)
-    global_avg = sim.AVG_GOALS if sim.AVG_GOALS > 0 else 1.25
+    # Ensure sim.AVG_GOALS is handled safely
+    global_avg = sim.AVG_GOALS if hasattr(sim, 'AVG_GOALS') and sim.AVG_GOALS > 0 else 1.25
 
     rel_att_strength = atk_index * 100
     rel_def_strength = def_index * 100
@@ -848,7 +853,7 @@ def update_dashboard_data():
         w, d, l = stats.get(key, [0,0,0])
         total = w + d + l
         win_pct = (w / total * 100) if total > 0 else 0
-        pts_pct = ((w * 3 + d) / (total * 3) * 100) if total > 0 else 0 # Points percentage
+        pts_pct = ((w * 3 + d) / (total * 3) * 100) if total > 0 else 0 
         return w, d, l, total, int(win_pct), int(pts_pct)
 
     # Get data for 3 tiers
@@ -856,7 +861,7 @@ def update_dashboard_data():
     p_w, p_d, p_l, p_tot, p_win, p_pts = get_rec('vs_similar')
     w_w, w_d, w_l, w_tot, w_win, w_pts = get_rec('vs_weaker')
 
-    # Dynamic Analysis Text for this section
+    # Dynamic Analysis Text
     tier_narrative = ""
     if s_win > 30: tier_narrative = "Capable of beating superior teams."
     elif p_win < 30: tier_narrative = "Struggles in close matchups vs peers."
@@ -873,7 +878,6 @@ def update_dashboard_data():
     
     total_upsets_won = major_won + minor_won
     
-    # Determine Label
     if major_won >= 2:
         upset_badge = "⚔️ Giant Killer"
         upset_desc = f"Famous for shock results. Has defeated vastly superior opponents {major_won} times."
@@ -894,8 +898,6 @@ def update_dashboard_data():
         upset_badge = "🛡️ Stable"
         upset_desc = "Generally performs as expected based on Elo."
         upset_color = "#95a5a6" # Grey
-
-    import random
 
     # =========================================================
     # 3. GENERATE DYNAMIC ANALYST NOTE (WITH VARIETY)
@@ -965,23 +967,27 @@ def update_dashboard_data():
     def_text = random.choice(templates)
 
     # Combine
+    analyst_note = f"{att_text} {def_text}"
+
+    # Now we can append the upset info
     analyst_note += f" <br><br><strong>Upset Profile:</strong> <span style='color:{upset_color};'>{upset_badge}</span> - {upset_desc}"
 
     # =========================================================
     # 2. RENDER HEADER
     # =========================================================
-    
     header = js.document.getElementById("dashboard-header")
     header.innerHTML = f"""
     <div style="margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;">
         <h1 style="margin:0; font-size:2.2em; color:#2c3e50;">{team.title()}</h1>
         <div style="color:#7f8c8d; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
-            <span>FIFA Elo: <span style="color:#2c3e50;">{int(stats['elo'])}</span></span>
+            <div>
+                <span>FIFA Elo: <span style="color:#2c3e50;">{int(stats['elo'])}</span></span>
+                <span style="font-size:0.8em; color:white; background:{upset_color}; padding:4px 8px; border-radius:4px; margin-left:10px;" title="{upset_desc}">
+                    {upset_badge}
+                </span>
+            </div>
             <span style="font-size:0.8em; color:#2980b9; background:#eaf2f8; padding:4px 8px; border-radius:4px;">
                 SOS Standardized Ratings
-            </span>
-            <span style="font-size:0.8em; color:white; background:{upset_color}; padding:4px 8px; border-radius:4px; margin-left:10px;" title="{upset_desc}">
-                {upset_badge}
             </span>
         </div>
     </div>
@@ -1025,41 +1031,38 @@ def update_dashboard_data():
             </div>
 
             <div style="margin-bottom:20px;">
-            <h4 style="margin:0 0 10px 0; color:#7f8c8d; border-bottom:1px solid #eee; padding-bottom:5px;">📊 Performance vs. Elo Tiers</h4>
-            
-            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+                <h4 style="margin:0 0 10px 0; color:#7f8c8d; border-bottom:1px solid #eee; padding-bottom:5px;">📊 Performance vs. Elo Tiers</h4>
                 
-                <div style="background:#fdf2f2; border:1px solid #fadbd8; border-radius:8px; padding:10px; text-align:center;">
-                    <div style="font-size:0.75em; color:#c0392b; font-weight:bold; margin-bottom:5px;">VS STRONGER</div>
-                    <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{s_w}-{s_d}-{s_l}</div>
-                    <div style="font-size:0.7em; color:#7f8c8d;">{s_tot} Matches</div>
-                    <div style="margin-top:5px; background:rgba(192, 57, 43, 0.1); border-radius:4px; font-size:0.75em; color:#c0392b;">
-                        {s_win}% Win Rate
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+                    <div style="background:#fdf2f2; border:1px solid #fadbd8; border-radius:8px; padding:10px; text-align:center;">
+                        <div style="font-size:0.75em; color:#c0392b; font-weight:bold; margin-bottom:5px;">VS STRONGER</div>
+                        <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{s_w}-{s_d}-{s_l}</div>
+                        <div style="font-size:0.7em; color:#7f8c8d;">{s_tot} Matches</div>
+                        <div style="margin-top:5px; background:rgba(192, 57, 43, 0.1); border-radius:4px; font-size:0.75em; color:#c0392b;">
+                            {s_win}% Win Rate
+                        </div>
+                    </div>
+                    <div style="background:#f4f6f7; border:1px solid #d5dbdb; border-radius:8px; padding:10px; text-align:center;">
+                        <div style="font-size:0.75em; color:#7f8c8d; font-weight:bold; margin-bottom:5px;">VS PEERS</div>
+                        <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{p_w}-{p_d}-{p_l}</div>
+                        <div style="font-size:0.7em; color:#7f8c8d;">{p_tot} Matches</div>
+                        <div style="margin-top:5px; background:rgba(127, 140, 141, 0.1); border-radius:4px; font-size:0.75em; color:#2c3e50;">
+                            {p_win}% Win Rate
+                        </div>
+                    </div>
+                    <div style="background:#eafaf1; border:1px solid #d5f5e3; border-radius:8px; padding:10px; text-align:center;">
+                        <div style="font-size:0.75em; color:#27ae60; font-weight:bold; margin-bottom:5px;">VS WEAKER</div>
+                        <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{w_w}-{w_d}-{w_l}</div>
+                        <div style="font-size:0.7em; color:#7f8c8d;">{w_tot} Matches</div>
+                        <div style="margin-top:5px; background:rgba(39, 174, 96, 0.1); border-radius:4px; font-size:0.75em; color:#27ae60;">
+                            {w_win}% Win Rate
+                        </div>
                     </div>
                 </div>
-
-                <div style="background:#f4f6f7; border:1px solid #d5dbdb; border-radius:8px; padding:10px; text-align:center;">
-                    <div style="font-size:0.75em; color:#7f8c8d; font-weight:bold; margin-bottom:5px;">VS PEERS</div>
-                    <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{p_w}-{p_d}-{p_l}</div>
-                    <div style="font-size:0.7em; color:#7f8c8d;">{p_tot} Matches</div>
-                    <div style="margin-top:5px; background:rgba(127, 140, 141, 0.1); border-radius:4px; font-size:0.75em; color:#2c3e50;">
-                        {p_win}% Win Rate
-                    </div>
-                </div>
-
-                <div style="background:#eafaf1; border:1px solid #d5f5e3; border-radius:8px; padding:10px; text-align:center;">
-                    <div style="font-size:0.75em; color:#27ae60; font-weight:bold; margin-bottom:5px;">VS WEAKER</div>
-                    <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{w_w}-{w_d}-{w_l}</div>
-                    <div style="font-size:0.7em; color:#7f8c8d;">{w_tot} Matches</div>
-                    <div style="margin-top:5px; background:rgba(39, 174, 96, 0.1); border-radius:4px; font-size:0.75em; color:#27ae60;">
-                        {w_win}% Win Rate
-                    </div>
+                <div style="font-size:0.75em; color:#95a5a6; text-align:right; margin-top:5px; font-style:italic;">
+                    Analysis: {tier_narrative}
                 </div>
             </div>
-            <div style="font-size:0.75em; color:#95a5a6; text-align:right; margin-top:5px; font-style:italic;">
-                Analysis: {tier_narrative}
-            </div>
-        </div>
             
             <h4 style="margin:0 0 10px 0; color:#7f8c8d; border-bottom:1px solid #eee; padding-bottom:5px;">🧬 Tactical DNA</h4>
             <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
@@ -1120,12 +1123,17 @@ def update_dashboard_data():
     fig2, ax2 = plt.subplots(figsize=(6, 4))
     metrics = ['Attack', 'Defense']
     team_vals = [atk_index, def_index]
-    global_avgs = [1.0, 1.0]  # normalized SOS avg = 1.0
+    global_avgs = [1.0, 1.0]
 
-    bars_team = ax2.bar([0,1], team_vals, width=0.35, color=['#3498db','#e74c3c'], label=team.title())
-    bars_avg  = ax2.bar([0,1], global_avgs, width=0.35, color='#95a5a6', alpha=0.6, label='Global Avg', align='edge')
+    # Create Grouped Bar Chart logic
+    # Offset bars slightly so they don't overlap awkwardly
+    bar_width = 0.35
+    x = [0, 1] 
+    
+    bars_team = ax2.bar([i - bar_width/2 for i in x], team_vals, width=bar_width, color=['#3498db','#e74c3c'], label=team.title())
+    bars_avg  = ax2.bar([i + bar_width/2 for i in x], global_avgs, width=bar_width, color='#95a5a6', alpha=0.6, label='Global Avg')
 
-    ax2.set_xticks([0,1])
+    ax2.set_xticks(x)
     ax2.set_xticklabels(metrics)
     ax2.set_ylabel("SOS-Adjusted Strength")
     ax2.set_ylim(0, max(team_vals + global_avgs)*1.2)
