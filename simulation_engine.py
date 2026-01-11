@@ -373,7 +373,7 @@ def initialize_engine():
     else:
         LATEST_DATE = pd.to_datetime('today')
         avg_goals_global = 1.25
-
+    
     # 2. Init Aggregators (Temp storage for the math)
     team_recent_aggregates = {t: {'gf':0, 'ga':0, 'eff_games':0, 'opp_elo_sum':0} for t in all_teams_set}
     
@@ -453,6 +453,10 @@ def initialize_engine():
                     if minute <= 45: TEAM_STATS[t]['first_half'] += 1
                     if minute >= 75: TEAM_STATS[t]['late_goals'] += 1
                 except: pass
+
+    # --- CALCULATE GLOBAL ELO MEAN (Required for SOS) ---
+    active_elos = [s['elo'] for s in TEAM_STATS.values()]
+    GLOBAL_ELO_MEAN = sum(active_elos) / len(active_elos) if active_elos else 1500
 
     # ----------------------------------------------------
     # PHASE 4: FINALIZE (Weighted Math & Uncapped Elo)
