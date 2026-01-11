@@ -247,81 +247,126 @@ def initialize_engine():
     elo_df = results_df.sort_values('date')
 
     # ----------------------------------------------------
-    # PHASE 1: CUSTOM ELO CALCULATION
+    # PHASE 1: CHRONOLOGICAL ELO & LIVE TRACKING
     # ----------------------------------------------------
     team_elo = {}
     INITIAL_RATING = 1200
+    RELEVANCE_CUTOFF = pd.to_datetime('2021-01-01') # "Recent History" Filter for Profile Stats
+    
     global TEAM_HISTORY
     TEAM_HISTORY = {} 
-    
-    # Init master stats container
     global TEAM_STATS
     TEAM_STATS = {}
+    
+    # 1. INITIALIZE ALL TEAMS FIRST
+    # We create the master dictionary here so every team has empty counters ready.
+    all_teams_set = set(elo_df['home_team']).union(set(elo_df['away_team']))
+    for t in all_teams_set:
+        TEAM_STATS[t] = {
+            # --- Dynamic Elo ---
+            'elo': INITIAL_RATING,
+            
+            # --- Tier Tracking (Live Elo) ---
+            # Format: [Wins, Draws, Losses]
+            'vs_stronger': [0, 0, 0], 
+            'vs_similar':  [0, 0, 0],
+            'vs_weaker':   [0, 0, 0],
+            
+            # --- Upset Tracking (Live Elo) ---
+            'upsets_major_won': 0,  'upsets_minor_won': 0,
+            'upsets_major_lost': 0, 'upsets_minor_lost': 0,
+            
+            # --- Stats to be filled in Phase 2 ---
+            'matches': 0, 'clean_sheets': 0, 'btts': 0, 
+            'gf_avg': 0, 'ga_avg': 0, 'off': 1.0, 'def': 1.0,
+            'penalties': 0, 'first_half': 0, 'late_goals': 0, 'total_goals_recorded': 0,
+            'form': []
+        }
 
+    # 2. THE MAIN LOOP (Chronological)
     matches_data = zip(elo_df['home_team'], elo_df['away_team'], 
                        elo_df['home_score'], elo_df['away_score'], 
                        elo_df['tournament'], elo_df['neutral'], elo_df['date'])
     
     for h, a, hs, as_, tourney, neutral, date in matches_data:
+        # A. GET "LIVE" RATINGS (At the time of match)
         rh = team_elo.get(h, INITIAL_RATING)
         ra = team_elo.get(a, INITIAL_RATING)
         
-        # Init history
+        # B. DETERMINE RESULT (0=Win, 1=Draw, 2=Loss)
+        if hs > as_:   res_h, res_a = 0, 2
+        elif hs == as_: res_h, res_a = 1, 1
+        else:          res_h, res_a = 2, 0
+        
+        # =========================================================
+        # C. TRACK TIERS & UPSETS (LIVE EVALUATION)
+        # We only record these stats if the match is recent enough to matter.
+        # =========================================================
+        if date > RELEVANCE_CUTOFF:
+            
+            # --- HOME PERSPECTIVE ---
+            diff_h = ra - rh # If +positive, Away is stronger
+            
+            # 1. Tier Buckets
+            if diff_h > 100:    cat = 'vs_stronger'
+            elif diff_h < -100: cat = 'vs_weaker'
+            else:               cat = 'vs_similar'
+            TEAM_STATS[h][cat][res_h] += 1
+            
+            # 2. Upset Tracking (Live Elo)
+            if res_h == 0: # Home Win
+                if diff_h > 300:   TEAM_STATS[h]['upsets_major_won'] += 1
+                elif diff_h > 150: TEAM_STATS[h]['upsets_minor_won'] += 1
+            if res_h == 2: # Home Loss
+                if diff_h < -300:   TEAM_STATS[h]['upsets_major_lost'] += 1
+                elif diff_h < -150: TEAM_STATS[h]['upsets_minor_lost'] += 1
+
+            # --- AWAY PERSPECTIVE ---
+            diff_a = rh - ra # If +positive, Home is stronger
+            
+            if diff_a > 100:    cat = 'vs_stronger'
+            elif diff_a < -100: cat = 'vs_weaker'
+            else:               cat = 'vs_similar'
+            TEAM_STATS[a][cat][res_a] += 1
+            
+            if res_a == 0: # Away Win
+                if diff_a > 300:   TEAM_STATS[a]['upsets_major_won'] += 1
+                elif diff_a > 150: TEAM_STATS[a]['upsets_minor_won'] += 1
+            if res_a == 2: # Away Loss
+                if diff_a < -300:   TEAM_STATS[a]['upsets_major_lost'] += 1
+                elif diff_a < -150: TEAM_STATS[a]['upsets_minor_lost'] += 1
+
+        # =========================================================
+        
+        # D. ELO CALCULATION (Standard)
         if h not in TEAM_HISTORY: TEAM_HISTORY[h] = {'dates': [], 'elo': []}
         if a not in TEAM_HISTORY: TEAM_HISTORY[a] = {'dates': [], 'elo': []}
         
-        # Elo Math
+        # Calculate Expectancy
         dr = rh - ra + (100 if not neutral else 0)
         we = 1 / (10**(-dr/600) + 1)
+        W = 1 if hs > as_ else (0 if as_ > hs else 0.5)
         
-        if hs > as_: W = 1
-        elif as_ > hs: W = 0
-        else: W = 0.5
-        
-        # K-Factor
-        gd = abs(hs - as_)
-        k = get_k_factor(tourney, gd, h, a)
-    
-        # Apply Change
+        # Apply Update
+        k = get_k_factor(tourney, abs(hs - as_), h, a)
         change = k * (W - we)
+        
         team_elo[h] = rh + change
         team_elo[a] = ra - change
         
         TEAM_HISTORY[h]['dates'].append(date); TEAM_HISTORY[h]['elo'].append(team_elo[h])
         TEAM_HISTORY[a]['dates'].append(date); TEAM_HISTORY[a]['elo'].append(team_elo[a])
 
-
-    # Transfer Elo to TEAM_STATS and Initialize All Counters
-    all_teams = set(team_elo.keys())
-    for t in all_teams:
-        TEAM_STATS[t] = {
-            # --- Basic Metrics ---
-            'elo': team_elo[t],
-            'gf_avg': 0, 'ga_avg': 0, 'off': 1.0, 'def': 1.0,
-            'matches': 0, 'clean_sheets': 0, 'btts': 0, 
-            'penalties': 0, 'first_half': 0, 'late_goals': 0, 'total_goals_recorded': 0,
-            'form': [],
-            
-            # --- Advanced Tier Tracking ---
-            'vs_stronger': [0, 0, 0], # [Win, Draw, Loss]
-            'vs_similar':  [0, 0, 0],
-            'vs_weaker':   [0, 0, 0],
-            
-            # --- Upset Tracking (Split) ---
-            'upsets_major_won': 0,  # Beat opponent > 300 Elo higher
-            'upsets_minor_won': 0,  # Beat opponent > 150 Elo higher
-            'upsets_major_lost': 0, # Lost to opponent > 300 Elo lower
-            'upsets_minor_lost': 0  # Lost to opponent > 150 Elo lower
-        }
+    # Update Final Elos in Stats Dictionary
+    for t in all_teams_set:
+        TEAM_STATS[t]['elo'] = team_elo.get(t, INITIAL_RATING)
 
     # ----------------------------------------------------
-    # PHASE 2: RECENT FORM & OPPONENT STRENGTH (Optimized)
+    # PHASE 2: RECENT FORM & OPPONENT STRENGTH (Weighted)
     # ----------------------------------------------------
-        
-    RELEVANCE_CUTOFF = '2021-01-01'
     recent_df = elo_df[elo_df['date'] > RELEVANCE_CUTOFF]
     
-    # Global Averages Setup
+    # 1. Setup Global Context
     if len(recent_df) > 0:
         LATEST_DATE = recent_df['date'].max()
         avg_goals_global = (recent_df['home_score'].mean() + recent_df['away_score'].mean()) / 2
@@ -329,104 +374,66 @@ def initialize_engine():
         LATEST_DATE = pd.to_datetime('today')
         avg_goals_global = 1.25
 
-    active_elos = [s['elo'] for s in TEAM_STATS.values()]
-    GLOBAL_ELO_MEAN = sum(active_elos) / len(active_elos) if active_elos else 1500
-
-    # Init tracker
-    team_recent_aggregates = {t: {'gf':0, 'ga':0, 'eff_games':0, 'opp_elo_sum':0} for t in all_teams}
+    # 2. Init Aggregators (Temp storage for the math)
+    team_recent_aggregates = {t: {'gf':0, 'ga':0, 'eff_games':0, 'opp_elo_sum':0} for t in all_teams_set}
     
-    # --- SINGLE PASS LOOP ---
+    # 3. SINGLE PASS LOOP (Form & Weighted Stats)
     for _, row in recent_df.iterrows():
         h, a = row['home_team'], row['away_team']
         hs, as_ = row['home_score'], row['away_score']
         match_date = row['date']
         
-        # Get Elos
+        # Get Final Elos (Used for SOS weighting, not Upset calculation)
         h_elo = TEAM_STATS.get(h, {}).get('elo', 1200)
         a_elo = TEAM_STATS.get(a, {}).get('elo', 1200)
 
-        # A. CALCULATE DECAY WEIGHT
+        # A. CALCULATE TIME DECAY WEIGHT
         days_old = (LATEST_DATE - match_date).days
         years_old = int(max(0, days_old) / 365)
         
-        if years_old == 0:   weight = 1.0
-        elif years_old == 1: weight = 0.9
-        elif years_old == 2: weight = 0.8
-        elif years_old == 3: weight = 0.7
-        else:                weight = 0.5
+        if years_old == 0:   weight = 1.0  # Last 12 months
+        elif years_old == 1: weight = 0.9  # 1-2 years ago
+        elif years_old == 2: weight = 0.8  # 2-3 years ago
+        elif years_old == 3: weight = 0.7  # 3-4 years ago
+        else:                weight = 0.5  # Older
 
-        # B. UPDATE WEIGHTED STATS
+        # B. UPDATE HOME STATS
         if h in TEAM_STATS:
             TEAM_STATS[h]['matches'] += 1
+            
+            # Form String (W/D/L)
             res = 'W' if hs > as_ else ('L' if hs < as_ else 'D')
             TEAM_STATS[h]['form'].append(res)
             
+            # Weighted Math
             agg = team_recent_aggregates[h]
             agg['gf'] += (hs * weight)
             agg['ga'] += (as_ * weight)
             agg['eff_games'] += weight       
             agg['opp_elo_sum'] += (a_elo * weight)
+            
+            # Count Clean Sheets / BTTS
             if as_ == 0: TEAM_STATS[h]['clean_sheets'] += 1
             if hs > 0 and as_ > 0: TEAM_STATS[h]['btts'] += 1
 
+        # C. UPDATE AWAY STATS
         if a in TEAM_STATS: 
             TEAM_STATS[a]['matches'] += 1
+            
+            # Form String (W/D/L)
             res = 'W' if as_ > hs else ('L' if as_ < hs else 'D')
             TEAM_STATS[a]['form'].append(res)
 
+            # Weighted Math
             agg = team_recent_aggregates[a]
             agg['gf'] += (as_ * weight)
             agg['ga'] += (hs * weight)
             agg['eff_games'] += weight
             agg['opp_elo_sum'] += (h_elo * weight)
+            
+            # Count Clean Sheets / BTTS
             if hs == 0: TEAM_STATS[a]['clean_sheets'] += 1
             if hs > 0 and as_ > 0: TEAM_STATS[a]['btts'] += 1
-
-        # C. UPDATE TIERS & UPSETS
-        # Determine Result Indices (0=Win, 1=Draw, 2=Loss)
-        if hs > as_:   res_h, res_a = 0, 2
-        elif hs == as_: res_h, res_a = 1, 1
-        else:          res_h, res_a = 2, 0
-
-        # Home Perspective
-        if h in TEAM_STATS:
-            diff = a_elo - h_elo # Positive if Away is stronger
-            
-            # Tier Tracking
-            if diff > 100:   cat = 'vs_stronger'
-            elif diff < -100: cat = 'vs_weaker'
-            else:            cat = 'vs_similar'
-            TEAM_STATS[h][cat][res_h] += 1
-            
-            # Upset Tracking (Home Win)
-            if res_h == 0: 
-                if diff > 300:   TEAM_STATS[h]['upsets_major_won'] += 1
-                elif diff > 150: TEAM_STATS[h]['upsets_minor_won'] += 1
-            
-            # Upset Tracking (Home Loss)
-            if res_h == 2:
-                if diff < -300:   TEAM_STATS[h]['upsets_major_lost'] += 1
-                elif diff < -150: TEAM_STATS[h]['upsets_minor_lost'] += 1
-
-        # --- AWAY TEAM PERSPECTIVE ---
-        if a in TEAM_STATS:
-            diff = h_elo - a_elo # Positive if Home is stronger
-            
-            # Tier Tracking
-            if diff > 100:   cat = 'vs_stronger'
-            elif diff < -100: cat = 'vs_weaker'
-            else:            cat = 'vs_similar'
-            TEAM_STATS[a][cat][res_a] += 1
-            
-            # Upset Tracking (Away Win)
-            if res_a == 0:
-                if diff > 300:   TEAM_STATS[a]['upsets_major_won'] += 1
-                elif diff > 150: TEAM_STATS[a]['upsets_minor_won'] += 1
-
-            # Upset Tracking (Away Loss)
-            if res_a == 2:
-                if diff < -300:   TEAM_STATS[a]['upsets_major_lost'] += 1
-                elif diff < -150: TEAM_STATS[a]['upsets_minor_lost'] += 1
 
     # ----------------------------------------------------
     # PHASE 3: TIMING & PENALTIES
