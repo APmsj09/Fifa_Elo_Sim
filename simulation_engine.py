@@ -265,6 +265,7 @@ def initialize_engine():
         TEAM_STATS[t] = {
             # --- Dynamic Elo ---
             'elo': INITIAL_RATING,
+            'notable_results': [],
             
             # --- Tier Tracking (Live Elo) ---
             # Format: [Wins, Draws, Losses]
@@ -300,41 +301,71 @@ def initialize_engine():
         
         # =========================================================
         # C. TRACK TIERS & UPSETS (LIVE EVALUATION)
-        # We only record these stats if the match is recent enough to matter.
         # =========================================================
         if date > RELEVANCE_CUTOFF:
             
+            # Helper to record upset
+            # type_code: "WON_MAJOR", "WON_MINOR", "LOST_MAJOR", "LOST_MINOR"
+            def record_upset(team, opp, score_str, elo_diff, type_code, match_date):
+                TEAM_STATS[team]['notable_results'].append({
+                    'opp': opp,
+                    'score': score_str,
+                    'diff': abs(int(elo_diff)),
+                    'date': match_date,
+                    'type': type_code
+                })
+
             # --- HOME PERSPECTIVE ---
-            diff_h = ra - rh # If +positive, Away is stronger
+            diff_h = ra - rh # Positive = Away is stronger
             
-            # 1. Tier Buckets
+            # Tier Tracking (Keep your existing code)
             if diff_h > 100:    cat = 'vs_stronger'
             elif diff_h < -100: cat = 'vs_weaker'
             else:               cat = 'vs_similar'
             TEAM_STATS[h][cat][res_h] += 1
             
-            # 2. Upset Tracking (Live Elo)
+            # Upset Logic + RECORDING
+            score_h = f"{hs}-{as_}"
             if res_h == 0: # Home Win
-                if diff_h > 300:   TEAM_STATS[h]['upsets_major_won'] += 1
-                elif diff_h > 150: TEAM_STATS[h]['upsets_minor_won'] += 1
+                if diff_h > 300:   
+                    TEAM_STATS[h]['upsets_major_won'] += 1
+                    record_upset(h, a, score_h, diff_h, "WON_MAJOR", date)
+                elif diff_h > 150: 
+                    TEAM_STATS[h]['upsets_minor_won'] += 1
+                    record_upset(h, a, score_h, diff_h, "WON_MINOR", date)
+            
             if res_h == 2: # Home Loss
-                if diff_h < -300:   TEAM_STATS[h]['upsets_major_lost'] += 1
-                elif diff_h < -150: TEAM_STATS[h]['upsets_minor_lost'] += 1
+                if diff_h < -300:   
+                    TEAM_STATS[h]['upsets_major_lost'] += 1
+                    record_upset(h, a, score_h, diff_h, "LOST_MAJOR", date)
+                elif diff_h < -150: 
+                    TEAM_STATS[h]['upsets_minor_lost'] += 1
+                    # Optional: Don't record minor losses to keep list clean
+                    # record_upset(h, a, score_h, diff_h, "LOST_MINOR", date)
 
             # --- AWAY PERSPECTIVE ---
-            diff_a = rh - ra # If +positive, Home is stronger
+            diff_a = rh - ra # Positive = Home is stronger
             
             if diff_a > 100:    cat = 'vs_stronger'
             elif diff_a < -100: cat = 'vs_weaker'
             else:               cat = 'vs_similar'
             TEAM_STATS[a][cat][res_a] += 1
             
+            score_a = f"{as_}-{hs}"
             if res_a == 0: # Away Win
-                if diff_a > 300:   TEAM_STATS[a]['upsets_major_won'] += 1
-                elif diff_a > 150: TEAM_STATS[a]['upsets_minor_won'] += 1
+                if diff_a > 300:   
+                    TEAM_STATS[a]['upsets_major_won'] += 1
+                    record_upset(a, h, score_a, diff_a, "WON_MAJOR", date)
+                elif diff_a > 150: 
+                    TEAM_STATS[a]['upsets_minor_won'] += 1
+                    record_upset(a, h, score_a, diff_a, "WON_MINOR", date)
+            
             if res_a == 2: # Away Loss
-                if diff_a < -300:   TEAM_STATS[a]['upsets_major_lost'] += 1
-                elif diff_a < -150: TEAM_STATS[a]['upsets_minor_lost'] += 1
+                if diff_a < -300:   
+                    TEAM_STATS[a]['upsets_major_lost'] += 1
+                    record_upset(a, h, score_a, diff_a, "LOST_MAJOR", date)
+                elif diff_a < -150: 
+                    TEAM_STATS[a]['upsets_minor_lost'] += 1
 
         # =========================================================
         

@@ -996,6 +996,42 @@ def update_dashboard_data():
     analyst_note += f" <br><br><strong>Upset Profile:</strong> <span style='color:{upset_color};'>{upset_badge}</span> - {upset_desc}"
 
     # =========================================================
+    # GENERATE NOTABLE RESULTS LIST
+    # =========================================================
+    raw_results = stats.get('notable_results', [])
+    
+    # Sort by 'Magnitude' (Elo Diff) so the biggest shocks are first
+    sorted_results = sorted(raw_results, key=lambda x: x['diff'], reverse=True)[:5] # Keep Top 5
+    
+    notable_matches_html = ""
+    
+    if sorted_results:
+        for res in sorted_results:
+            opp_name = res['opp'].title()
+            score = res['score']
+            date_str = res['date'].strftime('%Y-%m')
+            
+            if "WON" in res['type']:
+                # Green styling for wins
+                icon = "🟢" 
+                res_class = "color:#27ae60; background:#eafaf1; border:1px solid #abebc6;"
+                text = f"Beat <strong>{opp_name}</strong> ({score})"
+            else:
+                # Red styling for losses
+                icon = "🔴"
+                res_class = "color:#c0392b; background:#fdedec; border:1px solid #fadbd8;"
+                text = f"Lost to <strong>{opp_name}</strong> ({score})"
+                
+            notable_matches_html += f"""
+            <div style="font-size:0.8em; margin-bottom:6px; padding:6px; border-radius:4px; display:flex; justify-content:space-between; align-items:center; {res_class}">
+                <span>{icon} {text}</span>
+                <span style="opacity:0.7; font-size:0.9em;">{date_str}</span>
+            </div>
+            """
+    else:
+        notable_matches_html = "<div style='font-size:0.8em; color:#95a5a6; font-style:italic;'>No major upsets recorded in recent history.</div>"
+
+    # =========================================================
     # 2. RENDER HEADER
     # =========================================================
     header = js.document.getElementById("dashboard-header")
@@ -1114,15 +1150,18 @@ def update_dashboard_data():
                 <div style="font-size:0.9em; line-height:1.6; margin-bottom:20px;">{scout_report}</div>
             </div>
 
+            <div style="margin-bottom:20px;">
+                <h5 style="margin:0 0 10px 0; color:#bdc3c7; font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">Recent Headline Results</h5>
+                {notable_matches_html}
+            </div>
+
             <div style="border-top:1px solid #3e5871; padding-top:15px; font-size:0.8em; color:#95a5a6; line-height:1.5; font-style:italic;">
                 <strong style="color:#bdc3c7; font-style:normal;">📝 Analyst Note:</strong>
                 {analyst_note}
                 
                 <div style="margin-top:10px; padding-top:10px; border-top:1px dotted #5c7c91; font-size:0.9em; color:#7f8c8d;">
                     <span style="color:#f1c40f;">*</span> Note: Ratings cited above are 
-                    <strong style="color:#bdc3c7;">Strength-of-Schedule (SOS) Adjusted</strong>. 
-                    They reflect performance normalized against global opposition, 
-                    <span style="text-decoration:underline;">not</span> raw goals per game.
+                    <strong style="color:#bdc3c7;">Strength-of-Schedule (SOS) Adjusted</strong>.
                 </div>
             </div>
         </div>
