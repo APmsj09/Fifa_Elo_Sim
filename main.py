@@ -876,27 +876,50 @@ def update_dashboard_data():
     major_lost = stats.get('upsets_major_lost', 0)
     minor_lost = stats.get('upsets_minor_lost', 0)
     
-    total_upsets_won = major_won + minor_won
+    loss_rate_vs_weaker = (major_lost + minor_lost) / w_tot if w_tot > 0 else 0
+    win_rate_vs_stronger = (major_won + minor_won) / s_tot if s_tot > 0 else 0
     
+    # --- BADGE LOGIC ---
+    
+    # 1. THE GIANT KILLER (Quality of Wins)
+    # Wins against massive favorites (300+ Elo diff)
     if major_won >= 2:
         upset_badge = "⚔️ Giant Killer"
-        upset_desc = f"Famous for shock results. Has defeated vastly superior opponents {major_won} times."
+        upset_desc = f"Dangerous to the elite. Has secured {major_won} major upset wins."
         upset_color = "#8e44ad" # Purple
-    elif total_upsets_won >= 3:
-        upset_badge = "👊 Scrappy"
-        upset_desc = f"Punching above their weight. {total_upsets_won} wins against favorites."
+
+    # 2. THE SCRAPPY UNDERDOG (Frequency of Wins vs Stronger)
+    # consistently beats teams better than them, even if not 'giants'
+    elif win_rate_vs_stronger > 0.25 and s_tot >= 4:
+        upset_badge = "🥊 Scrappy"
+        upset_desc = f"Punches above their weight. Wins {int(win_rate_vs_stronger*100)}% of games vs stronger teams."
         upset_color = "#3498db" # Blue
-    elif major_lost >= 2:
+
+    # 3. THE VOLATILE (Frequency of Losses vs Weaker)
+    # Drops points to bad teams often
+    elif loss_rate_vs_weaker > 0.15 and w_tot >= 5:
         upset_badge = "⚠️ Volatile"
-        upset_desc = "Prone to shocking collapses against minnows."
+        upset_desc = f"Prone to slipping up. Loses {int(loss_rate_vs_weaker*100)}% of games against weaker opposition."
         upset_color = "#e67e22" # Orange
-    elif minor_lost >= 3:
-        upset_badge = "📉 Inconsistent"
-        upset_desc = "Frequently drops points to weaker opposition."
-        upset_color = "#f39c12" # Yellow
+        
+    # 4. THE RUTHLESS (Efficiency vs Weaker)
+    # Crushes the teams they are supposed to crush
+    elif w_tot > 8 and w_win > 75 and loss_rate_vs_weaker < 0.10:
+        upset_badge = "👑 Ruthless"
+        upset_desc = f"Dominates inferior opposition with a {w_win}% win rate."
+        upset_color = "#c0392b" # Red
+        
+    # 5. PAPER TIGERS (Specific Historic Failures)
+    # Generally okay, but has distinct 'shock' losses
+    elif major_lost >= 2:
+         upset_badge = "📉 Prone to Shocks"
+         upset_desc = f"Generally stable, but has suffered {major_lost} historic collapse(s)."
+         upset_color = "#d35400" # Dark Orange
+
+    # 6. DEFAULT
     else:
         upset_badge = "🛡️ Stable"
-        upset_desc = "Generally performs as expected based on Elo."
+        upset_desc = "Performs consistently relative to team strength."
         upset_color = "#95a5a6" # Grey
 
     # =========================================================
