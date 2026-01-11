@@ -810,6 +810,7 @@ async def view_team_history(event=None):
     await asyncio.sleep(0.01) # Yield to let DOM update
     update_dashboard_data()
 
+
 def update_dashboard_data():
     # 1. GET TEAM SELECTION
     select = js.document.getElementById("team-select-dashboard")
@@ -839,6 +840,60 @@ def update_dashboard_data():
     adjusted_stats['gf_avg'] = std_attack
     adjusted_stats['ga_avg'] = std_defense
     scout_report = generate_scout_report(adjusted_stats)
+
+    # =========================================================
+    # PREPARE TIER DATA
+    # =========================================================
+    def get_rec(key):
+        w, d, l = stats.get(key, [0,0,0])
+        total = w + d + l
+        win_pct = (w / total * 100) if total > 0 else 0
+        pts_pct = ((w * 3 + d) / (total * 3) * 100) if total > 0 else 0 # Points percentage
+        return w, d, l, total, int(win_pct), int(pts_pct)
+
+    # Get data for 3 tiers
+    s_w, s_d, s_l, s_tot, s_win, s_pts = get_rec('vs_stronger')
+    p_w, p_d, p_l, p_tot, p_win, p_pts = get_rec('vs_similar')
+    w_w, w_d, w_l, w_tot, w_win, w_pts = get_rec('vs_weaker')
+
+    # Dynamic Analysis Text for this section
+    tier_narrative = ""
+    if s_win > 30: tier_narrative = "Capable of beating superior teams."
+    elif p_win < 30: tier_narrative = "Struggles in close matchups vs peers."
+    elif w_win < 80: tier_narrative = "Occasionally drops points to weaker sides."
+    else: tier_narrative = "Efficiently dispatches weaker opponents."
+
+    # =========================================================
+    # UPSET PROFILE ANALYSIS
+    # =========================================================
+    major_won = stats.get('upsets_major_won', 0)
+    minor_won = stats.get('upsets_minor_won', 0)
+    major_lost = stats.get('upsets_major_lost', 0)
+    minor_lost = stats.get('upsets_minor_lost', 0)
+    
+    total_upsets_won = major_won + minor_won
+    
+    # Determine Label
+    if major_won >= 2:
+        upset_badge = "⚔️ Giant Killer"
+        upset_desc = f"Famous for shock results. Has defeated vastly superior opponents {major_won} times."
+        upset_color = "#8e44ad" # Purple
+    elif total_upsets_won >= 3:
+        upset_badge = "👊 Scrappy"
+        upset_desc = f"Punching above their weight. {total_upsets_won} wins against favorites."
+        upset_color = "#3498db" # Blue
+    elif major_lost >= 2:
+        upset_badge = "⚠️ Volatile"
+        upset_desc = "Prone to shocking collapses against minnows."
+        upset_color = "#e67e22" # Orange
+    elif minor_lost >= 3:
+        upset_badge = "📉 Inconsistent"
+        upset_desc = "Frequently drops points to weaker opposition."
+        upset_color = "#f39c12" # Yellow
+    else:
+        upset_badge = "🛡️ Stable"
+        upset_desc = "Generally performs as expected based on Elo."
+        upset_color = "#95a5a6" # Grey
 
     import random
 
@@ -910,7 +965,7 @@ def update_dashboard_data():
     def_text = random.choice(templates)
 
     # Combine
-    analyst_note = f"{att_text} {def_text}"
+    analyst_note += f" <br><br><strong>Upset Profile:</strong> <span style='color:{upset_color};'>{upset_badge}</span> - {upset_desc}"
 
     # =========================================================
     # 2. RENDER HEADER
@@ -924,6 +979,9 @@ def update_dashboard_data():
             <span>FIFA Elo: <span style="color:#2c3e50;">{int(stats['elo'])}</span></span>
             <span style="font-size:0.8em; color:#2980b9; background:#eaf2f8; padding:4px 8px; border-radius:4px;">
                 SOS Standardized Ratings
+            </span>
+            <span style="font-size:0.8em; color:white; background:{upset_color}; padding:4px 8px; border-radius:4px; margin-left:10px;" title="{upset_desc}">
+                {upset_badge}
             </span>
         </div>
     </div>
@@ -965,6 +1023,43 @@ def update_dashboard_data():
                      <div style="font-size:0.7em; opacity:0.7; margin-top:5px;">Frequency</div>
                 </div>
             </div>
+
+            <div style="margin-bottom:20px;">
+            <h4 style="margin:0 0 10px 0; color:#7f8c8d; border-bottom:1px solid #eee; padding-bottom:5px;">📊 Performance vs. Elo Tiers</h4>
+            
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+                
+                <div style="background:#fdf2f2; border:1px solid #fadbd8; border-radius:8px; padding:10px; text-align:center;">
+                    <div style="font-size:0.75em; color:#c0392b; font-weight:bold; margin-bottom:5px;">VS STRONGER</div>
+                    <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{s_w}-{s_d}-{s_l}</div>
+                    <div style="font-size:0.7em; color:#7f8c8d;">{s_tot} Matches</div>
+                    <div style="margin-top:5px; background:rgba(192, 57, 43, 0.1); border-radius:4px; font-size:0.75em; color:#c0392b;">
+                        {s_win}% Win Rate
+                    </div>
+                </div>
+
+                <div style="background:#f4f6f7; border:1px solid #d5dbdb; border-radius:8px; padding:10px; text-align:center;">
+                    <div style="font-size:0.75em; color:#7f8c8d; font-weight:bold; margin-bottom:5px;">VS PEERS</div>
+                    <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{p_w}-{p_d}-{p_l}</div>
+                    <div style="font-size:0.7em; color:#7f8c8d;">{p_tot} Matches</div>
+                    <div style="margin-top:5px; background:rgba(127, 140, 141, 0.1); border-radius:4px; font-size:0.75em; color:#2c3e50;">
+                        {p_win}% Win Rate
+                    </div>
+                </div>
+
+                <div style="background:#eafaf1; border:1px solid #d5f5e3; border-radius:8px; padding:10px; text-align:center;">
+                    <div style="font-size:0.75em; color:#27ae60; font-weight:bold; margin-bottom:5px;">VS WEAKER</div>
+                    <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{w_w}-{w_d}-{w_l}</div>
+                    <div style="font-size:0.7em; color:#7f8c8d;">{w_tot} Matches</div>
+                    <div style="margin-top:5px; background:rgba(39, 174, 96, 0.1); border-radius:4px; font-size:0.75em; color:#27ae60;">
+                        {w_win}% Win Rate
+                    </div>
+                </div>
+            </div>
+            <div style="font-size:0.75em; color:#95a5a6; text-align:right; margin-top:5px; font-style:italic;">
+                Analysis: {tier_narrative}
+            </div>
+        </div>
             
             <h4 style="margin:0 0 10px 0; color:#7f8c8d; border-bottom:1px solid #eee; padding-bottom:5px;">🧬 Tactical DNA</h4>
             <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
