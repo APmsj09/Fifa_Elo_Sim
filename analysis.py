@@ -19,8 +19,9 @@ def sim_2022_tournament(elo_snapshot):
     for grp, teams in sim.WC_2022_GROUPS.items():
         points = {t: 0 for t in teams}
         gd = {t: 0 for t in teams} 
+        gf = {t: 0 for t in teams} # FIX: Track Goals Scored
         
-        # Shuffle for random tie-breakers
+        # Shuffle for random tie-breakers (simulates drawing lots if all else is equal)
         teams_shuffled = teams.copy()
         np.random.shuffle(teams_shuffled)
         
@@ -28,21 +29,40 @@ def sim_2022_tournament(elo_snapshot):
             for j in range(i+1, len(teams_shuffled)):
                 t1, t2 = teams_shuffled[i], teams_shuffled[j]
                 
-                # Manual Match Sim
-                s1 = {'elo': elo_snapshot.get(t1, 1600), 'off': 1.0, 'def': 1.0}
-                s2 = {'elo': elo_snapshot.get(t2, 1600), 'off': 1.0, 'def': 1.0}
-                dr = s1['elo'] - s2['elo']
+                # Fetch ratings (FIX: 1200 default prevents unrated teams acting like titans)
+                s1_elo = elo_snapshot.get(t1, 1200)
+                s2_elo = elo_snapshot.get(t2, 1200)
+                
+                dr = s1_elo - s2_elo
                 we = 1 / (10**(-dr/600) + 1)
                 
-                lam1, lam2 = 1.3 * we, 1.3 * (1-we)
-                g1, g2 = np.random.poisson(lam1), np.random.poisson(lam2)
+                # FIX: Align expected goals logic with the main simulation engine
+                base_goals = getattr(sim, 'AVG_GOALS', 1.3)
+                elo_scale = 1 + (we - 0.5)
                 
-                gd[t1] += (g1-g2); gd[t2] += (g2-g1)
-                if g1 > g2: points[t1] += 3
-                elif g2 > g1: points[t2] += 3
-                else: points[t1] += 1; points[t2] += 1
+                # TOURNAMENT_INTENSITY scalar (0.82) limits blowouts
+                lam1 = base_goals * elo_scale * 0.82
+                lam2 = base_goals * (2 - elo_scale) * 0.82
+                
+                g1 = np.random.poisson(lam1)
+                g2 = np.random.poisson(lam2)
+                
+                # Update standings
+                gd[t1] += (g1 - g2)
+                gd[t2] += (g2 - g1)
+                gf[t1] += g1
+                gf[t2] += g2
+                
+                if g1 > g2: 
+                    points[t1] += 3
+                elif g2 > g1: 
+                    points[t2] += 3
+                else: 
+                    points[t1] += 1
+                    points[t2] += 1
 
-        sorted_teams = sorted(teams_shuffled, key=lambda t: (points[t], gd[t]), reverse=True)
+        # FIX: Added 'gf[t]' to properly follow FIFA tiebreaker rules
+        sorted_teams = sorted(teams_shuffled, key=lambda t: (points[t], gd[t], gf[t]), reverse=True)
         group_winners[grp] = sorted_teams[0]
         group_runners[grp] = sorted_teams[1]
 
@@ -55,17 +75,23 @@ def sim_2022_tournament(elo_snapshot):
     ]
     
     def play_ko(t1, t2):
-        s1 = elo_snapshot.get(t1, 1600)
-        s2 = elo_snapshot.get(t2, 1600)
+        s1 = elo_snapshot.get(t1, 1200)
+        s2 = elo_snapshot.get(t2, 1200)
         prob = 1 / (10**(-(s1-s2)/600) + 1)
         return t1 if np.random.random() < prob else t2
 
-    quarters = []
-    for t1, t2 in ro16_matches: quarters.append(play_ko(t1, t2))
-    semis = []
-    for i in range(0, len(quarters), 2): semis.append(play_ko(quarters[i], quarters[i+1]))
-    finalists = []
-    for i in range(0, len(semis), 2): finalists.append(play_ko(semis[i], semis[i+1]))
+    quarters =[]
+    for t1, t2 in ro16_matches: 
+        quarters.append(play_ko(t1, t2))
+        
+    semis =[]
+    for i in range(0, len(quarters), 2): 
+        semis.append(play_ko(quarters[i], quarters[i+1]))
+        
+    finalists =[]
+    for i in range(0, len(semis), 2): 
+        finalists.append(play_ko(semis[i], semis[i+1]))
+        
     champion = play_ko(finalists[0], finalists[1])
     
     return champion, set(finalists), set(semis)
@@ -75,7 +101,6 @@ async def run_sim_backtest(event):
     chart_div = js.document.getElementById("validation-charts")
     btn = js.document.getElementById("btn-backtest-sim")
     
-    # Progress Bar Elements
     prog_container = js.document.getElementById("sim-progress-container")
     prog_bar = js.document.getElementById("sim-progress-bar")
     
@@ -112,15 +137,14 @@ async def run_sim_backtest(event):
             for t in finalists: track(t, 'final')
             for t in semifinalists: track(t, 'semi')
             
-            # Update Progress Bar every 20 iterations (keeps UI smooth)
+            # Update Progress Bar
             if i % 20 == 0:
                 pct = (i / sim_count) * 100
                 if prog_bar: prog_bar.style.width = f"{pct}%"
                 await asyncio.sleep(0.001)
 
-        # Finalize Progress
         if prog_bar: prog_bar.style.width = "100%"
-        await asyncio.sleep(0.2) # Small pause to let user see 100%
+        await asyncio.sleep(0.2) 
 
         # 3. Visualization
         sorted_by_win = sorted(stats.items(), key=lambda x: x[1]['win'], reverse=True)
@@ -129,7 +153,7 @@ async def run_sim_backtest(event):
         fig, ax = plt.subplots(figsize=(7, 4))
         teams = [x[0].title() for x in top_5]
         probs = [(x[1]['win']/sim_count)*100 for x in top_5]
-        colors = ['#f1c40f' if 'argentina' in t.lower() else '#3498db' for t in teams]
+        colors =['#f1c40f' if 'argentina' in t.lower() else '#3498db' for t in teams]
         
         bars = ax.bar(teams, probs, color=colors)
         ax.set_ylabel("Win %")
@@ -144,7 +168,7 @@ async def run_sim_backtest(event):
         plt.close(fig)
         
         # 4. Report Card
-        actual_results = [
+        actual_results =[
             ('argentina', '🥇 Winner'), ('france', '🥈 Runner-up'),
             ('croatia', '🥉 3rd'), ('morocco', '4th'),
             ('england', 'Q-Finals'), ('brazil', 'Q-Finals'), 
@@ -180,8 +204,6 @@ async def run_sim_backtest(event):
         html += "</table>"
         
         out_div.innerHTML = html
-        
-        # Hide progress bar after completion
         if prog_container: prog_container.style.display = "none"
 
     except Exception as e:
@@ -193,9 +215,6 @@ async def run_sim_backtest(event):
             btn.disabled = False
             btn.innerText = "▶ Run Simulation Check"
 
-# ==========================================================
-# --- INIT ---
-# ==========================================================
 def init_analysis():
     btn = js.document.getElementById("btn-backtest-sim")
     if btn: btn.onclick = create_proxy(run_sim_backtest)
