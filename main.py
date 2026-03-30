@@ -475,26 +475,60 @@ async def run_bulk_sim(event):
 # =============================================================================
 
 def build_dashboard_shell():
+    """
+    Injects the dashboard layout using the modern CSS variables from index.html
+    """
     container = js.document.getElementById("tab-history")
-
+    
     container.innerHTML = """
-    <div id="dashboard-header"></div>
+    <div style="background:var(--card-bg); padding:15px; border-radius:12px; display:flex; gap:15px; align-items:center; margin-bottom:20px; box-shadow:var(--shadow-sm); border:1px solid #e2e8f0;">
+        <label style="font-weight:600; color:var(--text-main); font-size:0.9em;">Select Team:</label>
+        <select id="team-select-dashboard" onchange="window.refresh_team_analysis()" style="padding:10px; border-radius:8px; border:1px solid #cbd5e1; flex-grow:1; background:#f8fafc; color:var(--text-main); font-weight:500;"></select>
+        
+        <div style="width:1px; height:30px; background:#e2e8f0; margin:0 5px;"></div>
+        
+        <button id="btn-show-dashboard" class="action-btn" style="width:auto; margin:0; background:var(--sidebar-bg); padding:10px 20px;">📊 Profile</button>
+        <button id="btn-show-style" class="action-btn" style="width:auto; margin:0; background:#8b5cf6; padding:10px 20px;">🗺️ 5D Style Map</button>
+    </div>
 
-    <div id="dashboard-metrics"></div>
+    <div id="view-profile">
+        <div id="dashboard-header" class="dashboard-card" style="margin-bottom:20px; padding:30px;"></div>
+        <div id="dashboard-metrics"></div>
 
-    <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px;">
-        <div style="background:white; padding:20px; border-radius:10px;">
-            <h4>Performance History</h4>
-            <div id="dashboard_chart_elo"></div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:25px; margin-top:25px;">
+            <div class="dashboard-card" style="margin-bottom:0;">
+                <h4 style="margin-top:0; color:var(--text-light); font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">Historical Performance (Elo)</h4>
+                <div id="dashboard_chart_elo" style="margin-top:15px;"></div>
+            </div>
+            <div class="dashboard-card" style="margin-bottom:0;">
+                <h4 style="margin-top:0; color:var(--text-light); font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">Strategic DNA</h4>
+                <div id="dashboard_chart_radar" style="margin-top:15px;"></div>
+            </div>
         </div>
-        <div style="background:white; padding:20px; border-radius:10px;">
-            <h4>Strategic DNA</h4>
-            <div id="dashboard_chart_radar"></div>
+    </div>
+
+    <div id="view-style-map" style="display:none;">
+        <div class="dashboard-card">
+             <div id="main-chart-container" style="min-height:500px;"></div>
         </div>
     </div>
     """
 
-    populate_team_dropdown()
+    def toggle_view(mode):
+        p = js.document.getElementById("view-profile")
+        s = js.document.getElementById("view-style-map")
+        if mode == 'profile':
+            p.style.display = "block"
+            s.style.display = "none"
+            update_dashboard_data()
+        else:
+            p.style.display = "none"
+            s.style.display = "block"
+            asyncio.ensure_future(plot_style_map(None))
+
+    js.document.getElementById("btn-show-dashboard").onclick = create_proxy(lambda e: toggle_view('profile'))
+    js.document.getElementById("btn-show-style").onclick = create_proxy(lambda e: toggle_view('style'))
+
 
 def load_data_view(event):
     container = js.document.getElementById("data-table-container")
@@ -813,10 +847,7 @@ async def view_team_history(event=None):
 
 
 def update_dashboard_data():
-    # 1. GET TEAM SELECTION
     select = js.document.getElementById("team-select-dashboard")
-    
-    # Safety check: if dropdown doesn't exist or has no value
     if not select or not select.value:
         populate_team_dropdown(target_id="team-select-dashboard") 
         select = js.document.getElementById("team-select-dashboard")
@@ -828,382 +859,187 @@ def update_dashboard_data():
     history = sim.TEAM_HISTORY.get(team)
     if not stats or not history: return
 
-    # --- 1. GET THE SOS-ADJUSTED METRICS ---
+    # --- 1. CALCULATE GLOBAL RANK & PERCENTILES ---
+    # Sort teams by Elo to find their exact rank
+    sorted_teams = sorted(sim.TEAM_STATS.keys(), key=lambda t: sim.TEAM_STATS[t]['elo'], reverse=True)
+    global_rank = sorted_teams.index(team) + 1
+    total_teams = len(sorted_teams)
+    
     atk_index = stats.get('off', 1.0)
     def_index = stats.get('def', 1.0)
-
     std_attack = stats.get('adj_gf', sim.AVG_GOALS)
     std_defense = stats.get('adj_ga', sim.AVG_GOALS)
-    # Ensure sim.AVG_GOALS is handled safely
-    global_avg = sim.AVG_GOALS if hasattr(sim, 'AVG_GOALS') and sim.AVG_GOALS > 0 else 1.25
 
-    rel_att_strength = atk_index * 100
-    rel_def_strength = def_index * 100
+    # Casual Translation Logic (Attack)
+    if atk_index > 1.4: atk_text = "World Class 🔥"; atk_color = "#10b981"; atk_w = 95
+    elif atk_index > 1.15: atk_text = "Dangerous ⚔️"; atk_color = "#3b82f6"; atk_w = 75
+    elif atk_index > 0.9: atk_text = "Average ⚖️"; atk_color = "#94a3b8"; atk_w = 50
+    else: atk_text = "Struggling 📉"; atk_color = "#ef4444"; atk_w = 25
 
-    # --- 2. PREPARE SCOUT REPORT ---
+    # Casual Translation Logic (Defense - Inverse, lower is better)
+    if def_index < 0.7: def_text = "Elite Wall 🧱"; def_color = "#10b981"; def_w = 95
+    elif def_index < 0.95: def_text = "Solid 🛡️"; def_color = "#3b82f6"; def_w = 75
+    elif def_index < 1.15: def_text = "Average ⚖️"; def_color = "#94a3b8"; def_w = 50
+    else: def_text = "Leaky ⚠️"; def_color = "#ef4444"; def_w = 25
+
+    # --- 2. FORM GUIDE DOTS ---
+    raw_form = stats.get('form', '-----')[-5:] # Last 5 games
+    form_html = ""
+    for char in raw_form:
+        if char == 'W': form_html += "<span class='form-dot form-W'>W</span>"
+        elif char == 'D': form_html += "<span class='form-dot form-D'>D</span>"
+        elif char == 'L': form_html += "<span class='form-dot form-L'>L</span>"
+        else: form_html += "<span class='form-dot' style='background:#f1f5f9; color:#94a3b8;'>-</span>"
+
+    # --- 3. PREPARE SCOUT REPORT ---
     adjusted_stats = stats.copy()
     adjusted_stats['gf_avg'] = std_attack
     adjusted_stats['ga_avg'] = std_defense
     scout_report = generate_scout_report(adjusted_stats)
 
-    # =========================================================
-    # PREPARE TIER DATA
-    # =========================================================
-    def get_rec(key):
-        w, d, l = stats.get(key, [0,0,0])
-        total = w + d + l
-        win_pct = (w / total * 100) if total > 0 else 0
-        pts_pct = ((w * 3 + d) / (total * 3) * 100) if total > 0 else 0 
-        return w, d, l, total, int(win_pct), int(pts_pct)
-
-    # Get data for 3 tiers
-    s_w, s_d, s_l, s_tot, s_win, s_pts = get_rec('vs_stronger')
-    p_w, p_d, p_l, p_tot, p_win, p_pts = get_rec('vs_similar')
-    w_w, w_d, w_l, w_tot, w_win, w_pts = get_rec('vs_weaker')
-
-    # Dynamic Analysis Text
-    tier_narrative = ""
-    if s_win > 30: tier_narrative = "Capable of beating superior teams."
-    elif p_win < 30: tier_narrative = "Struggles in close matchups vs peers."
-    elif w_win < 80: tier_narrative = "Occasionally drops points to weaker sides."
-    else: tier_narrative = "Efficiently dispatches weaker opponents."
-
-    # =========================================================
-    # UPSET PROFILE ANALYSIS
-    # =========================================================
+    # Upset Profile Logic (from your existing code, customized)
     major_won = stats.get('upsets_major_won', 0)
-    minor_won = stats.get('upsets_minor_won', 0)
-    major_lost = stats.get('upsets_major_lost', 0)
-    minor_lost = stats.get('upsets_minor_lost', 0)
+    w_tot = sum(stats.get('vs_weaker',[0,0,0]))
+    w_win = stats.get('vs_weaker', [0,0,0])[0] / w_tot * 100 if w_tot > 0 else 0
     
-    loss_rate_vs_weaker = (major_lost + minor_lost) / w_tot if w_tot > 0 else 0
-    win_rate_vs_stronger = (major_won + minor_won) / s_tot if s_tot > 0 else 0
-    
-    # --- BADGE LOGIC ---
-    
-    # 1. THE GIANT KILLER (Quality of Wins)
-    # Wins against massive favorites (300+ Elo diff)
-    if major_won >= 2:
-        upset_badge = "⚔️ Giant Killer"
-        upset_desc = f"Dangerous to the elite. Has secured {major_won} major upset wins."
-        upset_color = "#8e44ad" # Purple
+    if major_won >= 2: upset_badge = "Giant Killer ⚔️"; upset_desc = "Dangerous to the elite."
+    elif w_tot > 8 and w_win > 75: upset_badge = "Ruthless 👑"; upset_desc = "Crushes weaker teams consistently."
+    else: upset_badge = "Wildcard 🃏"; upset_desc = "Capable of unpredictable results."
 
-    # 2. THE SCRAPPY UNDERDOG (Frequency of Wins vs Stronger)
-    # consistently beats teams better than them, even if not 'giants'
-    elif win_rate_vs_stronger > 0.25 and s_tot >= 4:
-        upset_badge = "🥊 Scrappy"
-        upset_desc = f"Punches above their weight. Wins {int(win_rate_vs_stronger*100)}% of games vs stronger teams."
-        upset_color = "#3498db" # Blue
-
-    # 3. THE VOLATILE (Frequency of Losses vs Weaker)
-    # Drops points to bad teams often
-    elif loss_rate_vs_weaker > 0.15 and w_tot >= 5:
-        upset_badge = "⚠️ Volatile"
-        upset_desc = f"Prone to slipping up. Loses {int(loss_rate_vs_weaker*100)}% of games against weaker opposition."
-        upset_color = "#e67e22" # Orange
-        
-    # 4. THE RUTHLESS (Efficiency vs Weaker)
-    # Crushes the teams they are supposed to crush
-    elif w_tot > 8 and w_win > 75 and loss_rate_vs_weaker < 0.10:
-        upset_badge = "👑 Ruthless"
-        upset_desc = f"Dominates inferior opposition with a {w_win}% win rate."
-        upset_color = "#c0392b" # Red
-        
-    # 5. PAPER TIGERS (Specific Historic Failures)
-    # Generally okay, but has distinct 'shock' losses
-    elif major_lost >= 2:
-         upset_badge = "📉 Prone to Shocks"
-         upset_desc = f"Generally stable, but has suffered {major_lost} historic collapse(s)."
-         upset_color = "#d35400" # Dark Orange
-
-    # 6. DEFAULT
-    else:
-        upset_badge = "🛡️ Stable"
-        upset_desc = "Performs consistently relative to team strength."
-        upset_color = "#95a5a6" # Grey
-
-    # =========================================================
-    # 3. GENERATE DYNAMIC ANALYST NOTE (WITH VARIETY)
-    # =========================================================
-    att_diff = int(rel_att_strength - 100)
-    def_diff = int(rel_def_strength - 100)
-    
-    txt_att = round(std_attack, 2)
-    txt_def = round(std_defense, 2)
-    txt_idx_a = round(atk_index, 2)
-    txt_idx_d = round(def_index, 2)
-
-    # --- ATTACK NARRATIVE ---
-    if att_diff >= 50:
-        # ELITE ATTACK
-        templates = [
-            f"Statistically, the attack is lethal, generating <strong style='color:#3498db;'>{txt_att} Goals/Gm</strong> (Index: {txt_idx_a}), a massive <strong>{att_diff}% above average</strong>.",
-            f"Front-line output is exceptional. They produce <strong style='color:#3498db;'>{txt_att} Goals/Gm</strong>, outperforming the global baseline by <strong>{att_diff}%</strong>.",
-            f"This is a high-volume offensive unit, scoring <strong style='color:#3498db;'>{txt_att} goals per game</strong> (Index: {txt_idx_a}), placing them in the elite tier."
-        ]
-    elif att_diff >= 10:
-        # GOOD ATTACK
-        templates = [
-            f"Offensively, they are solid, producing <strong style='color:#3498db;'>{txt_att} Goals/Gm</strong> (Index: {txt_idx_a}), which is <strong>{att_diff}% above</strong> the norm.",
-            f"Attack numbers are healthy at <strong style='color:#3498db;'>{txt_att} Goals/Gm</strong>, showing an efficiency <strong>{att_diff}% better</strong> than the average side."
-        ]
-    elif att_diff > -10:
-        # AVERAGE ATTACK
-        templates = [
-            f"Offensive output is standard, sitting at <strong style='color:#95a5a6;'>{txt_att} Goals/Gm</strong> (Index: {txt_idx_a}), roughly inline with the global average.",
-            f"They possess a balanced attack, scoring <strong style='color:#95a5a6;'>{txt_att} Goals/Gm</strong>, which matches the statistical baseline."
-        ]
-    else:
-        # WEAK ATTACK
-        templates = [
-            f"The attack struggles for consistency, managing only <strong style='color:#7f8c8d;'>{txt_att} Goals/Gm</strong> (Index: {txt_idx_a}), sitting <strong>{abs(att_diff)}% below</strong> average.",
-            f"Goal scoring is a concern. They average <strong style='color:#7f8c8d;'>{txt_att} Goals/Gm</strong>, reflecting an output <strong>{abs(att_diff)}% lower</strong> than the norm."
-        ]
-    att_text = random.choice(templates)
-
-    # --- DEFENSE NARRATIVE ---
-    if def_diff <= -30:
-        # ELITE DEFENSE
-        templates = [
-            f"Defensively, they are a fortress, conceding just <strong style='color:#2ecc71;'>{txt_def} Goals/Gm</strong> (Index: {txt_idx_d}), rated <strong>{abs(def_diff)}% superior</strong> to the baseline.",
-            f"The back-line is formidable. Allowing only <strong style='color:#2ecc71;'>{txt_def} Goals/Gm</strong> puts them <strong>{abs(def_diff)}% ahead</strong> of the average defense.",
-            f"Defensive organization is elite, with a concession rate of <strong style='color:#2ecc71;'>{txt_def} Goals/Gm</strong> (Index: {txt_idx_d})."
-        ]
-    elif def_diff <= -5:
-        # GOOD DEFENSE
-        templates = [
-            f"Defensively, they are reliable, conceding <strong style='color:#2ecc71;'>{txt_def} Goals/Gm</strong>, which is <strong>{abs(def_diff)}% better</strong> than the average.",
-            f"They maintain a disciplined shape, allowing <strong style='color:#2ecc71;'>{txt_def} Goals/Gm</strong> (Index: {txt_idx_d})."
-        ]
-    elif def_diff < 15:
-        # AVERAGE DEFENSE
-        templates = [
-            f"Defensively, they are average, conceding <strong style='color:#95a5a6;'>{txt_def} Goals/Gm</strong>, tracking closely with the global baseline.",
-            f"The defense is serviceable but permeable, allowing <strong style='color:#95a5a6;'>{txt_def} Goals/Gm</strong> (Index: {txt_idx_d})."
-        ]
-    else:
-        # WEAK DEFENSE
-        templates = [
-            f"Defensively, there are leaks, conceding <strong style='color:#e74c3c;'>{txt_def} Goals/Gm</strong> (Index: {txt_idx_d}), rated <strong>{def_diff}% more vulnerable</strong> than average.",
-            f"The back-line is fragile. They allow <strong style='color:#e74c3c;'>{txt_def} Goals/Gm</strong>, performing <strong>{def_diff}% worse</strong> than the statistical baseline."
-        ]
-    def_text = random.choice(templates)
-
-    # Combine
-    analyst_note = f"{att_text} {def_text}"
-
-    # Now we can append the upset info
-    analyst_note += f" <br><br><strong>Upset Profile:</strong> <span style='color:{upset_color};'>{upset_badge}</span> - {upset_desc}"
-
-    # =========================================================
-    # GENERATE NOTABLE RESULTS LIST
-    # =========================================================
-    raw_results = stats.get('notable_results', [])
-    
-    # Sort by 'Magnitude' (Elo Diff) so the biggest shocks are first
-    sorted_results = sorted(raw_results, key=lambda x: x['diff'], reverse=True)[:5] # Keep Top 5
-    
-    notable_matches_html = ""
-    
-    if sorted_results:
-        for res in sorted_results:
-            opp_name = res['opp'].title()
-            score = res['score']
-            date_str = res['date'].strftime('%Y-%m')
-            
-            if "WON" in res['type']:
-                # Green styling for wins
-                icon = "🟢" 
-                res_class = "color:#27ae60; background:#eafaf1; border:1px solid #abebc6;"
-                text = f"Beat <strong>{opp_name}</strong> ({score})"
-            else:
-                # Red styling for losses
-                icon = "🔴"
-                res_class = "color:#c0392b; background:#fdedec; border:1px solid #fadbd8;"
-                text = f"Lost to <strong>{opp_name}</strong> ({score})"
-                
-            notable_matches_html += f"""
-            <div style="font-size:0.8em; margin-bottom:6px; padding:6px; border-radius:4px; display:flex; justify-content:space-between; align-items:center; {res_class}">
-                <span>{icon} {text}</span>
-                <span style="opacity:0.7; font-size:0.9em;">{date_str}</span>
-            </div>
-            """
-    else:
-        notable_matches_html = "<div style='font-size:0.8em; color:#95a5a6; font-style:italic;'>No major upsets recorded in recent history.</div>"
-
-    # =========================================================
-    # 2. RENDER HEADER
-    # =========================================================
+    # --- 4. RENDER HEADER (The "Hero" Section) ---
     header = js.document.getElementById("dashboard-header")
     header.innerHTML = f"""
-    <div style="margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;">
-        <h1 style="margin:0; font-size:2.2em; color:#2c3e50;">{team.title()}</h1>
-        <div style="color:#7f8c8d; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
-            <div>
-                <span>FIFA Elo: <span style="color:#2c3e50;">{int(stats['elo'])}</span></span>
-                <span style="font-size:0.8em; color:white; background:{upset_color}; padding:4px 8px; border-radius:4px; margin-left:10px;" title="{upset_desc}">
-                    {upset_badge}
-                </span>
-            </div>
-            <span style="font-size:0.8em; color:#2980b9; background:#eaf2f8; padding:4px 8px; border-radius:4px;">
-                SOS Standardized Ratings
-            </span>
-        </div>
-    </div>
-    """
-
-    # =========================================================
-    # 4. RENDER METRICS HTML
-    # =========================================================
-    js.document.getElementById("dashboard-metrics").innerHTML = f"""
-    <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px; margin-bottom:20px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
         <div>
-            <div style="display:flex; gap:10px; margin-bottom:15px;">
-                
-                <div style="background:#3498db; color:white; padding:12px; border-radius:8px; flex:1; display:flex; flex-direction:column; justify-content:center; text-align:center;">
-                    <div style="font-size:0.75em; opacity:0.9; margin-bottom:5px;">OFFENSIVE RATING</div>
-                    <div style="margin-bottom:5px;">
-                        <span style="font-size:1.9em; font-weight:bold;">{round(std_attack, 2)}</span>
-                        <span style="font-size:0.7em; opacity:0.8;">Goals/Gm</span>
-                    </div>
-                    <div style="background:rgba(0,0,0,0.2); padding:4px; border-radius:4px; font-size:0.8em;">
-                        Index: <strong>{round(atk_index, 2)}</strong> <span style="opacity:0.8;">({int(rel_att_strength)}% Avg)</span>
-                    </div>
-                </div>
-
-                <div style="background:#e74c3c; color:white; padding:12px; border-radius:8px; flex:1; display:flex; flex-direction:column; justify-content:center; text-align:center;">
-                    <div style="font-size:0.75em; opacity:0.9; margin-bottom:5px;">DEFENSIVE RATING</div>
-                    <div style="margin-bottom:5px;">
-                        <span style="font-size:1.9em; font-weight:bold;">{round(std_defense, 2)}</span>
-                        <span style="font-size:0.7em; opacity:0.8;">Conc/Gm</span>
-                    </div>
-                    <div style="background:rgba(0,0,0,0.2); padding:4px; border-radius:4px; font-size:0.8em;">
-                        Index: <strong>{round(def_index, 2)}</strong> <span style="opacity:0.8;">({int(rel_def_strength)}% Avg)</span>
-                    </div>
-                </div>
-
-                <div style="background:#f1c40f; color:#2c3e50; padding:12px; borderRadius:8px; flex:1; text-align:center; display:flex; flex-direction:column; justify-content:center;">
-                    <div style="font-size:0.75em; opacity:0.9;">CLEAN SHEETS</div>
-                    <div style="font-size:1.8em; font-weight:bold;">{int(stats.get('cs_pct',0))}%</div>
-                     <div style="font-size:0.7em; opacity:0.7; margin-top:5px;">Frequency</div>
-                </div>
+            <div style="display:flex; align-items:center; gap:15px; margin-bottom:10px;">
+                <h1 style="margin:0; font-size:2.5em; color:var(--text-main); font-weight:800; letter-spacing:-1px;">{team.title()}</h1>
+                <span class="rank-badge">🌍 World #{global_rank}</span>
             </div>
-
-            <div style="margin-bottom:20px;">
-                <h4 style="margin:0 0 10px 0; color:#7f8c8d; border-bottom:1px solid #eee; padding-bottom:5px;">📊 Performance vs. Elo Tiers</h4>
-                
-                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
-                    <div style="background:#fdf2f2; border:1px solid #fadbd8; border-radius:8px; padding:10px; text-align:center;">
-                        <div style="font-size:0.75em; color:#c0392b; font-weight:bold; margin-bottom:5px;">VS STRONGER</div>
-                        <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{s_w}-{s_d}-{s_l}</div>
-                        <div style="font-size:0.7em; color:#7f8c8d;">{s_tot} Matches</div>
-                        <div style="margin-top:5px; background:rgba(192, 57, 43, 0.1); border-radius:4px; font-size:0.75em; color:#c0392b;">
-                            {s_win}% Win Rate
-                        </div>
-                    </div>
-                    <div style="background:#f4f6f7; border:1px solid #d5dbdb; border-radius:8px; padding:10px; text-align:center;">
-                        <div style="font-size:0.75em; color:#7f8c8d; font-weight:bold; margin-bottom:5px;">VS PEERS</div>
-                        <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{p_w}-{p_d}-{p_l}</div>
-                        <div style="font-size:0.7em; color:#7f8c8d;">{p_tot} Matches</div>
-                        <div style="margin-top:5px; background:rgba(127, 140, 141, 0.1); border-radius:4px; font-size:0.75em; color:#2c3e50;">
-                            {p_win}% Win Rate
-                        </div>
-                    </div>
-                    <div style="background:#eafaf1; border:1px solid #d5f5e3; border-radius:8px; padding:10px; text-align:center;">
-                        <div style="font-size:0.75em; color:#27ae60; font-weight:bold; margin-bottom:5px;">VS WEAKER</div>
-                        <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{w_w}-{w_d}-{w_l}</div>
-                        <div style="font-size:0.7em; color:#7f8c8d;">{w_tot} Matches</div>
-                        <div style="margin-top:5px; background:rgba(39, 174, 96, 0.1); border-radius:4px; font-size:0.75em; color:#27ae60;">
-                            {w_win}% Win Rate
-                        </div>
-                    </div>
-                </div>
-                <div style="font-size:0.75em; color:#95a5a6; text-align:right; margin-top:5px; font-style:italic;">
-                    Analysis: {tier_narrative}
-                </div>
-            </div>
-            
-            <h4 style="margin:0 0 10px 0; color:#7f8c8d; border-bottom:1px solid #eee; padding-bottom:5px;">🧬 Tactical DNA</h4>
-            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:10px;">
-                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; border-radius:8px; text-align:center;">
-                    <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{int(stats.get('fh_pct',0))}%</div>
-                    <div style="font-size:0.7em; color:#7f8c8d;">1st Half</div>
-                </div>
-                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; border-radius:8px; text-align:center;">
-                    <div style="font-size:1.1em; font-weight:bold; color:#e67e22;">{int(stats.get('late_pct',0))}%</div>
-                    <div style="font-size:0.7em; color:#7f8c8d;">Late (75'+)</div>
-                </div>
-                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; border-radius:8px; text-align:center;">
-                    <div style="font-size:1.1em; font-weight:bold; color:#2c3e50;">{int(stats.get('pen_pct',0))}%</div>
-                    <div style="font-size:0.7em; color:#7f8c8d;">Pens</div>
-                </div>
-                <div style="background:#f8f9fa; border:1px solid #eee; padding:10px; border-radius:8px; text-align:center;">
-                    <div style="font-size:1.1em; font-weight:bold; color:#e74c3c;">{int(stats.get('btts_pct',0))}%</div>
-                    <div style="font-size:0.7em; color:#7f8c8d;">BTTS</div>
-                </div>
+            <div style="color:var(--text-light); font-size:0.95em; display:flex; align-items:center; gap:15px;">
+                <span><strong>Elo Rating:</strong> {int(stats['elo'])}</span>
+                <span style="color:#e2e8f0;">|</span>
+                <span><strong>Identity:</strong> <span style="color:var(--accent-blue); font-weight:600;">{upset_badge}</span></span>
             </div>
         </div>
+        <div style="text-align:right;">
+            <div style="font-size:0.8em; color:var(--text-light); font-weight:600; text-transform:uppercase; margin-bottom:5px;">Recent Form</div>
+            <div>{form_html}</div>
+        </div>
+    </div>
+    
+    <div style="margin-top:25px; padding:20px; background:#f8fafc; border-left:4px solid var(--accent-blue); border-radius:8px;">
+        <h4 style="margin:0 0 10px 0; color:var(--sidebar-bg); font-size:0.9em; text-transform:uppercase;">📝 AI Analyst Scouting Report</h4>
+        <div style="font-size:1em; color:var(--text-main); line-height:1.6;">{scout_report}</div>
+    </div>
+    """
+
+    # --- 5. RENDER METRICS HTML ---
+    js.document.getElementById("dashboard-metrics").innerHTML = f"""
+    <div style="display:grid; grid-template-columns: 1.5fr 1fr; gap:25px;">
         
-        <div style="background:#2c3e50; color:white; padding:20px; border-radius:10px; display:flex; flex-direction:column; justify-content:space-between;">
+        <!-- Left Col: Attack & Defense Bars -->
+        <div class="dashboard-card" style="margin-bottom:0; display:flex; flex-direction:column; justify-content:center; gap:25px;">
+            
+            <!-- Attack Bar -->
             <div>
-                <h4 style="margin-top:0; color:#f1c40f; border-bottom:1px solid #555; padding-bottom:10px;">📋 Scouting Report</h4>
-                <div style="font-size:0.9em; line-height:1.6; margin-bottom:20px;">{scout_report}</div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                    <span style="font-weight:700; color:var(--text-main);">Offensive Threat</span>
+                    <span style="font-weight:700; color:{atk_color};">{atk_text}</span>
+                </div>
+                <div style="background:#f1f5f9; height:12px; border-radius:6px; overflow:hidden;">
+                    <div style="width:{atk_w}%; background:{atk_color}; height:100%; border-radius:6px;"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-top:5px; font-size:0.8em; color:var(--text-light);">
+                    <span>Scores <strong>{round(std_attack, 2)}</strong> goals/game</span>
+                </div>
             </div>
 
-            <div style="margin-bottom:20px;">
-                <h5 style="margin:0 0 10px 0; color:#bdc3c7; font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">Recent Headline Results</h5>
-                {notable_matches_html}
+            <!-- Defense Bar -->
+            <div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                    <span style="font-weight:700; color:var(--text-main);">Defensive Solidity</span>
+                    <span style="font-weight:700; color:{def_color};">{def_text}</span>
+                </div>
+                <div style="background:#f1f5f9; height:12px; border-radius:6px; overflow:hidden;">
+                    <div style="width:{def_w}%; background:{def_color}; height:100%; border-radius:6px;"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-top:5px; font-size:0.8em; color:var(--text-light);">
+                    <span>Concedes <strong>{round(std_defense, 2)}</strong> goals/game</span>
+                </div>
             </div>
 
-            <div style="border-top:1px solid #3e5871; padding-top:15px; font-size:0.8em; color:#95a5a6; line-height:1.5; font-style:italic;">
-                <strong style="color:#bdc3c7; font-style:normal;">📝 Analyst Note:</strong>
-                {analyst_note}
-                
-                <div style="margin-top:10px; padding-top:10px; border-top:1px dotted #5c7c91; font-size:0.9em; color:#7f8c8d;">
-                    <span style="color:#f1c40f;">*</span> Note: Ratings cited above are 
-                    <strong style="color:#bdc3c7;">Strength-of-Schedule (SOS) Adjusted</strong>.
+        </div>
+
+        <!-- Right Col: Tactical DNA Grid -->
+        <div class="dashboard-card" style="margin-bottom:0;">
+            <h4 style="margin-top:0; color:var(--text-light); font-size:0.85em; text-transform:uppercase; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">🧬 Tactical Quirks</h4>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <div class="stat-pill">
+                    <div class="stat-pill-title">Clean Sheets</div>
+                    <div class="stat-pill-value">{int(stats.get('cs_pct',0))}%</div>
+                </div>
+                <div class="stat-pill">
+                    <div class="stat-pill-title">Both Teams Score</div>
+                    <div class="stat-pill-value" style="color:var(--accent-red);">{int(stats.get('btts_pct',0))}%</div>
+                </div>
+                <div class="stat-pill">
+                    <div class="stat-pill-title">Late Goals (75'+)</div>
+                    <div class="stat-pill-value" style="color:var(--accent-gold);">{int(stats.get('late_pct',0))}%</div>
+                </div>
+                <div class="stat-pill">
+                    <div class="stat-pill-title">Penalty Reliance</div>
+                    <div class="stat-pill-value">{int(stats.get('pen_pct',0))}%</div>
                 </div>
             </div>
         </div>
     </div>
     """
 
-    # --- 4. RENDER ELO HISTORY ---
+    # --- 6. RENDER MATPLOTLIB CHARTS (Clean, transparent styling) ---
     js.document.getElementById("dashboard_chart_elo").innerHTML = ""
-    fig, ax = plt.subplots(figsize=(6, 4.5))
-    ax.plot(history['dates'], history['elo'], color='#2980b9', linewidth=2, label=team.title())
-    ax.axhline(y=1800, color='gray', linestyle='--', linewidth=1, alpha=0.7, label='Elite Tier')
-    ax.grid(True, linestyle='--', alpha=0.3)
-    ax.set_title("Rating History", fontsize=10, fontweight='bold')
-    ax.legend(loc='upper left', fontsize='small')
+    fig, ax = plt.subplots(figsize=(6, 3))
+    fig.patch.set_alpha(0.0) 
+    ax.patch.set_alpha(0.0)
+    
+    ax.plot(history['dates'], history['elo'], color='#3b82f6', linewidth=2.5)
+    ax.axhline(y=1800, color='#f59e0b', linestyle='--', linewidth=1.5, alpha=0.8, label='Elite Tier (1800)')
+    ax.grid(True, linestyle='--', alpha=0.3, color="#cbd5e1")
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_color('#cbd5e1')
+    ax.spines['bottom'].set_color('#cbd5e1')
+    ax.tick_params(colors='#64748b')
+    ax.legend(loc='upper left', fontsize='small', frameon=False, labelcolor="#64748b")
     fig.tight_layout()
     display(fig, target="dashboard_chart_elo")
     plt.close(fig)
 
-    # --- 5. RENDER RADAR-STYLE BAR CHART ---
     js.document.getElementById("dashboard_chart_radar").innerHTML = ""
-    fig2, ax2 = plt.subplots(figsize=(6, 4))
-    metrics = ['Attack', 'Defense']
-    team_vals = [atk_index, def_index]
-    global_avgs = [1.0, 1.0]
-
-    # Create Grouped Bar Chart logic
-    # Offset bars slightly so they don't overlap awkwardly
-    bar_width = 0.35
-    x = [0, 1] 
+    fig2, ax2 = plt.subplots(figsize=(6, 3))
+    fig2.patch.set_alpha(0.0) 
+    ax2.patch.set_alpha(0.0)
     
-    bars_team = ax2.bar([i - bar_width/2 for i in x], team_vals, width=bar_width, color=['#3498db','#e74c3c'], label=team.title())
-    bars_avg  = ax2.bar([i + bar_width/2 for i in x], global_avgs, width=bar_width, color='#95a5a6', alpha=0.6, label='Global Avg')
+    metrics =['Attack Power', 'Defensive Rating']
+    # Invert defense so "higher bar" = "better defense" visually
+    visual_def_index = 2.0 - def_index if def_index < 2.0 else 0.1
+    team_vals = [atk_index, visual_def_index]
+    global_avgs =[1.0, 1.0]
+
+    bar_width = 0.35
+    x =[0, 1] 
+    
+    bars_team = ax2.bar([i - bar_width/2 for i in x], team_vals, width=bar_width, color=['#3b82f6','#10b981'], edgecolor='none')
+    bars_avg  = ax2.bar([i + bar_width/2 for i in x], global_avgs, width=bar_width, color='#cbd5e1', alpha=0.6, edgecolor='none', label='Global Avg')
 
     ax2.set_xticks(x)
-    ax2.set_xticklabels(metrics)
-    ax2.set_ylabel("SOS-Adjusted Strength")
+    ax2.set_xticklabels(metrics, color="#334155", fontweight="bold")
+    ax2.spines['top'].set_visible(False)
+    ax2.spines['right'].set_visible(False)
+    ax2.spines['left'].set_color('#cbd5e1')
+    ax2.spines['bottom'].set_color('#cbd5e1')
+    ax2.tick_params(axis='y', colors='#64748b')
     ax2.set_ylim(0, max(team_vals + global_avgs)*1.2)
-    ax2.set_title(f"{team.title()} vs Global Avg", fontsize=12)
-    ax2.bar_label(bars_team, fmt='%.2f', padding=3)
-    ax2.bar_label(bars_avg, fmt='%.2f', padding=3)
-    ax2.grid(axis='y', linestyle='--', alpha=0.3)
-    ax2.legend(fontsize='small')
+    ax2.legend(fontsize='small', frameon=False, labelcolor="#64748b")
     fig2.tight_layout()
     display(fig2, target="dashboard_chart_radar")
     plt.close(fig2)
