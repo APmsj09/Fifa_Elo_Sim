@@ -916,7 +916,7 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
         
         for t3 in available_t3:
             # FIFA RULE: A group winner cannot play a 3rd place team from its own group
-            if t3['group'] != host_group:
+            if t3['team_group'] != host_group:          
                 t3_mapping[host_group] = t3['team']
                 new_available =[t for t in available_t3 if t != t3]
                 if assign_t3(index + 1, new_available): 
