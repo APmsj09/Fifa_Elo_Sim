@@ -903,7 +903,7 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
     # 1. Get the 8 Best 3rd Place Teams (Include their Group Name)
     best_3rds = sorted(third_place, key=lambda x: (x['stats']['p'], x['stats']['gd'], x['stats']['gf']), reverse=True)[:8]
     # Format:[{'team': 'wales', 'group': 'A'}, {'team': 'poland', 'group': 'C'}, ...]
-    third_place.append({'team': sorted_teams[2], 'team_group': grp, 'stats': table_stats[sorted_teams[2]]})
+    
     
     # 2. Dynamic FIFA 3rd-Place Allocation Algorithm (Replaces the 495-line matrix)
     # The designated 8 Group Winners that play 3rd-place teams per FIFA rules
@@ -924,7 +924,7 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
         return False
         
     # Run the allocator
-    assign_t3(0, t3_teams)
+    assign_t3(0, best_3rds)
 
     # 3. Official 2026 Bracket Structure
     bracket_matchups =[
