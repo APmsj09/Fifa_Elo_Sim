@@ -838,31 +838,30 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
         'A': ['mexico', 'south africa', 'south korea', slots['Path D']],
         'B': ['canada', 'switzerland', 'qatar', slots['Path A']],
         'C': ['brazil', 'morocco', 'haiti', 'scotland'],
-        'D': ['united states', 'paraguay', 'australia', slots['Path C']],
-        'E': ['germany', 'curaçao', 'ivory coast', 'ecuador'],
-        'F': ['netherlands', 'japan', 'tunisia', slots['Path B']],
-        'G': ['belgium', 'egypt', 'iran', 'new zealand'],
-        'H': ['spain', 'cape verde', 'saudi arabia', 'uruguay'],
+        'D':['united states', 'paraguay', 'australia', slots['Path C']],
+        'E':['germany', 'curaçao', 'ivory coast', 'ecuador'],
+        'F':['netherlands', 'japan', 'tunisia', slots['Path B']],
+        'G':['belgium', 'egypt', 'iran', 'new zealand'],
+        'H':['spain', 'cape verde', 'saudi arabia', 'uruguay'],
         'I': ['france', 'senegal', 'norway', slots['ICP2']],
-        'J': ['argentina', 'algeria', 'austria', 'jordan'],
+        'J':['argentina', 'algeria', 'austria', 'jordan'],
         'K': ['portugal', 'uzbekistan', 'colombia', slots['ICP1']],
         'L': ['england', 'croatia', 'ghana', 'panama']
     }
     
     group_results_lists = {}
-    third_place = []
+    third_place =[]
     
     for grp, teams in groups.items():
-        # ADD THESE TWO LINES:
+        # Shuffle for random tie-breakers
         teams_shuffled = teams.copy()
         np.random.shuffle(teams_shuffled)
         
-        # AND USE THE SHUFFLED LIST:
         table_stats = {t: {'p':0, 'gd':0, 'gf':0, 'w':0, 'd':0, 'l':0} for t in teams_shuffled}
         
-        if not fast_mode: group_matches_log[grp] = []
+        if not fast_mode: group_matches_log[grp] =[]
 
-         for i in range(len(teams_shuffled)):
+        for i in range(len(teams_shuffled)):
             for j in range(i+1, len(teams_shuffled)):
                 t1, t2 = teams_shuffled[i], teams_shuffled[j]
                 w, g1, g2 = sim_match(t1, t2)
@@ -885,12 +884,15 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
                     table_stats[t1]['p'] += 1; table_stats[t2]['p'] += 1
                     table_stats[t1]['d'] += 1; table_stats[t2]['d'] += 1
 
-        sorted_teams = sorted(teams, key=lambda t: (table_stats[t]['p'], table_stats[t]['gd'], table_stats[t]['gf']), reverse=True)
+        # Notice gf is added here for proper FIFA tie-breakers!
+        sorted_teams = sorted(teams_shuffled, key=lambda t: (table_stats[t]['p'], table_stats[t]['gd'], table_stats[t]['gf']), reverse=True)
         group_results_lists[grp] = sorted_teams
-        third_place.append({'team': sorted_teams[2], 'stats': table_stats[sorted_teams[2]]})
+        
+        # Make sure to pass the 'team_group' so the dynamic knockout bracket doesn't crash!
+        third_place.append({'team': sorted_teams[2], 'team_group': grp, 'stats': table_stats[sorted_teams[2]]})
 
         if not fast_mode:
-            structured_groups[grp] = []
+            structured_groups[grp] =[]
             for t in sorted_teams:
                 structured_groups[grp].append({'team': t, **table_stats[t]})
 
