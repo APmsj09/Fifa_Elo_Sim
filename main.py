@@ -847,192 +847,181 @@ def update_dashboard_data():
     team = select.value
     stats = sim.TEAM_STATS.get(team)
     history = sim.TEAM_HISTORY.get(team)
-    if not stats or not history: return
-
-    # --- 1. CALCULATE GLOBAL RANK & PERCENTILES ---
-    # Sort teams by Elo to find their exact rank
+    confed = sim.TEAM_CONFEDS.get(team.lower(), 'OFC')
+    
+    # --- 1. CALCULATE WORLD RANK & PERCENTILES ---
     sorted_teams = sorted(sim.TEAM_STATS.keys(), key=lambda t: sim.TEAM_STATS[t]['elo'], reverse=True)
     global_rank = sorted_teams.index(team) + 1
-    total_teams = len(sorted_teams)
     
+    # Confederation Multiplier Impact
+    reg_mult = sim.CONFED_MULTIPLIERS.get(confed, 1.0)
+    
+    # SOS Adjusted Power
     atk_index = stats.get('off', 1.0)
     def_index = stats.get('def', 1.0)
-    std_attack = stats.get('adj_gf', sim.AVG_GOALS)
-    std_defense = stats.get('adj_ga', sim.AVG_GOALS)
+    
+    # Final adjusted power for display
+    atk_power = atk_index * reg_mult
+    def_power = def_index # Defense is already relative to opponent in your engine
+    
+    # Percentile Logic (Casual Friendly)
+    if atk_power > 1.4: atk_desc = "Elite 🔥"; atk_color = "var(--accent-green)"
+    elif atk_power > 1.1: atk_desc = "Strong ⚔️"; atk_color = "var(--accent-blue)"
+    else: atk_desc = "Average ⚖️"; atk_color = "var(--text-light)"
 
-    # Casual Translation Logic (Attack)
-    if atk_index > 1.4: atk_text = "World Class 🔥"; atk_color = "#10b981"; atk_w = 95
-    elif atk_index > 1.15: atk_text = "Dangerous ⚔️"; atk_color = "#3b82f6"; atk_w = 75
-    elif atk_index > 0.9: atk_text = "Average ⚖️"; atk_color = "#94a3b8"; atk_w = 50
-    else: atk_text = "Struggling 📉"; atk_color = "#ef4444"; atk_w = 25
+    if def_power < 0.8: def_desc = "Iron Wall 🧱"; def_color = "var(--accent-green)"
+    elif def_power < 1.05: def_desc = "Solid 🛡️"; def_color = "var(--accent-blue)"
+    else: def_desc = "Leaky ⚠️"; def_color = "var(--accent-red)"
 
-    # Casual Translation Logic (Defense - Inverse, lower is better)
-    if def_index < 0.7: def_text = "Elite Wall 🧱"; def_color = "#10b981"; def_w = 95
-    elif def_index < 0.95: def_text = "Solid 🛡️"; def_color = "#3b82f6"; def_w = 75
-    elif def_index < 1.15: def_text = "Average ⚖️"; def_color = "#94a3b8"; def_w = 50
-    else: def_text = "Leaky ⚠️"; def_color = "#ef4444"; def_w = 25
-
-    # --- 2. FORM GUIDE DOTS ---
-    raw_form = stats.get('form', '-----')[-5:] # Last 5 games
+    # --- 2. FORM DOTS ---
+    raw_form = stats.get('form', '-----')[-5:]
     form_html = ""
     for char in raw_form:
-        if char == 'W': form_html += "<span class='form-dot form-W'>W</span>"
-        elif char == 'D': form_html += "<span class='form-dot form-D'>D</span>"
-        elif char == 'L': form_html += "<span class='form-dot form-L'>L</span>"
-        else: form_html += "<span class='form-dot' style='background:#f1f5f9; color:#94a3b8;'>-</span>"
+        dot_class = f"form-{char}" if char in ['W', 'L', 'D'] else ""
+        form_html += f"<span class='form-dot {dot_class}'>{char if char != '-' else ''}</span>"
 
-    # --- 3. PREPARE SCOUT REPORT ---
-    adjusted_stats = stats.copy()
-    adjusted_stats['gf_avg'] = std_attack
-    adjusted_stats['ga_avg'] = std_defense
-    scout_report = generate_scout_report(adjusted_stats)
-
-    # Upset Profile Logic (from your existing code, customized)
-    major_won = stats.get('upsets_major_won', 0)
-    w_tot = sum(stats.get('vs_weaker',[0,0,0]))
-    w_win = stats.get('vs_weaker', [0,0,0])[0] / w_tot * 100 if w_tot > 0 else 0
+    # --- 3. CLUTCH FACTOR (Die-Hard Stat) ---
+    s_w, s_d, s_l = stats.get('vs_stronger', [0,0,0])
+    strong_total = s_w + s_d + s_l
+    upset_pct = (s_w / strong_total * 100) if strong_total > 0 else 0
     
-    if major_won >= 2: upset_badge = "Giant Killer ⚔️"; upset_desc = "Dangerous to the elite."
-    elif w_tot > 8 and w_win > 75: upset_badge = "Ruthless 👑"; upset_desc = "Crushes weaker teams consistently."
-    else: upset_badge = "Wildcard 🃏"; upset_desc = "Capable of unpredictable results."
+    if upset_pct > 30: clutch_label = "Giant Killer ⚔️"; clutch_color = "var(--accent-gold)"
+    elif stats.get('upsets_major_won', 0) > 0: clutch_label = "Upset Threat 🃏"; clutch_color = "#8b5cf6"
+    else: clutch_label = "Standard ⚖️"; clutch_color = "var(--text-light)"
 
-    # --- 4. RENDER HEADER (The "Hero" Section) ---
+    # --- 4. RENDER HEADER ---
     header = js.document.getElementById("dashboard-header")
     header.innerHTML = f"""
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
         <div>
-            <div style="display:flex; align-items:center; gap:15px; margin-bottom:10px;">
-                <h1 style="margin:0; font-size:2.5em; color:var(--text-main); font-weight:800; letter-spacing:-1px;">{team.title()}</h1>
-                <span class="rank-badge">🌍 World #{global_rank}</span>
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                <h1 style="margin:0; font-size:2.4em; font-weight:800; color:var(--text-main); letter-spacing:-1px;">{team.title()}</h1>
+                <span class="rank-badge">RANK #{global_rank}</span>
             </div>
-            <div style="color:var(--text-light); font-size:0.95em; display:flex; align-items:center; gap:15px;">
-                <span><strong>Elo Rating:</strong> {int(stats['elo'])}</span>
-                <span style="color:#e2e8f0;">|</span>
-                <span><strong>Identity:</strong> <span style="color:var(--accent-blue); font-weight:600;">{upset_badge}</span></span>
+            <div style="display:flex; gap:15px; font-size:0.9em; color:var(--text-light); font-weight:500;">
+                <span>ELO: <b style="color:var(--text-main);">{int(stats['elo'])}</b></span>
+                <span>REGION: <b style="color:var(--text-main);">{confed}</b></span>
+                <span>IDENTITY: <b style="color:{clutch_color};">{clutch_label}</b></span>
             </div>
         </div>
         <div style="text-align:right;">
-            <div style="font-size:0.8em; color:var(--text-light); font-weight:600; text-transform:uppercase; margin-bottom:5px;">Recent Form</div>
-            <div>{form_html}</div>
+            <div style="font-size:0.7em; font-weight:700; color:var(--text-light); text-transform:uppercase; margin-bottom:8px; letter-spacing:1px;">Recent Form</div>
+            <div style="display:flex; gap:4px;">{form_html}</div>
         </div>
-    </div>
-    
-    <div style="margin-top:25px; padding:20px; background:#f8fafc; border-left:4px solid var(--accent-blue); border-radius:8px;">
-        <h4 style="margin:0 0 10px 0; color:var(--sidebar-bg); font-size:0.9em; text-transform:uppercase;">📝 AI Analyst Scouting Report</h4>
-        <div style="font-size:1em; color:var(--text-main); line-height:1.6;">{scout_report}</div>
     </div>
     """
 
-    # --- 5. RENDER METRICS HTML ---
+    # --- 5. RENDER METRICS ---
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
-    <div style="display:grid; grid-template-columns: 1.5fr 1fr; gap:25px;">
-        
-        <!-- Left Col: Attack & Defense Bars -->
-        <div class="dashboard-card" style="margin-bottom:0; display:flex; flex-direction:column; justify-content:center; gap:25px;">
-            
-            <!-- Attack Bar -->
-            <div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                    <span style="font-weight:700; color:var(--text-main);">Offensive Threat</span>
-                    <span style="font-weight:700; color:{atk_color};">{atk_text}</span>
-                </div>
-                <div style="background:#f1f5f9; height:12px; border-radius:6px; overflow:hidden;">
-                    <div style="width:{atk_w}%; background:{atk_color}; height:100%; border-radius:6px;"></div>
-                </div>
-                <div style="display:flex; justify-content:space-between; margin-top:5px; font-size:0.8em; color:var(--text-light);">
-                    <span>Scores <strong>{round(std_attack, 2)}</strong> goals/game</span>
-                </div>
-            </div>
-
-            <!-- Defense Bar -->
-            <div>
-                <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                    <span style="font-weight:700; color:var(--text-main);">Defensive Solidity</span>
-                    <span style="font-weight:700; color:{def_color};">{def_text}</span>
-                </div>
-                <div style="background:#f1f5f9; height:12px; border-radius:6px; overflow:hidden;">
-                    <div style="width:{def_w}%; background:{def_color}; height:100%; border-radius:6px;"></div>
-                </div>
-                <div style="display:flex; justify-content:space-between; margin-top:5px; font-size:0.8em; color:var(--text-light);">
-                    <span>Concedes <strong>{round(std_defense, 2)}</strong> goals/game</span>
-                </div>
-            </div>
-
+    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:20px; margin-bottom:25px;">
+        <div class="stat-pill">
+            <div class="stat-pill-title">Offensive Power</div>
+            <div class="stat-pill-value" style="color:var(--accent-blue);">{round(atk_power, 2)}x</div>
+            <div style="font-size:0.75em; font-weight:600; color:{atk_color}; margin-top:4px;">{atk_desc}</div>
         </div>
+        <div class="stat-pill">
+            <div class="stat-pill-title">Defensive Solidity</div>
+            <div class="stat-pill-value" style="color:var(--accent-green);">{round(2.0 - def_power, 2)}x</div>
+            <div style="font-size:0.75em; font-weight:600; color:{def_color}; margin-top:4px;">{def_desc}</div>
+        </div>
+        <div class="stat-pill">
+            <div class="stat-pill-title">Big Game Record</div>
+            <div class="stat-pill-value">{s_w}W - {s_d}D - {s_l}L</div>
+            <div style="font-size:0.7em; color:var(--text-light); margin-top:4px;">Record vs. Top Tier Opponents</div>
+        </div>
+    </div>
 
-        <!-- Right Col: Tactical DNA Grid -->
-        <div class="dashboard-card" style="margin-bottom:0;">
-            <h4 style="margin-top:0; color:var(--text-light); font-size:0.85em; text-transform:uppercase; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">🧬 Tactical Quirks</h4>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                <div class="stat-pill">
-                    <div class="stat-pill-title">Clean Sheets</div>
-                    <div class="stat-pill-value">{int(stats.get('cs_pct',0))}%</div>
-                </div>
-                <div class="stat-pill">
-                    <div class="stat-pill-title">Both Teams Score</div>
-                    <div class="stat-pill-value" style="color:var(--accent-red);">{int(stats.get('btts_pct',0))}%</div>
-                </div>
-                <div class="stat-pill">
-                    <div class="stat-pill-title">Late Goals (75'+)</div>
-                    <div class="stat-pill-value" style="color:var(--accent-gold);">{int(stats.get('late_pct',0))}%</div>
-                </div>
-                <div class="stat-pill">
-                    <div class="stat-pill-title">Penalty Reliance</div>
-                    <div class="stat-pill-value">{int(stats.get('pen_pct',0))}%</div>
-                </div>
-            </div>
+    <div class="dashboard-card" style="background:#f8fafc; border-left:4px solid var(--accent-blue); padding:20px; margin-bottom:0;">
+        <h4 style="margin:0 0 10px 0; color:var(--sidebar-bg); font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">🔭 AI Scout Report</h4>
+        <div style="font-size:1em; line-height:1.6; color:var(--text-main); font-weight:500;">
+            {generate_dynamic_report(team, atk_power, def_power, upset_pct, stats)}
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:15px; margin-top:20px;">
+        <div class="stat-pill" style="padding:10px;">
+            <div class="stat-pill-title" style="font-size:0.6em;">Clean Sheets</div>
+            <div style="font-weight:800; font-size:1.1em;">{int(stats.get('cs_pct',0))}%</div>
+        </div>
+        <div class="stat-pill" style="padding:10px;">
+            <div class="stat-pill-title" style="font-size:0.6em;">Both Teams Score</div>
+            <div style="font-weight:800; font-size:1.1em;">{int(stats.get('btts_pct',0))}%</div>
+        </div>
+        <div class="stat-pill" style="padding:10px;">
+            <div class="stat-pill-title" style="font-size:0.6em;">Late Gls (75'+)</div>
+            <div style="font-weight:800; font-size:1.1em; color:var(--accent-gold);">{int(stats.get('late_pct',0))}%</div>
+        </div>
+        <div class="stat-pill" style="padding:10px;">
+            <div class="stat-pill-title" style="font-size:0.6em;">Penalty Rely</div>
+            <div style="font-weight:800; font-size:1.1em;">{int(stats.get('pen_pct',0))}%</div>
         </div>
     </div>
     """
 
-    # --- 6. RENDER MATPLOTLIB CHARTS (Clean, transparent styling) ---
+    # --- 6. RE-RENDER CHARTS ---
+    # Update Charts with clean styling
+    render_elo_chart(history, team)
+    render_power_chart(atk_index, def_index, team)
+
+def render_elo_chart(history, team):
     js.document.getElementById("dashboard_chart_elo").innerHTML = ""
-    fig, ax = plt.subplots(figsize=(6, 3))
+    fig, ax = plt.subplots(figsize=(6, 3.5))
     fig.patch.set_alpha(0.0) 
     ax.patch.set_alpha(0.0)
-    
-    ax.plot(history['dates'], history['elo'], color='#3b82f6', linewidth=2.5)
-    ax.axhline(y=1800, color='#f59e0b', linestyle='--', linewidth=1.5, alpha=0.8, label='Elite Tier (1800)')
-    ax.grid(True, linestyle='--', alpha=0.3, color="#cbd5e1")
+    ax.plot(history['dates'], history['elo'], color='#3b82f6', linewidth=3)
+    ax.grid(True, linestyle='--', alpha=0.2, color="#cbd5e1")
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    ax.spines['left'].set_color('#cbd5e1')
-    ax.spines['bottom'].set_color('#cbd5e1')
-    ax.tick_params(colors='#64748b')
-    ax.legend(loc='upper left', fontsize='small', frameon=False, labelcolor="#64748b")
+    ax.tick_params(colors='#64748b', labelsize=8)
     fig.tight_layout()
     display(fig, target="dashboard_chart_elo")
     plt.close(fig)
 
+def render_power_chart(atk, dfe, team):
     js.document.getElementById("dashboard_chart_radar").innerHTML = ""
-    fig2, ax2 = plt.subplots(figsize=(6, 3))
-    fig2.patch.set_alpha(0.0) 
-    ax2.patch.set_alpha(0.0)
+    fig, ax = plt.subplots(figsize=(6, 3.5))
+    fig.patch.set_alpha(0.0) 
+    ax.patch.set_alpha(0.0)
     
-    metrics =['Attack Power', 'Defensive Rating']
-    # Invert defense so "higher bar" = "better defense" visually
-    visual_def_index = 2.0 - def_index if def_index < 2.0 else 0.1
-    team_vals = [atk_index, visual_def_index]
-    global_avgs =[1.0, 1.0]
-
-    bar_width = 0.35
-    x =[0, 1] 
+    labels = ['Attack', 'Defense']
+    # Defense is inverted so "Higher Bar" always = "Better"
+    vals = [atk, 2.0 - dfe]
     
-    bars_team = ax2.bar([i - bar_width/2 for i in x], team_vals, width=bar_width, color=['#3b82f6','#10b981'], edgecolor='none')
-    bars_avg  = ax2.bar([i + bar_width/2 for i in x], global_avgs, width=bar_width, color='#cbd5e1', alpha=0.6, edgecolor='none', label='Global Avg')
+    colors = ['#3b82f6', '#10b981']
+    bars = ax.bar(labels, vals, color=colors, width=0.5, alpha=0.9)
+    ax.axhline(y=1.0, color='#94a3b8', linestyle='--', linewidth=1, label="Global Avg")
+    
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.set_ylim(0, max(vals) * 1.3)
+    ax.tick_params(colors='#64748b', labelsize=9)
+    
+    for bar in bars:
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height + 0.05,
+                f'{height:.2f}x', ha='center', va='bottom', fontsize=9, fontweight='bold')
+    
+    fig.tight_layout()
+    display(fig, target="dashboard_chart_radar")
+    plt.close(fig)
 
-    ax2.set_xticks(x)
-    ax2.set_xticklabels(metrics, color="#334155", fontweight="bold")
-    ax2.spines['top'].set_visible(False)
-    ax2.spines['right'].set_visible(False)
-    ax2.spines['left'].set_color('#cbd5e1')
-    ax2.spines['bottom'].set_color('#cbd5e1')
-    ax2.tick_params(axis='y', colors='#64748b')
-    ax2.set_ylim(0, max(team_vals + global_avgs)*1.2)
-    ax2.legend(fontsize='small', frameon=False, labelcolor="#64748b")
-    fig2.tight_layout()
-    display(fig2, target="dashboard_chart_radar")
-    plt.close(fig2)
+def generate_dynamic_report(team, atk, dfe, upset, stats):
+    """Generates a text-based scouting report for casual fans."""
+    report = []
+    
+    # Attack Analysis
+    if atk > 1.8: report.append(f"{team.title()} possesses a world-class attack that can dismantle any defense.")
+    elif atk > 1.2: report.append(f"{team.title()} is dangerous going forward and consistently creates high-quality chances.")
+    else: report.append(f"Offensively, {team.title()} often struggles to break down elite opponents.")
+    
+    # Defense Analysis
+    if dfe < 0.8: report.append("Their defense is a 'Fortress', rarely conceding even under heavy pressure.")
+    elif dfe > 1.3: report.append("However, they are prone to defensive lapses and can be vulnerable to counter-attacks.")
+    
+    # The "Clutch" Factor
+    if upset > 25: report.append(f"They are a nightmare for favorites, with a proven track record of beating stronger teams.")
+    
+    return " ".join(report)
 
 async def refresh_team_analysis(event=None):
     update_dashboard_data()
