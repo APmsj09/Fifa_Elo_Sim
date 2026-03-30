@@ -276,73 +276,46 @@ def open_group_modal(grp_name):
 # =============================================================================
 
 async def run_bulk_sim(event):
-    # 1. Get Elements
     num_el = js.document.getElementById("bulk-count")
     out_div = js.document.getElementById("bulk-results")
-    
-    # 2. Safety Check & Init
     if not num_el or not out_div: return
     num = int(num_el.value)
     
-    # 3. Initialize Data Structures
+    # Initialize structures
     team_stats = {}   
     group_mapping = {} 
     
-    # 4. Helper Function to init team stats if missing
     def init_team(t):
         if t not in team_stats:
-            team_stats[t] = {'grp_1st': 0, 'r32': 0, 'r16':0, 'qf':0, 'sf': 0, 'final': 0, 'win': 0}
+            # We add 'apps' to track how many times a playoff team actually made the WC
+            team_stats[t] = {'apps': 0, 'grp_1st': 0, 'r32': 0, 'r16':0, 'qf':0, 'sf': 0, 'final': 0, 'win': 0}
 
-    # 5. UI Loading State
-    out_div.innerHTML = f"""
-    <div style='text-align:center; padding:40px; color:#34495e;'>
-        <h3 style='margin:0;'>🎲 Simulating {num} Tournaments...</h3>
-        <p style='margin:10px 0 0 0; color:#7f8c8d;'>Compiling rigorous statistics for every team.</p>
-        <div style='margin-top:20px; width:100%; height:4px; background:#eee; border-radius:2px; overflow:hidden;'>
-            <div id='bulk-progress' style='width:0%; height:100%; background:#3498db; transition:width 0.1s;'></div>
-        </div>
-    </div>
-    """
+    out_div.innerHTML = f"<div style='text-align:center; padding:40px;'>🎲 Simulating {num} Tournaments...<div id='bulk-progress-bar'></div></div>"
     await asyncio.sleep(0.05)
 
     try:
-        # 6. Main Simulation Loop
         for i in range(num):
             res = sim.run_simulation(fast_mode=False, quiet=True)
             
-            # --- A. GROUP ANALYSIS ---
-            
-            # Create a set of teams that made the Round of 32 (First Knockout Round)
-            r32_roster = set()
-            if len(res['bracket_data']) > 0:
-                # The first round in bracket_data is always the first KO round
-                for match in res['bracket_data'][0]['matches']:
-                    r32_roster.add(match['t1'])
-                    r32_roster.add(match['t2'])
-
+            # --- A. GROUP & APPEARANCE ANALYSIS ---
             for grp, table in res['groups_data'].items():
                 if grp not in group_mapping: group_mapping[grp] = {}
                 
-                # Track First Place
+                # Track Group Winner
                 first_team = table[0]['team']
                 init_team(first_team)
                 team_stats[first_team]['grp_1st'] += 1
                 
-                # Track Advancement
+                # Track Appearance (Crucial for Playoff teams)
                 for row in table:
                     t = row['team']
                     init_team(t)
+                    team_stats[t]['apps'] += 1
                     group_mapping[grp][t] = True 
-                    
-                    if t in r32_roster:
-                        team_stats[t]['r32'] += 1
+                    # REMOVED: r32 increment here to prevent double counting
 
-            # --- B. KNOCKOUT ANALYSIS (UPDATED) ---
-            
-            champ = res['champion']
-            init_team(champ)
-            team_stats[champ]['win'] += 1
-            
+            # --- B. KNOCKOUT ANALYSIS ---
+            # Using the helper to ensure each team is counted once per round reached
             bracket = res['bracket_data']
             if bracket:
                 def process_round_by_name(round_name, stat_key):
@@ -352,69 +325,54 @@ async def run_bulk_sim(event):
                                 init_team(m['t1']); team_stats[m['t1']][stat_key] += 1
                                 init_team(m['t2']); team_stats[m['t2']][stat_key] += 1
 
-                process_round_by_name('Final', 'final')
-                process_round_by_name('Semi-finals', 'sf')
-                process_round_by_name('Quarter-finals', 'qf')
-                process_round_by_name('Round of 16', 'r16')
                 process_round_by_name('Round of 32', 'r32')
+                process_round_by_name('Round of 16', 'r16')
+                process_round_by_name('Quarter-finals', 'qf')
+                process_round_by_name('Semi-finals', 'sf')
+                process_round_by_name('Final', 'final')
+
+            # Track Winner
+            champ = res['champion']
+            init_team(champ)
+            team_stats[champ]['win'] += 1
             
-            # Update Progress Bar
-            if i % 20 == 0:
-                pct = (i / num) * 100
-                prog_bar = js.document.getElementById("bulk-progress")
-                if prog_bar: prog_bar.style.width = f"{pct}%"
-                await asyncio.sleep(0.001)
-
-        # Finalize Progress
-        prog_bar = js.document.getElementById("bulk-progress")
-        if prog_bar: prog_bar.style.width = "100%"
-        await asyncio.sleep(0.2)
-
-        # --- 7. GENERATE OUTPUT HTML ---
-        html = ""
-
-        # SECTION 1: GROUP STANDINGS
-        html += "<h2 style='color:#2c3e50; border-bottom:2px solid #ddd; padding-bottom:10px;'>📋 PROJECTED GROUP STANDINGS</h2>"
+            if i % 20 == 0: await asyncio.sleep(0.001)
+            
+        # --- 7. GENERATE OUTPUT ---
+        html = "<h2 style='color:#2c3e50;'>📋 PROJECTED GROUP STANDINGS</h2>"
         html += "<div style='display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px;'>"
         
-        # Sort groups (A, B, C...)
-        sorted_groups = sorted(group_mapping.keys())
+        for grp in sorted(group_mapping.keys()):
+            html += f"""<div class='dashboard-card'>
+                <h3 style='color:var(--accent-blue);'>🔹 Group {grp}</h3>
+                <table style='width:100%; font-size:0.85em;'>
+                    <tr style='text-align:left; color:var(--text-light);'>
+                        <th>Team</th>
+                        <th style='text-align:right;'>Win Group</th>
+                        <th style='text-align:right;'>Advance</th>
+                    </tr>"""
+            
+            # Sort teams in this group by their overall advancement probability
+            group_teams = list(group_mapping[grp].keys())
+            group_teams.sort(key=lambda t: team_stats[t]['r32'], reverse=True)
 
-        for grp in sorted_groups:
-            teams = list(group_mapping[grp].keys())
-            html += f"""
-            <div style="background:white; padding:15px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-                <h3 style="margin:0 0 10px 0; color:#2980b9;">🔹 Group {grp}</h3>
-                <table style="width:100%; border-collapse:collapse; font-size:0.85em;">
-                    <tr style="border-bottom:1px solid #eee; text-align:left; color:#7f8c8d;">
-                        <th style="padding:5px;">Team</th>
-                        <th style="padding:5px; text-align:right;">Grp Win %</th>
-                        <th style="padding:5px; text-align:right;">Advance %</th>
-                    </tr>
-            """
-            grp_data = []
-            for t in teams:
-                s = team_stats.get(t, {'grp_1st':0, 'r32':0})
-                grp_data.append({
-                    'name': t,
-                    'win_pct': (s['grp_1st'] / num) * 100,
-                    'adv_pct': (s['r32'] / num) * 100
-                })
-            # Sort by Advance %
-            grp_data.sort(key=lambda x: x['adv_pct'], reverse=True)
-            for row in grp_data:
-                bg = ""
-                if row['adv_pct'] > 85: bg = "background:#eafaf1;"
-                elif row['adv_pct'] < 15: bg = "color:#aaa;"
-                html += f"""
-                <tr style="border-bottom:1px solid #f9f9f9; {bg}">
-                    <td style="padding:6px; font-weight:600;">{row['name'].title()}</td>
-                    <td style="padding:6px; text-align:right;">{row['win_pct']:.1f}%</td>
-                    <td style="padding:6px; text-align:right; font-weight:bold;">{row['adv_pct']:.1f}%</td>
-                </tr>
-                """
+            for t in group_teams:
+                s = team_stats[t]
+                # Probability of reaching R32 relative to the WHOLE tournament
+                adv_pct = (s['r32'] / num) * 100
+                win_grp_pct = (s['grp_1st'] / num) * 100
+                
+                # If a team only appears in 10% of sims (playoffs), we fade their name
+                opacity = "1.0" if (s['apps']/num) > 0.5 else "0.5"
+                
+                html += f"""<tr style='opacity:{opacity};'>
+                    <td style='font-weight:600;'>{t.title()}</td>
+                    <td style='text-align:right;'>{win_grp_pct:.1f}%</td>
+                    <td style='text-align:right; font-weight:bold;'>{adv_pct:.1f}%</td>
+                </tr>"""
             html += "</table></div>"
-        html += "</div>" 
+        
+        html += "</div>"
 
         # SECTION 2: TOURNAMENT FAVORITES
         html += "<br><h2 style='color:#2c3e50; border-bottom:2px solid #ddd; padding-bottom:10px; margin-top:30px;'>🏆 TOURNAMENT FAVORITES</h2>"
