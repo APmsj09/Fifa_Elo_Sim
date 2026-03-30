@@ -652,56 +652,57 @@ def calculate_confed_strength():
     
     # 1. Bucket teams by Confed
     buckets = {c: [] for c in set(TEAM_CONFEDS.values())}
-    
     for team, stats in TEAM_STATS.items():
-        confed = TEAM_CONFEDS.get(team, 'OFC') 
+        confed = TEAM_CONFEDS.get(team.lower(), 'OFC') 
         buckets[confed].append(stats['elo'])
         
-    # 2. Calculate Composite Scores
     confed_scores = {}
     
+    # Calculate a Global Baseline (Average of the Top 10 teams in the world)
+    all_elos = sorted([s['elo'] for s in TEAM_STATS.values()], reverse=True)
+    global_elite_avg = sum(all_elos[:10]) / 10
+
     for confed, elos in buckets.items():
         if not elos:
             confed_scores[confed] = 1000
             continue
             
-        # Sort Rating Descending (High to Low)
         elos.sort(reverse=True)
-        count = len(elos)
+        num_teams = len(elos)
         
-        # A. Elite Score (Top 3)
-        # We focus on the absolute best who represent the region in the World Cup
-        elite_count = min(3, count)
+        # --- DYNAMIC ELITE POOL ---
+        # We take the square root of the number of teams to find the "Representative Elite"
+        # UEFA (55) -> ~7 teams | CONMEBOL (10) -> ~3 teams | AFC (47) -> ~6 teams
+        elite_count = max(2, int(math.sqrt(num_teams)))
         elite_avg = sum(elos[:elite_count]) / elite_count
         
-        # B. Depth Score (Top 50%)
-        # We look at the upper half of the table. 
-        # If the mid-table is weak, this score drops.
-        depth_count = max(1, int(count * 0.5))
+        # --- DEPTH SCORE ---
+        # How strong is the "Average" team you have to play in qualifying?
+        # We take the top 50% to avoid being dragged down by tiny unranked nations
+        depth_count = max(1, int(num_teams * 0.5))
         depth_avg = sum(elos[:depth_count]) / depth_count
         
-        # C. Composite (50/50 Split)
-        # You can tweak weights: 0.7/0.3 if you prefer favoring top teams.
-        composite = (elite_avg * 0.6) + (depth_avg * 0.4)
-        confed_scores[confed] = composite
+        # --- DYNAMIC COMPOSITE ---
+        # We weight the score: 70% Elite Strength, 30% Depth Strength
+        composite = (elite_avg * 0.7) + (depth_avg * 0.3)
         
-        js.console.error(f"Region {confed}: Elite={int(elite_avg)}, Depth={int(depth_avg)} -> Score={int(composite)}")
+        # Bonus: The "Concentration Factor"
+        # Small regions like CONMEBOL are "High Density" (fewer weak teams to farm)
+        # Large regions like AFC are "Low Density" (many weak teams to farm)
+        density_bonus = 1.0 + (1 / num_teams) # Small regions get a slight boost
+        
+        confed_scores[confed] = composite * density_bonus
 
-    # 3. Normalize against the best region
-    baseline = max(confed_scores.values()) if confed_scores else 1800
+    # 2. Normalize against the highest score (usually UEFA or CONMEBOL)
+    baseline = max(confed_scores.values())
     
-    js.console.error("\n--- DYNAMIC REGIONAL MULTIPLIERS ---")
     for confed, score in confed_scores.items():
-        # Calculate ratio
+        # Linear normalization
         ratio = score / baseline
         
-        # Apply a 'Curve' to prevent minimal differences from punishing too hard
-        # e.g., if ratio is 0.95, we might treat it as 0.98
-        # But if it's 0.70, it stays 0.70.
-        # We'll use a simple root curve: ratio^(0.5) roughly pushes 0.8 -> 0.9
-        # But for 'Top Heavy' accountability, a linear ratio is often fairer.
-        
-        CONFED_MULTIPLIERS[confed] = round(ratio, 3)
+        # Safety Valve: Don't let the multiplier drop below 0.75
+        # Even the weakest region shouldn't be "half as good" in a 90-minute sim
+        CONFED_MULTIPLIERS[confed] = round(max(0.75, ratio), 3)
         js.console.error(f"{confed}: {CONFED_MULTIPLIERS[confed]} (Based on score {int(score)})")
 
 def sim_match(t1, t2, knockout=False):
@@ -710,6 +711,16 @@ def sim_match(t1, t2, knockout=False):
     # These inputs can now be as high as 3.0 due to your SOS changes
     s1 = TEAM_STATS.get(t1, {'elo':1200, 'off':1.0, 'def':1.0})
     s2 = TEAM_STATS.get(t2, {'elo':1200, 'off':1.0, 'def':1.0})
+
+    # --- REGIONAL STRENGTH LOOKUP --------------
+    # Get the confederation for both teams
+    confed1 = TEAM_CONFEDS.get(t1, 'OFC')
+    confed2 = TEAM_CONFEDS.get(t2, 'OFC')
+    
+    # Get the multipliers (default to 1.0 if not found)
+    reg_mult1 = CONFED_MULTIPLIERS.get(confed1, 1.0)
+    reg_mult2 = CONFED_MULTIPLIERS.get(confed2, 1.0)
+    # ------------------------------------------
     
     # 2. ELO WIN EXPECTANCY
     dr = s1['elo'] - s2['elo']
@@ -757,8 +768,8 @@ def sim_match(t1, t2, knockout=False):
     
     # 7. CALCULATE EXPECTED GOALS (Poisson Lambda)
     # Note: No 'tier1' or 'tier2' (Confed multiplier removed)
-    lam1 = AVG_GOALS * m1 * mod1 * home_boost * TOURNAMENT_INTENSITY
-    lam2 = AVG_GOALS * m2 * mod2 * away_boost * TOURNAMENT_INTENSITY
+    lam1 = AVG_GOALS * m1 * mod1 * home_boost * TOURNAMENT_INTENSITY * reg_mult1
+    lam2 = AVG_GOALS * m2 * mod2 * away_boost * TOURNAMENT_INTENSITY * reg_mult2
     
     # 8. RUN SIMULATION
     g1 = np.random.poisson(lam1)
