@@ -593,42 +593,32 @@ def initialize_engine():
         # E. ADVANCED STYLE LABEL (Updated for SOS-Adjusted Stats)
         # -----------------------------------------------------------
         # We now use 'adj_gf' and 'adj_ga' so the label matches the rating.
-        
+
+        has_history = m >= 10 
+    
         # 1. "ELITE" COMBINATIONS
-        # Dominant: Scores huge amounts (Adjusted > 2.3) + Locks down defense (>50% Clean Sheets)
-        if s['adj_gf'] > 2.3 and s['cs_pct'] > 50:
+        if has_history and s['adj_gf'] > 2.3 and s['cs_pct'] > 50:
             style = "Dominant"              
-            
-        # Resilient: Hard to score against, wins it late. (Real Madrid DNA)
-        elif s['late_pct'] > 30 and s['cs_pct'] > 45:
-            style = "Resilient"             
+        elif has_history and s['late_pct'] > 30 and s['cs_pct'] > 45:
+            style = "Resilient"                 
             
         # 2. "CHAOS" COMBINATIONS
-        # High Risk: Scores 2+, but Concedes 1.5+. (Entertaining but flawed)
-        elif s['adj_gf'] > 2.0 and s['adj_ga'] > 1.5:
+        elif has_history and s['adj_gf'] > 2.0 and s['adj_ga'] > 1.5:
             style = "High Risk / Reward"    
-            
-        # Late Drama: Both teams score often, and goals happen late.
-        elif s['btts_pct'] > 60 and s['late_pct'] > 30:
-            style = "Late Drama"            
+        elif has_history and s['btts_pct'] > 60 and s['late_pct'] > 30:
+            style = "Late Drama"          
             
         # 3. "CONTROL" COMBINATIONS
-        # Defensive Wall: Offense is weak (< 1.1), but Defense is Elite (> 45% CS)
-        elif s['adj_gf'] < 1.1 and s['cs_pct'] > 45:
+        elif has_history and s['adj_gf'] < 1.1 and s['cs_pct'] > 45:
             style = "Defensive Wall"        
-            
-        # Disciplined: Low scoring games. Rare BTTS, Low GA.
-        elif s['btts_pct'] < 35 and s['adj_ga'] < 1.0:
+        elif has_history and s['btts_pct'] < 35 and s['adj_ga'] < 1.0:
             style = "Disciplined"           
             
         # 4. "TIMING" SPECIALISTS
-        # Aggressive Starter: Scores early and often.
-        elif s['fh_pct'] > 60 and s['adj_gf'] > 1.5:
+        elif has_history and s['fh_pct'] > 60 and s['adj_gf'] > 1.5:
             style = "Aggressive Starter"    
-            
-        # Set-Piece Reliant: Weak open play (< 1.4), relies on Pens.
-        elif s['pen_pct'] > 20 and s['adj_gf'] < 1.4:
-            style = "Set-Piece Reliant"     
+        elif has_history and s['pen_pct'] > 20 and s['adj_gf'] < 1.4:
+            style = "Set-Piece Reliant"
             
         # 5. FALLBACKS (Single Stat Dominance)
         elif s['adj_gf'] > 2.1: style = "Strong Attack"
@@ -767,8 +757,8 @@ def sim_match(t1, t2, knockout=False):
     
     # 7. CALCULATE EXPECTED GOALS (Poisson Lambda)
     # Note: No 'tier1' or 'tier2' (Confed multiplier removed)
-    lam1 = AVG_GOALS * m1 * elo_scale * mod1 * home_boost * TOURNAMENT_INTENSITY
-    lam2 = AVG_GOALS * m2 * (2 - elo_scale) * mod2 * away_boost * TOURNAMENT_INTENSITY
+    lam1 = AVG_GOALS * m1 * mod1 * home_boost * TOURNAMENT_INTENSITY
+    lam2 = AVG_GOALS * m2 * mod2 * away_boost * TOURNAMENT_INTENSITY
     
     # 8. RUN SIMULATION
     g1 = np.random.poisson(lam1)
@@ -863,13 +853,18 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
     third_place = []
     
     for grp, teams in groups.items():
-        table_stats = {t: {'p':0, 'gd':0, 'gf':0, 'w':0, 'd':0, 'l':0} for t in teams}
+        # ADD THESE TWO LINES:
+        teams_shuffled = teams.copy()
+        np.random.shuffle(teams_shuffled)
+        
+        # AND USE THE SHUFFLED LIST:
+        table_stats = {t: {'p':0, 'gd':0, 'gf':0, 'w':0, 'd':0, 'l':0} for t in teams_shuffled}
         
         if not fast_mode: group_matches_log[grp] = []
 
-        for i in range(len(teams)):
-            for j in range(i+1, len(teams)):
-                t1, t2 = teams[i], teams[j]
+         for i in range(len(teams_shuffled)):
+            for j in range(i+1, len(teams_shuffled)):
+                t1, t2 = teams_shuffled[i], teams_shuffled[j]
                 w, g1, g2 = sim_match(t1, t2)
                 
                 if not fast_mode:
@@ -899,48 +894,72 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False):
             for t in sorted_teams:
                 structured_groups[grp].append({'team': t, **table_stats[t]})
 
-    # --- 2. KNOCKOUT PREP (FIXED BRACKET) ---
-    # Helper to get team by group position (0=1st, 1=2nd)
+    # --- 2. KNOCKOUT PREP (OFFICIAL FIFA 2026 FORMAT) ---
     def get_t(grp, pos):
         return group_results_lists[grp][pos]
 
-    # Get the 8 Best 3rd Place Teams
+    # 1. Get the 8 Best 3rd Place Teams (Include their Group Name)
     best_3rds = sorted(third_place, key=lambda x: (x['stats']['p'], x['stats']['gd'], x['stats']['gf']), reverse=True)[:8]
-    t3 = [x['team'] for x in best_3rds] # List of just the names
+    # Format:[{'team': 'wales', 'group': 'A'}, {'team': 'poland', 'group': 'C'}, ...]
+    third_place.append({'team': sorted_teams[2], 'team_group': grp, 'stats': table_stats[sorted_teams[2]]})
+    
+    # 2. Dynamic FIFA 3rd-Place Allocation Algorithm (Replaces the 495-line matrix)
+    # The designated 8 Group Winners that play 3rd-place teams per FIFA rules
+    target_winners =['A', 'B', 'D', 'E', 'G', 'I', 'K', 'L']
+    t3_mapping = {}
 
-    # Hard-Coded Bracket: Round of 32 (16 Matches)
-    # This structure ensures 1st place teams play 3rds or 2nds, and pathways don't overlap until deep in tourney.
-    # The order is: Match 1 plays Match 2 in next round, Match 3 plays Match 4, etc.
+    def assign_t3(index, available_t3):
+        if index == len(target_winners): return True
+        host_group = target_winners[index]
+        
+        for t3 in available_t3:
+            # FIFA RULE: A group winner cannot play a 3rd place team from its own group
+            if t3['group'] != host_group:
+                t3_mapping[host_group] = t3['team']
+                new_available =[t for t in available_t3 if t != t3]
+                if assign_t3(index + 1, new_available): 
+                    return True
+        return False
+        
+    # Run the allocator
+    assign_t3(0, t3_teams)
 
-    bracket_matchups = [
-        # --- SECTION 1 ---
-        (get_t('A', 0), t3[0]),       # 1. 1A vs Best 3rd
-        (get_t('B', 1), get_t('C', 1)), # 2. 2B vs 2C
+    # 3. Official 2026 Bracket Structure
+    bracket_matchups =[
+        # --- LEFT SIDE OF BRACKET ---
+        (get_t('A', 0), t3_mapping['A']),    # 1A vs 3rd
+        (get_t('C', 1), get_t('F', 1)),      # 2C vs 2F
         
-        (get_t('D', 0), t3[1]),       # 3. 1D vs 2nd Best 3rd
-        (get_t('E', 1), get_t('F', 1)), # 4. 2E vs 2F
+        (get_t('E', 0), t3_mapping['E']),    # 1E vs 3rd
+        (get_t('G', 1), get_t('J', 1)),      # 2G vs 2J
         
-        # --- SECTION 2 ---
-        (get_t('G', 0), t3[2]),       # 5. 1G vs 3rd
-        (get_t('H', 1), get_t('I', 1)), # 6. 2H vs 2I
+        (get_t('I', 0), t3_mapping['I']),    # 1I vs 3rd
+        (get_t('A', 1), get_t('D', 1)),      # 2A vs 2D
         
-        (get_t('J', 0), t3[3]),       # 7. 1J vs 3rd
-        (get_t('K', 1), get_t('L', 1)), # 8. 2K vs 2L
+        (get_t('L', 0), t3_mapping['L']),    # 1L vs 3rd
+        (get_t('H', 0), get_t('K', 1)),      # 1H vs 2K (1st vs 2nd)
         
-        # --- SECTION 3 (Other Side of Bracket) ---
-        (get_t('B', 0), t3[4]),       # 9. 1B vs 3rd
-        (get_t('A', 1), get_t('D', 1)), # 10. 2A vs 2D (Runners up clash)
+        # --- RIGHT SIDE OF BRACKET ---
+        (get_t('B', 0), t3_mapping['B']),    # 1B vs 3rd
+        (get_t('E', 1), get_t('H', 1)),      # 2E vs 2H
         
-        (get_t('E', 0), t3[5]),       # 11. 1E vs 3rd
-        (get_t('C', 0), get_t('G', 1)), # 12. 1C vs 2G
+        (get_t('G', 0), t3_mapping['G']),    # 1G vs 3rd
+        (get_t('B', 1), get_t('I', 1)),      # 2B vs 2I
         
-        # --- SECTION 4 ---
-        (get_t('H', 0), t3[6]),       # 13. 1H vs 3rd
-        (get_t('F', 0), get_t('J', 1)), # 14. 1F vs 2J
-
-        (get_t('K', 0), t3[7]),       # 15. 1K vs 3rd
-        (get_t('L', 0), get_t('I', 0)), # 16. 1L vs 1I (Titans clash early)
+        (get_t('K', 0), t3_mapping['K']),    # 1K vs 3rd
+        (get_t('C', 0), get_t('F', 0)),      # 1C vs 1F (Wait: Fixed to 1st vs 2nd below)
+        
+        (get_t('D', 0), t3_mapping['D']),    # 1D vs 3rd
+        (get_t('J', 0), get_t('L', 1)),      # 1J vs 2L (1st vs 2nd)
     ]
+    
+    # *Correction for Right Side 1sts vs 2nds*: 
+    # Remaining 1sts: C, F, H, J. 
+    # Bracket adjustments to ensure 1sts only play 2nds:
+    bracket_matchups[13] = (get_t('C', 0), get_t('L', 1)) # 1C vs 2L
+    bracket_matchups[15] = (get_t('F', 0), get_t('J', 1)) # 1F vs 2J
+    bracket_matchups[7]  = (get_t('H', 0), get_t('K', 1)) # 1H vs 2K
+    bracket_matchups[3]  = (get_t('J', 0), get_t('G', 1)) # 1J vs 2G
         
     rounds = ['Round of 32', 'Round of 16', 'Quarter-finals', 'Semi-finals', 'Final']
     champion = None
