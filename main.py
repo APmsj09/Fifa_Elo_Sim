@@ -345,28 +345,18 @@ async def run_bulk_sim(event):
             
             bracket = res['bracket_data']
             if bracket:
-                rounds_count = len(bracket)
-                
-                # Helper to process a specific round by index (from end)
-                # index -1 = Final, -2 = Semis, -3 = QF, -4 = R16
-                def process_round(idx, stat_key):
-                    if rounds_count >= abs(idx):
-                        for m in bracket[idx]['matches']:
-                            init_team(m['t1']); team_stats[m['t1']][stat_key] += 1
-                            init_team(m['t2']); team_stats[m['t2']][stat_key] += 1
+                def process_round_by_name(round_name, stat_key):
+                    for r in bracket:
+                        if r['round'] == round_name:
+                            for m in r['matches']:
+                                init_team(m['t1']); team_stats[m['t1']][stat_key] += 1
+                                init_team(m['t2']); team_stats[m['t2']][stat_key] += 1
 
-                # 1. Finals (Last Round)
-                process_round(-1, 'final')
-                
-                # 2. Semi-Finals (2nd to Last)
-                process_round(-2, 'sf')
-                
-                # 3. Quarter-Finals (3rd to Last)
-                process_round(-3, 'qf')
-
-                # 4. Round of 16 (4th to Last)
-                process_round(-4, 'r16')
-
+                process_round_by_name('Final', 'final')
+                process_round_by_name('Semi-finals', 'sf')
+                process_round_by_name('Quarter-finals', 'qf')
+                process_round_by_name('Round of 16', 'r16')
+                process_round_by_name('Round of 32', 'r32')
             
             # Update Progress Bar
             if i % 20 == 0:
