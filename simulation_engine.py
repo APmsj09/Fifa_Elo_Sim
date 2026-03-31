@@ -665,8 +665,8 @@ def calculate_confed_strength():
         depth_avg = sum(elos[:depth_count]) / depth_count
         
         # --- DYNAMIC COMPOSITE ---
-        # We weight the score: 70% Elite Strength, 30% Depth Strength
-        composite = (elite_avg * 0.7) + (depth_avg * 0.3)
+        # We weight the score: 60% Elite Strength, 40% Depth Strength
+        composite = (elite_avg * 0.6) + (depth_avg * 0.4)
         
         # Bonus: The "Concentration Factor"
         # Small regions like CONMEBOL are "High Density" (fewer weak teams to farm)
@@ -682,9 +682,9 @@ def calculate_confed_strength():
         # Linear normalization
         ratio = score / baseline
         
-        # Safety Valve: Don't let the multiplier drop below 0.75
+        # Safety Valve: Don't let the multiplier drop below 0.60
         # Even the weakest region shouldn't be "half as good" in a 90-minute sim
-        CONFED_MULTIPLIERS[confed] = round(max(0.75, ratio), 3)
+        CONFED_MULTIPLIERS[confed] = round(max(0.60, ratio), 3)
         js.console.error(f"{confed}: {CONFED_MULTIPLIERS[confed]} (Based on score {int(score)})")
 
 def sim_match(t1, t2, knockout=False):
@@ -731,27 +731,24 @@ def sim_match(t1, t2, knockout=False):
     elo_scale = 1 + (we - 0.5)
 
     # 5. LOGARITHMIC COMPRESSION (The "Safety Valve")
-    # This allows strong teams to be strong, but prevents them from scoring 6 goals.
-    # Input 2.5 -> Output ~1.6 (Still dominant, but realistic)
-    m1_raw = off1_adj * def2_adj
-    m2_raw = off2_adj * def1_adj
-    
+    # RELAXED: Allows elite teams to score 2 or 3 goals realistically before throttling
     def compress(val):
-        if val <= 1.2: return val
-        return 1.2 + np.log(val - 0.2) * 0.62 
+        if val <= 1.5: return val
+        return 1.5 + np.log(val - 0.5) * 0.85 
 
     m1 = compress(m1_raw)
     m2 = compress(m2_raw)
 
-    # 6. TOURNAMENT INTENSITY (0.82)
-    # Global qualifiers avg ~2.8 goals. World Cup avg ~2.3 goals.
-    # This scalar simulates the tighter, more cautious play of a tournament.
-    TOURNAMENT_INTENSITY = 0.82
+    # 6. TOURNAMENT INTENSITY 
+    # ADJUSTED: 0.82 was too harsh. 0.95 simulates tighter knockout play 
+    # without suffocating the goal generation.
+    TOURNAMENT_INTENSITY = 0.95
     
     # 7. CALCULATE EXPECTED GOALS (Poisson Lambda)
-    # Note: No 'tier1' or 'tier2' (Confed multiplier removed)
-    lam1 = AVG_GOALS * m1 * mod1 * home_boost * TOURNAMENT_INTENSITY * reg_mult1
-    lam2 = AVG_GOALS * m2 * mod2 * away_boost * TOURNAMENT_INTENSITY * reg_mult2
+    # REMOVED: reg_mult1 and reg_mult2. Regional strength is already 
+    # baked into the team's Elo. Multiplying here was double-nerfing them.
+    lam1 = AVG_GOALS * m1 * mod1 * home_boost * TOURNAMENT_INTENSITY
+    lam2 = AVG_GOALS * m2 * mod2 * away_boost * TOURNAMENT_INTENSITY
     
     # 8. RUN SIMULATION
     g1 = np.random.poisson(lam1)
