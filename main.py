@@ -290,7 +290,15 @@ async def run_bulk_sim(event):
             # We add 'apps' to track how many times a playoff team actually made the WC
             team_stats[t] = {'apps': 0, 'grp_1st': 0, 'r32': 0, 'r16':0, 'qf':0, 'sf': 0, 'final': 0, 'win': 0}
 
-    out_div.innerHTML = f"<div style='text-align:center; padding:40px;'>🎲 Simulating {num} Tournaments...<div id='bulk-progress-bar'></div></div>"
+    out_div.innerHTML = f"""
+    <div style='text-align:center; padding:40px;'>
+        <h2 style='color:var(--text-main); margin-bottom:15px;'>🎲 Simulating {num} Tournaments...</h2>
+        <div style='width:100%; max-width:400px; background:#e2e8f0; border-radius:10px; height:12px; margin: 0 auto; overflow:hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);'>
+            <div id='bulk-progress-bar' style='width:0%; height:100%; background:linear-gradient(90deg, #3b82f6, #2563eb); transition:width 0.1s ease-out; border-radius:10px;'></div>
+        </div>
+        <div id='bulk-progress-text' style='margin-top:12px; font-size:1em; font-weight:700; color:#3b82f6;'>0% Complete</div>
+    </div>
+    """
     await asyncio.sleep(0.05)
 
     try:
@@ -336,7 +344,14 @@ async def run_bulk_sim(event):
             init_team(champ)
             team_stats[champ]['win'] += 1
             
-            if i % 20 == 0: await asyncio.sleep(0.001)
+            # CRITICAL FIX: Properly yield to Pyodide event loop to draw progress
+            if i % max(1, num // 20) == 0:
+                pct = int((i / num) * 100)
+                pbar = js.document.getElementById("bulk-progress-bar")
+                ptext = js.document.getElementById("bulk-progress-text")
+                if pbar: pbar.style.width = f"{pct}%"
+                if ptext: ptext.innerHTML = f"{pct}% Complete"
+                await asyncio.sleep(0.01)
             
         # --- 7. GENERATE OUTPUT ---
         html = "<h2 style='color:#2c3e50;'>📋 PROJECTED GROUP STANDINGS</h2>"
@@ -964,83 +979,128 @@ def render_power_chart(atk, dfe, team):
     plt.close(fig)
 
 def generate_dynamic_report(team, atk, dfe, upset, stats):
-    """Generates a text-based scouting report for casual fans."""
-    report = []
+    """Generates a rich, dynamic text-based scouting report based on true analytics."""
+    report_paragraphs = []
     
-    # Attack Analysis
-    if atk > 1.8: report.append(f"{team.title()} possesses a world-class attack that can dismantle any defense.")
-    elif atk > 1.2: report.append(f"{team.title()} is dangerous going forward and consistently creates high-quality chances.")
-    else: report.append(f"Offensively, {team.title()} often struggles to break down elite opponents.")
+    confed = sim.TEAM_CONFEDS.get(team, 'Unknown')
+    style = sim.TEAM_PROFILES.get(team, 'Balanced')
     
-    # Defense Analysis
-    if dfe < 0.8: report.append("Their defense is a 'Fortress', rarely conceding even under heavy pressure.")
-    elif dfe > 1.3: report.append("However, they are prone to defensive lapses and can be vulnerable to counter-attacks.")
+    sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
+    rank = next((i+1 for i, t in enumerate(sorted_teams) if t[0] == team), 0)
     
-    # The "Clutch" Factor
-    if upset > 25: report.append(f"They are a nightmare for favorites, with a proven track record of beating stronger teams.")
+    if rank <= 10: tier_text = "a global powerhouse"
+    elif rank <= 30: tier_text = "a formidable contender"
+    elif rank <= 60: tier_text = "a competitive dark horse"
+    else: tier_text = "an emerging underdog"
     
-    return " ".join(report)
+    # Overview
+    report_paragraphs.append(f"<b>Overview:</b> Ranked #{rank} globally, {team.title()} is {tier_text} out of {confed}. They play a <b>{style}</b> style of football.")
+    
+    # Attack & Defense
+    tactical = []
+    if atk > 1.5: tactical.append("Offensively, they are elite, generating high-quality chances with ease.")
+    elif atk > 1.1: tactical.append("They possess a reliable attack that can break down standard defenses.")
+    else: tactical.append("Goal-scoring can be a struggle, often relying on opportunism.")
+        
+    if dfe < 0.8: tactical.append("At the back, they boast an 'iron wall', excelling at suffocating opponent attacks.")
+    elif dfe < 1.05: tactical.append("Their defensive unit is solid, though occasionally vulnerable to world-class forwards.")
+    else: tactical.append("Defensively, they are leaky, forcing them to frequently outscore their opponents.")
+    report_paragraphs.append("<b>Tactical DNA:</b> " + " ".join(tactical))
+    
+    # Statistical Quirks
+    quirks = []
+    if stats.get('fh_pct', 0) > 55: quirks.append("They are notoriously fast starters, looking to blitz opponents early in the first half.")
+    if stats.get('late_pct', 0) > 30: quirks.append("Fitness is a key strength; they frequently score decisive goals after the 75th minute.")
+    if stats.get('pen_pct', 0) > 20: quirks.append("A significant portion of their goals come from the penalty spot.")
+    
+    btts = stats.get('btts_pct', 0)
+    if btts > 60: quirks.append("Their matches are highly entertaining, with both teams finding the net in over 60% of their fixtures.")
+    elif btts < 35: quirks.append("They prefer tight, low-event football, locking games down securely once they take the lead.")
+
+    if quirks: report_paragraphs.append("<b>Statistical Quirks:</b> " + " ".join(quirks))
+        
+    # Big Game Factor
+    s_w, s_d, s_l = stats.get('vs_stronger', [0,0,0])
+    strong_games = s_w + s_d + s_l
+    win_pct_strong = (s_w / strong_games * 100) if strong_games > 0 else 0
+    
+    if rank > 20 and win_pct_strong > 25: report_paragraphs.append(f"<b>X-Factor:</b> {team.title()} is a certified 'giant killer' with an impressive track record of upsetting heavyweights.")
+    elif rank <= 20 and win_pct_strong > 40: report_paragraphs.append(f"<b>X-Factor:</b> They elevate their game against elite competition, boasting an excellent record against other top nations.")
+    elif strong_games > 5 and win_pct_strong < 10: report_paragraphs.append(f"<b>X-Factor:</b> They consistently fall short when stepping up in class against top-tier opposition.")
+    else: report_paragraphs.append(f"<b>X-Factor:</b> They are highly consistent, beating the teams they should beat and grinding out predictable results.")
+
+    return "".join([f"<div style='margin-bottom:12px;'>{p}</div>" for p in report_paragraphs])
 
 async def refresh_team_analysis(event=None):
     update_dashboard_data()
 
 async def plot_style_map(event):
     global DASHBOARD_BUILT
-    # Ensure shell exists (so the container exists)
     if not DASHBOARD_BUILT:
         build_dashboard_shell()
         DASHBOARD_BUILT = True
         
-    # Switch Tabs manually if this was triggered from Sidebar
     js.document.getElementById("view-profile").style.display = "none"
     js.document.getElementById("view-style-map").style.display = "block"
-
     target_div = js.document.getElementById("main-chart-container")
-    target_div.innerHTML = "<div style='text-align:center; padding:50px;'>Generating 5D Style Map...</div>"
-
-    await asyncio.sleep(0.05)
     
-    fig, ax = plt.subplots(figsize=(9, 6))
+    target_div.innerHTML = "<div style='text-align:center; padding:50px;'><div class='loader-circle' style='border-top-color:var(--accent-blue); margin: 0 auto 20px;'></div>Generating Tactical Landscape...</div>"
+    await asyncio.sleep(0.1)
+    
+    fig, ax = plt.subplots(figsize=(11, 8), dpi=100)
+    fig.patch.set_alpha(0.0)
+    ax.patch.set_alpha(0.0)
+
     wc_only = js.document.getElementById("hist-filter-wc").checked
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
-    teams_to_plot = [t for t in sorted_teams if t[0] in sim.WC_TEAMS] if wc_only else sorted_teams[:60]
+    teams_to_plot = [t for t in sorted_teams if t[0] in sim.WC_TEAMS] if wc_only else sorted_teams[:48]
 
-    fig, ax = plt.subplots(figsize=(9,6))
-    sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)[:60]
+    mean_gf = np.mean([s.get('adj_gf', 1.25) for t, s in teams_to_plot])
+    mean_ga = np.mean([s.get('adj_ga', 1.25) for t, s in teams_to_plot])
 
-    x_vals, y_vals, colors, sizes, labels = [], [], [], [], []
-    for team, stats in sorted_teams:
-        gf = stats.get('gf_avg', 0)
-        ga = stats.get('ga_avg', 0)
-        x_vals.append(gf)
-        y_vals.append(ga)
-        m_scored = stats.get('avg_minute_scored', 48)
-        m_conceded = stats.get('avg_minute_conceded', 48)
-        colors.append(m_scored - m_conceded)
-        sizes.append(stats['elo'] / 10)
-        labels.append(f"{team.title()}\nAttack: {gf:.2f}\nDefense: {ga:.2f}\nElo: {int(stats['elo'])}")
+    confed_colors = {'UEFA': '#3b82f6', 'CONMEBOL': '#10b981', 'CONCACAF': '#f59e0b', 'CAF': '#8b5cf6', 'AFC': '#ef4444', 'OFC': '#64748b'}
 
-    scatter = ax.scatter(x_vals, y_vals, c=colors, s=sizes, cmap='coolwarm', alpha=0.7, edgecolors='black', vmin=-15, vmax=15)
+    x_vals, y_vals, sizes, colors, labels = [], [], [], [], []
+    for team, stats in teams_to_plot:
+        gf, ga, elo = stats.get('adj_gf', 1.25), stats.get('adj_ga', 1.25), stats.get('elo', 1200)
+        x_vals.append(gf); y_vals.append(ga)
+        sizes.append(max(50, (elo - 800) ** 1.2 / 5) if elo > 800 else 50)
+        colors.append(confed_colors.get(sim.TEAM_CONFEDS.get(team, 'OFC'), '#cbd5e1'))
+        labels.append(team.title())
 
-    # Shaded quadrants
-    ax.axhspan(0, 1.0, xmin=0.5, xmax=1, facecolor='green', alpha=0.05)
-    ax.axhspan(1.0, 3.0, xmin=0, xmax=0.5, facecolor='red', alpha=0.05)
+    # Add quadrant dividing lines
+    ax.axhline(mean_ga, color='#cbd5e1', linestyle='--', zorder=1)
+    ax.axvline(mean_gf, color='#cbd5e1', linestyle='--', zorder=1)
 
-    # Hover tooltips
-    cursor = mplcursors.cursor(scatter, hover=True)
-    @cursor.connect("add")
-    def on_hover(sel):
-        sel.annotation.set_text(labels[sel.index])
-        sel.annotation.get_bbox_patch().set(fc="white", alpha=0.9)
+    # Plot points
+    ax.scatter(x_vals, y_vals, s=sizes, c=colors, alpha=0.7, edgecolors='white', linewidth=1, zorder=3)
 
-    ax.set_title("Strategic Style Map", fontsize=14, fontweight='bold')
-    ax.set_xlabel("Goals Scored per Game")
-    ax.set_ylabel("Goals Conceded per Game")
-    ax.invert_yaxis() # Defense: Lower is better (so high up)
-    ax.grid(True, linestyle='--', alpha=0.2)
-    cbar = plt.colorbar(scatter, ax=ax)
-    cbar.set_label('Game Control (Blue=Early Lead, Red=Late Comeback)')
+    # Place text directly onto graph (No hover required)
+    for i, label in enumerate(labels):
+        ax.text(x_vals[i], y_vals[i] + 0.04, label, fontsize=8, ha='center', va='bottom', color='#334155', fontweight='600', zorder=4, bbox=dict(facecolor='white', alpha=0.5, edgecolor='none', pad=0.5))
 
+    # Background Labels
+    ax.text(0.98, 0.98, "Elite Offense / Elite Defense", transform=ax.transAxes, fontsize=14, color='#10b981', alpha=0.4, ha='right', va='top', fontweight='bold', zorder=2)
+    ax.text(0.02, 0.02, "Struggling / Leaky", transform=ax.transAxes, fontsize=14, color='#ef4444', alpha=0.4, ha='left', va='bottom', fontweight='bold', zorder=2)
+    ax.text(0.98, 0.02, "Entertainers (All Attack, No Def)", transform=ax.transAxes, fontsize=12, color='#f59e0b', alpha=0.4, ha='right', va='bottom', fontweight='bold', zorder=2)
+    ax.text(0.02, 0.98, "Defensive / Low Scoring", transform=ax.transAxes, fontsize=12, color='#3b82f6', alpha=0.4, ha='left', va='top', fontweight='bold', zorder=2)
+
+    ax.set_title("Tactical DNA Landscape (Expected Goals For vs. Against)", fontsize=16, fontweight='800', color='#0f172a', pad=20)
+    ax.set_xlabel("Attacking Power (Expected Goals For)", fontsize=12, fontweight='bold', color='#64748b')
+    ax.set_ylabel("Defensive Solidity (Expected Goals Against)", fontsize=12, fontweight='bold', color='#64748b')
+    ax.invert_yaxis() # Defense is inverted so top-right is the best place to be
+    
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_color('#cbd5e1')
+    ax.spines['bottom'].set_color('#cbd5e1')
+    ax.grid(True, linestyle=':', alpha=0.4, color='#cbd5e1', zorder=0)
+
+    # Custom Legend
+    import matplotlib.patches as mpatches
+    ax.legend(handles=[mpatches.Patch(color=c, label=conf) for conf, c in confed_colors.items()], loc='upper left', bbox_to_anchor=(1.02, 1), frameon=False, title='Confederation', title_fontproperties={'weight':'bold'})
+
+    plt.tight_layout()
     target_div.innerHTML = ""
     display(fig, target="main-chart-container")
     plt.close(fig)
