@@ -8,6 +8,7 @@ from pyodide.ffi import create_proxy
 from pyscript import display
 import mplcursors
 import random
+import numpy as np
 
 # GLOBAL VARIABLES
 LAST_SIM_RESULTS = {}
