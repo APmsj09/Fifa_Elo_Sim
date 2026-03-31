@@ -497,17 +497,19 @@ async def run_matchup_analysis(event):
 
         # Generate Tactical Narrative
         tactical_clash = "This is a balanced matchup where individual brilliance or a single mistake will likely decide the outcome."
-        if hasattr(sim, 'TACTICAL_MATCHUPS'):
-            if (style_a, style_b) in sim.TACTICAL_MATCHUPS or (style_b, style_a) in sim.TACTICAL_MATCHUPS:
-                # Get the modifiers just to read them
-                mod1, mod2 = sim.TACTICAL_MATCHUPS.get((style_a, style_b), sim.TACTICAL_MATCHUPS.get((style_b, style_a), (1.0, 1.0)))
-                
-                if mod1 < 1.0 and mod2 < 1.0:
-                    tactical_clash = f"<b>A Tactical Stalemate:</b> Both teams play a rigid, structured game. {team_a.title()}'s <i>{style_a}</i> collides with {team_b.title()}'s <i>{style_b}</i>. Expect a cagey, low-scoring affair where set-pieces are vital."
-                elif mod1 > 1.0 and mod2 > 1.0:
-                    tactical_clash = f"<b>A Chaotic Shootout:</b> {team_a.title()}'s <i>{style_a}</i> meets {team_b.title()}'s <i>{style_b}</i>. Both teams are likely to abandon the midfield and trade heavy blows. Expect high eventfulness and plenty of goals."
-                else:
-                    tactical_clash = f"<b>Clash of Styles:</b> It is a classic battle of ideologies as {team_a.title()}'s <i>{style_a}</i> tries to impose its will against {team_b.title()}'s <i>{style_b}</i>. The team that dictates the tempo in the first 30 minutes will win."
+        if hasattr(sim, 'STYLE_MATRIX'):
+            # Check if either team has a stylistic advantage based on the STYLE_MATRIX
+            mod_a = sim.STYLE_MATRIX.get((style_a, style_b), 1.0)
+            mod_b = sim.STYLE_MATRIX.get((style_b, style_a), 1.0)
+            
+            if mod_a > 1.0:
+                tactical_clash = f"<b>Tactical Advantage ({team_a.title()}):</b> {team_a.title()}'s <i>{style_a}</i> system naturally counters {team_b.title()}'s <i>{style_b}</i>. Expect the home side to exploit this stylistic mismatch."
+            elif mod_b > 1.0:
+                tactical_clash = f"<b>Tactical Advantage ({team_b.title()}):</b> {team_b.title()}'s <i>{style_b}</i> system naturally counters {team_a.title()}'s <i>{style_a}</i>. Expect the away side to exploit this stylistic mismatch."
+            elif style_a == "High Risk / Chaos" and style_b == "High Risk / Chaos":
+                tactical_clash = f"<b>A Chaotic Shootout:</b> Both teams play a high-octane <i>{style_a}</i> style. Expect an open midfield, end-to-end action, and plenty of goals."
+            elif style_a != style_b:
+                tactical_clash = f"<b>Clash of Styles:</b> It is a classic battle of ideologies as {team_a.title()}'s <i>{style_a}</i> tries to impose its will against {team_b.title()}'s <i>{style_b}</i>."
 
         # 4. Build Output HTML
         html = f"""
