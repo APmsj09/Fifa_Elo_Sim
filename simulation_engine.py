@@ -17,11 +17,14 @@ TEAM_PROFILES = {}
 TEAM_HISTORY = {}
 AVG_GOALS = 2.5
 STYLE_MATRIX = {
-    ('Star-Centric', 'Balanced'): 1.05,
-    ('Balanced', 'Star-Centric'): 1.0,
-    ('Endurance', 'Fast-Paced'): 1.1, 
-    ('Aggressive', 'Star-Centric'): 1.05,
-    ('Fast-Paced', 'Aggressive'): 1.1
+    ('Defensive Wall', 'Strong Attack'): 1.10,    # Wall absorbs pure attack
+    ('High Risk / Reward', 'Defensive Wall'): 1.10, # Chaos breaks the wall
+    ('Disciplined', 'High Risk / Reward'): 1.10,  # Discipline punishes chaos
+    ('Aggressive Starter', 'Late Drama'): 1.05,   # Early lead kills late momentum
+    ('Late Drama', 'Disciplined'): 1.08,          # Late surge breaks discipline
+    ('Set-Piece Reliant', 'Solid Defense'): 1.08, # Set pieces bypass solid defense
+    ('Dominant', 'Balanced'): 1.05,               # Dominant crushes balanced
+    ('Dominant', 'High Risk / Reward'): 1.10      # Dominant exploits risky teams
 }
 
 # This includes the 40 fixed teams + all potential qualifier teams
