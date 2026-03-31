@@ -57,8 +57,7 @@ async def initialize_app():
 # --- 1. TAB NAVIGATION & INTERACTION SETUP ---
 # =============================================================================
 def switch_tab(tab_id):
-    # Hide all tabs
-    for t in ["tab-single", "tab-bulk", "tab-data", "tab-history", "tab-analysis"]:
+    for t in ["tab-single", "tab-bulk", "tab-data", "tab-history", "tab-analysis", "tab-matchup"]:
         el = js.document.getElementById(t)
         if el: el.style.display = "none"
         
@@ -92,6 +91,12 @@ def setup_interactions():
     bind_click("btn-tab-data", lambda e: switch_tab("tab-data"))
     bind_click("btn-tab-history", lambda e: switch_tab("tab-history"))
     bind_click("btn-tab-analysis", lambda e: switch_tab("tab-analysis"))
+    bind_click("btn-tab-matchup", lambda e: switch_tab("tab-matchup"))
+    bind_click("btn-run-matchup", run_matchup_analysis)
+    
+    # Populate the new dropdowns
+    populate_team_dropdown(target_id="matchup-team-a")
+    populate_team_dropdown(target_id="matchup-team-b")
 
     build_dashboard_shell()
     populate_team_dropdown(target_id="team-select-dashboard")
@@ -433,6 +438,179 @@ async def run_bulk_sim(event):
     except Exception as e:
         out_div.innerHTML = f"<div style='color:red; padding:20px; font-weight:bold;'>Error: {e}</div>"
         js.console.error(f"BULK SIM ERROR: {e}")
+
+async def run_matchup_analysis(event):
+    team_a = js.document.getElementById("matchup-team-a").value
+    team_b = js.document.getElementById("matchup-team-b").value
+    out_div = js.document.getElementById("matchup-results-container")
+    
+    # Safely get the user's requested sim count (Default to 10000, cap at 100,000 to prevent freezing)
+    try:
+        sim_count = int(js.document.getElementById("matchup-sim-count").value)
+        sim_count = max(1, min(100000, sim_count)) 
+    except:
+        sim_count = 10000
+    
+    if team_a == team_b:
+        out_div.innerHTML = "<div style='color:red; text-align:center; padding:20px; font-weight:bold;'>Please select two different teams.</div>"
+        return
+
+    out_div.innerHTML = f"<div style='text-align:center; padding:50px;'><div class='loader-circle' style='border-top-color:var(--accent-blue); margin: 0 auto 20px;'></div>Simulating {sim_count:,} Matches...</div>"
+    await asyncio.sleep(0.05) # Yield to UI
+
+    try:
+        a_wins, b_wins, draws = 0, 0, 0
+        a_goals, b_goals = 0, 0
+        scorelines = {}
+
+        # 1. Run the Micro-Sim
+        for _ in range(sim_count):
+            # sim_match returns (winner, g1, g2) or ('draw', g1, g2)
+            res, g1, g2 = sim.sim_match(team_a, team_b, knockout=False)
+            
+            if res == team_a: a_wins += 1
+            elif res == team_b: b_wins += 1
+            else: draws += 1
+            
+            a_goals += g1
+            b_goals += g2
+            
+            score_str = f"{g1}-{g2}"
+            scorelines[score_str] = scorelines.get(score_str, 0) + 1
+
+        # 2. Process Data
+        p_a = (a_wins / sim_count) * 100
+        p_d = (draws / sim_count) * 100
+        p_b = (b_wins / sim_count) * 100
+        
+        avg_ga = a_goals / sim_count
+        avg_gb = b_goals / sim_count
+
+        # Get Top 3 Scorelines
+        sorted_scores = sorted(scorelines.items(), key=lambda x: x[1], reverse=True)[:3]
+
+        # 3. Get Stats & Styles
+        sa = sim.TEAM_STATS.get(team_a, {})
+        sb = sim.TEAM_STATS.get(team_b, {})
+        style_a = sim.TEAM_PROFILES.get(team_a, 'Balanced')
+        style_b = sim.TEAM_PROFILES.get(team_b, 'Balanced')
+
+        # Generate Tactical Narrative
+        tactical_clash = "This is a balanced matchup where individual brilliance or a single mistake will likely decide the outcome."
+        if hasattr(sim, 'TACTICAL_MATCHUPS'):
+            if (style_a, style_b) in sim.TACTICAL_MATCHUPS or (style_b, style_a) in sim.TACTICAL_MATCHUPS:
+                # Get the modifiers just to read them
+                mod1, mod2 = sim.TACTICAL_MATCHUPS.get((style_a, style_b), sim.TACTICAL_MATCHUPS.get((style_b, style_a), (1.0, 1.0)))
+                
+                if mod1 < 1.0 and mod2 < 1.0:
+                    tactical_clash = f"<b>A Tactical Stalemate:</b> Both teams play a rigid, structured game. {team_a.title()}'s <i>{style_a}</i> collides with {team_b.title()}'s <i>{style_b}</i>. Expect a cagey, low-scoring affair where set-pieces are vital."
+                elif mod1 > 1.0 and mod2 > 1.0:
+                    tactical_clash = f"<b>A Chaotic Shootout:</b> {team_a.title()}'s <i>{style_a}</i> meets {team_b.title()}'s <i>{style_b}</i>. Both teams are likely to abandon the midfield and trade heavy blows. Expect high eventfulness and plenty of goals."
+                else:
+                    tactical_clash = f"<b>Clash of Styles:</b> It is a classic battle of ideologies as {team_a.title()}'s <i>{style_a}</i> tries to impose its will against {team_b.title()}'s <i>{style_b}</i>. The team that dictates the tempo in the first 30 minutes will win."
+
+        # 4. Build Output HTML
+        html = f"""
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
+            
+            <!-- Left Column: Win Probabilities -->
+            <div class="dashboard-card" style="margin-bottom:0;">
+                <h3 style="margin-top:0; color:var(--text-light); text-transform:uppercase; font-size:0.85em;">Match Simulation ({sim_count:,} runs)</h3>
+                
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-weight:800; font-size:1.2em;">
+                    <div style="color:#3b82f6;">{team_a.title()} ({p_a:.1f}%)</div>
+                    <div style="color:#64748b; font-size:0.8em; align-self:center;">DRAW ({p_d:.1f}%)</div>
+                    <div style="color:#ef4444;">{team_b.title()} ({p_b:.1f}%)</div>
+                </div>
+
+                <div style="width:100%; height:30px; display:flex; border-radius:8px; overflow:hidden; box-shadow:var(--shadow-sm);">
+                    <div style="width:{p_a}%; background:#3b82f6; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:0.8em;"></div>
+                    <div style="width:{p_d}%; background:#cbd5e1;"></div>
+                    <div style="width:{p_b}%; background:#ef4444; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:0.8em;"></div>
+                </div>
+                
+                <div style="display:flex; justify-content:space-between; margin-top:20px;">
+                    <div class="stat-pill" style="flex:1; margin-right:10px;">
+                        <div class="stat-pill-title">Exp. Goals</div>
+                        <div class="stat-pill-value" style="color:#3b82f6;">{avg_ga:.2f}</div>
+                    </div>
+                    <div class="stat-pill" style="flex:1; margin-left:10px;">
+                        <div class="stat-pill-title">Exp. Goals</div>
+                        <div class="stat-pill-value" style="color:#ef4444;">{avg_gb:.2f}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Scorelines -->
+            <div class="dashboard-card" style="margin-bottom:0;">
+                <h3 style="margin-top:0; color:var(--text-light); text-transform:uppercase; font-size:0.85em;">Most Likely Scorelines</h3>
+                <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
+        """
+        
+        colors = ['#f59e0b', '#94a3b8', '#b45309'] # Gold, Silver, Bronze
+        for i, (score, count) in enumerate(sorted_scores):
+            pct = (count/sim_count)*100
+            html += f"""
+            <div style="display:flex; align-items:center; background:#f8fafc; padding:10px 15px; border-radius:8px; border-left:4px solid {colors[i]};">
+                <div style="font-size:1.5em; font-weight:900; letter-spacing:2px; width:80px;">{score}</div>
+                <div style="flex-grow:1;">
+                    <div style="height:8px; background:#e2e8f0; border-radius:4px; width:100%;">
+                        <div style="height:100%; width:{pct * 3}%; background:{colors[i]}; border-radius:4px; max-width:100%;"></div>
+                    </div>
+                </div>
+                <div style="font-weight:700; margin-left:15px; color:var(--text-main);">{pct:.1f}%</div>
+            </div>
+            """
+            
+        html += f"""
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Row: Tale of the Tape & Analysis -->
+        <div class="dashboard-card" style="border-top:4px solid #8b5cf6;">
+            <h3 style="margin-top:0; color:#8b5cf6; font-size:1.2em;">🔭 Matchup Analysis: {style_a} vs {style_b}</h3>
+            <p style="font-size:1.05em; line-height:1.6; color:var(--text-main);">{tactical_clash}</p>
+            
+            <table class="rankings-table" style="margin-top:20px;">
+                <thead>
+                    <tr>
+                        <th style="width:33%; text-align:right; color:#3b82f6; font-size:1.1em;">{team_a.title()}</th>
+                        <th style="width:33%; text-align:center;">Metric</th>
+                        <th style="width:33%; text-align:left; color:#ef4444; font-size:1.1em;">{team_b.title()}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="text-align:right; font-weight:bold;">{int(sa.get('elo', 0))}</td>
+                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; text-transform:uppercase;">Elo Rating</td>
+                        <td style="text-align:left; font-weight:bold;">{int(sb.get('elo', 0))}</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align:right; font-weight:bold;">{sa.get('adj_gf', 0):.2f}</td>
+                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; text-transform:uppercase;">Attacking Power</td>
+                        <td style="text-align:left; font-weight:bold;">{sb.get('adj_gf', 0):.2f}</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align:right; font-weight:bold;">{sa.get('adj_ga', 0):.2f}</td>
+                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; text-transform:uppercase;">Defensive Leaks (Lower is better)</td>
+                        <td style="text-align:left; font-weight:bold;">{sb.get('adj_ga', 0):.2f}</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align:right; font-weight:bold;">{int(sa.get('btts_pct', 0))}%</td>
+                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; text-transform:uppercase;">Chaos Factor (BTTS %)</td>
+                        <td style="text-align:left; font-weight:bold;">{int(sb.get('btts_pct', 0))}%</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        """
+        
+        out_div.innerHTML = html
+
+    except Exception as e:
+        out_div.innerHTML = f"<div style='color:red; padding:20px;'>Error running matchup: {e}</div>"
+        js.console.error(f"MATCHUP ERROR: {e}")
 
 # =============================================================================
 # --- 4. DATA VIEW ---
