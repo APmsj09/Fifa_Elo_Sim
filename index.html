@@ -308,25 +308,25 @@
             <div id="tab-matchup" class="tab-content">
                 <div class="dashboard-card" style="margin-bottom: 20px; background: linear-gradient(to right, #0f172a, #1e293b); color: white;">
                     <h2 style="margin-top:0; color: white; display: flex; align-items: center; gap: 10px;">⚔️ Matchup Predictor</h2>
-                    <div style="display:flex; gap:20px; align-items:center; margin-top: 15px;">
-                        <div style="flex:1;">
-                            <label style="color:#94a3b8; font-size:0.8em; font-weight:bold; text-transform:uppercase;">Team A (Home)</label>
+                    <div style="display:flex; gap:15px; align-items:flex-end; margin-top: 15px;">
+                        <div style="flex:2;">
+                            <label style="color:#94a3b8; font-size:0.8em; font-weight:bold; text-transform:uppercase; margin-bottom:5px; display:block;">Team A (Home)</label>
                             <select id="matchup-team-a" style="width:100%; padding:12px; border-radius:8px; background:white; color:#0f172a; font-weight:bold; font-size:1.1em;"></select>
                         </div>
-                        <div style="font-size:2em; font-weight:900; color:#cbd5e1; padding-top: 15px;">VS</div>
-                        <div style="flex:1;">
-                            <label style="color:#94a3b8; font-size:0.8em; font-weight:bold; text-transform:uppercase;">Team B (Away)</label>
+                        <div style="font-size:1.5em; font-weight:900; color:#cbd5e1; padding-bottom:10px;">VS</div>
+                        <div style="flex:2;">
+                            <label style="color:#94a3b8; font-size:0.8em; font-weight:bold; text-transform:uppercase; margin-bottom:5px; display:block;">Team B (Away)</label>
                             <select id="matchup-team-b" style="width:100%; padding:12px; border-radius:8px; background:white; color:#0f172a; font-weight:bold; font-size:1.1em;"></select>
                         </div>
-                        <div style="padding-top: 15px;">
-                            <button id="btn-run-matchup" class="action-btn" style="background:var(--accent-green); margin:0; padding:12px 25px;">Analyze Match</button>
+                        <div style="flex:1; max-width:120px;">
+                            <label style="color:#94a3b8; font-size:0.8em; font-weight:bold; text-transform:uppercase; margin-bottom:5px; display:block;">Runs</label>
+                            <input type="number" id="matchup-sim-count" value="10000" min="1" max="100000" style="width:100%; padding:10px; border-radius:8px; border:none; font-weight:bold; font-size:1.1em; text-align:center;">
+                        </div>
+                        <div>
+                            <button id="btn-run-matchup" class="action-btn" style="background:var(--accent-green); margin:0; padding:12px 25px; height: 46px;">Analyze</button>
                         </div>
                     </div>
                 </div>
-                <div id="matchup-results-container">
-                    <div style='text-align:center; padding:40px; color:var(--text-light);'>Select two teams and click Analyze to simulate 10,000 matches.</div>
-                </div>
-            </div>
 
             <!-- ANALYSIS TAB -->
             <div id="tab-analysis" class="tab-content">
