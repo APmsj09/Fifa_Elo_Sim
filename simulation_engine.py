@@ -529,32 +529,24 @@ def initialize_engine():
         # C. ELO BLENDING (THE "TRUST THE SIM" UPDATE)
         # -----------------------------------------------------------
         
-        # 1. Calculate Base Ratio (Centered on 1500)
-        # 1500 -> 1.0
-        # 2100 -> 1.4
         elo_ratio = s['elo'] / 1500.0
         
-        # 2. Apply Power Curve (Widen the gap)
-        # A 10% Elo advantage translates to a ~20% Scoring advantage
-        elo_off = elo_ratio ** 2.0 
-        
-        # 3. Defense is the Inverse (Reciprocal)
-        # If Offense is 2.0 (Double Strength), Defense is 0.5 (Half Conceded)
+        # Power curve reduced from 2.0 to 1.5. 
+        # A 2100 Elo team now gets a ~1.65x base multiplier instead of 1.96x.
+        # This prevents the math from exploding while keeping them elite.
+        elo_off = elo_ratio ** 1.5 
         elo_def = 1.0 / elo_off
         
-        # 4. Wide Guardrails (Trust the Sim!)
-        # Allow multipliers to go from 0.3 (Tiny Nation) to 3.0 (Godlike)
-        elo_off = np.clip(elo_off, 0.3, 3.0)
-        elo_def = np.clip(elo_def, 0.3, 3.0)
-
-        # -----------------------------------------------------------
+        # Widen guardrails for stats
+        elo_off = np.clip(elo_off, 0.4, 2.5)
+        elo_def = np.clip(elo_def, 0.4, 2.5)
 
         elo_off_log = np.log(elo_off)
         elo_def_log = np.log(elo_def)
 
-        # 3. Blend stats + Elo prior
-        STAT_WEIGHT = 0.65
-        ELO_WEIGHT  = 0.35
+        # Trust Elo slightly more (International football stats are noisy)
+        STAT_WEIGHT = 0.60
+        ELO_WEIGHT  = 0.40
 
         # Offense Blend
         final_off_log = STAT_WEIGHT * np.log(adjusted_off) + ELO_WEIGHT * elo_off_log
@@ -564,10 +556,8 @@ def initialize_engine():
         final_def_log = STAT_WEIGHT * np.log(adjusted_def) + ELO_WEIGHT * elo_def_log
         s['def'] = np.exp(final_def_log)
         
-        # Final Clamps (Also Widened)
-        # We allow teams to be rated up to 3.0x Average
-        s['off'] = np.clip(s['off'], 0.4, 3.0)
-        s['def'] = np.clip(s['def'], 0.4, 3.0)
+        s['off'] = np.clip(s['off'], 0.4, 2.8)
+        s['def'] = np.clip(s['def'], 0.4, 2.8)
 
         # Display Values
         s['adj_gf'] = s['off'] * avg_goals_global
@@ -690,23 +680,25 @@ def calculate_confed_strength():
 def sim_match(t1, t2, knockout=False):
     
     # 1. GET BASE STATS
-    # These inputs can now be as high as 3.0 due to your SOS changes
     s1 = TEAM_STATS.get(t1, {'elo':1200, 'off':1.0, 'def':1.0})
     s2 = TEAM_STATS.get(t2, {'elo':1200, 'off':1.0, 'def':1.0})
 
-    # --- REGIONAL STRENGTH LOOKUP --------------
-    # Get the confederation for both teams
+    # --- REGIONAL STRENGTH & PEDIGREE --------------
     confed1 = TEAM_CONFEDS.get(t1, 'OFC')
     confed2 = TEAM_CONFEDS.get(t2, 'OFC')
     
-    # Get the multipliers (default to 1.0 if not found)
     reg_mult1 = CONFED_MULTIPLIERS.get(confed1, 1.0)
     reg_mult2 = CONFED_MULTIPLIERS.get(confed2, 1.0)
+    
+    # Calculate "Pedigree Gap" (e.g., UEFA 1.0 vs AFC 0.7 = 0.3 gap)
+    # We use this to give a slight tactical/composure edge, avoiding the "double nerf"
+    pedigree_gap = reg_mult1 - reg_mult2 
     # ------------------------------------------
     
-    # 2. ELO WIN EXPECTANCY
+    # 2. MATCH-DAY WIN EXPECTANCY (Standardized to 400 for 90-min scaling)
     dr = s1['elo'] - s2['elo']
-    we = 1 / (10**(-dr/600) + 1)
+    we1 = 1 / (10**(-dr/400) + 1)
+    we2 = 1 - we1
     
     # 3. STYLES
     style1 = TEAM_PROFILES.get(t1, 'Balanced')
@@ -714,46 +706,63 @@ def sim_match(t1, t2, knockout=False):
     mod1 = STYLE_MATRIX.get((style1, style2), 1.0)
     mod2 = STYLE_MATRIX.get((style2, style1), 1.0)
     
-    # Home Advantage (Hosts)
-    home_boost = 1.15 if t1 in ['united states', 'mexico', 'canada'] else 1.0
-    away_boost = 1.15 if t2 in ['united states', 'mexico', 'canada'] else 1.0
+    # Home/Host Advantage (2026 hosts + Host Continent boost)
+    home_boost = 1.15 if t1 in ['united states', 'mexico', 'canada'] else (1.05 if confed1 == 'CONCACAF' else 1.0)
+    away_boost = 1.15 if t2 in ['united states', 'mexico', 'canada'] else (1.05 if confed2 == 'CONCACAF' else 1.0)
 
-    # 4. FORM BIAS
-    FORM_WEIGHT = 0.6 
-    
+    # 4. FORM BIAS (Pull towards current momentum)
+    FORM_WEIGHT = 0.5 
     off1_adj = 1.0 + (s1['off'] - 1.0) * FORM_WEIGHT
     def1_adj = 1.0 + (s1['def'] - 1.0) * FORM_WEIGHT
-    
     off2_adj = 1.0 + (s2['off'] - 1.0) * FORM_WEIGHT
     def2_adj = 1.0 + (s2['def'] - 1.0) * FORM_WEIGHT
     
-    # Elo Scaling (Class difference)
-    elo_scale = 1 + (we - 0.5)
-
-    # 5. LOGARITHMIC COMPRESSION (The "Safety Valve")
-    # RELAXED: Allows elite teams to score 2 or 3 goals realistically before throttling
-    m1_raw = off1_adj * def2_adj
-    m2_raw = off2_adj * def1_adj
+    # 5. "PARK THE BUS" / GAME STATE LOGIC
+    bus_park_modifier_1 = 1.0
+    bus_park_modifier_2 = 1.0
     
-    # RELAXED: Allows elite teams to score 2 or 3 goals realistically before throttling
+    if dr > 300: 
+        # Team 2 is severely outclassed. They park the bus.
+        bus_park_modifier_2 = 0.50 # Their counter-attack is almost non-existent
+        bus_park_modifier_1 = 0.85 # Team 1 faces a low block (harder to break down)
+    elif dr < -300:
+        # Team 1 is severely outclassed.
+        bus_park_modifier_1 = 0.50 
+        bus_park_modifier_2 = 0.85
+        
+    # 6. BRINGING IT ALL TOGETHER
+    # Combine Stats + Elo Probability + Pedigree Boost + Game State
+    class_boost1 = 1.0 + (we1 - 0.5) * 0.4  # Gives up to +20% for overwhelming favorites
+    class_boost2 = 1.0 + (we2 - 0.5) * 0.4
+    
+    pedigree_boost1 = 1.0 + (pedigree_gap * 0.15)
+    pedigree_boost2 = 1.0 - (pedigree_gap * 0.15)
+    
+    m1_raw = (off1_adj * def2_adj) * class_boost1 * pedigree_boost1 * bus_park_modifier_1
+    m2_raw = (off2_adj * def1_adj) * class_boost2 * pedigree_boost2 * bus_park_modifier_2
+    
+    # 7. LOGARITHMIC COMPRESSION (Relaxed)
+    # Because we fixed the 2.5 Baseline Bug below, we can let this breathe.
+    # Teams can organically reach ~2.5x multipliers without breaking the universe.
     def compress(val):
-        if val <= 1.5: return val
-        return 1.5 + np.log(val - 0.5) * 0.85 
+        if val <= 1.8: return val
+        return 1.8 + np.log(val - 0.8) * 0.8 
 
     m1 = compress(m1_raw)
     m2 = compress(m2_raw)
 
-    # 6. TOURNAMENT INTENSITY 
-    # ADJUSTED: 0.82 was too harsh. 0.95 simulates tighter knockout play 
-    # without suffocating the goal generation.
-    TOURNAMENT_INTENSITY = 0.95
+    # 8. TOURNAMENT INTENSITY
+    # Groups are open, Knockouts are cagey.
+    TOURNAMENT_INTENSITY = 0.85 if knockout else 1.0
     
-    # 7. CALCULATE EXPECTED GOALS (Poisson Lambda)
-    # REMOVED: reg_mult1 and reg_mult2 to prevent double-nerfing.
-    lam1 = AVG_GOALS * m1 * mod1 * home_boost * TOURNAMENT_INTENSITY
-    lam2 = AVG_GOALS * m2 * mod2 * away_boost * TOURNAMENT_INTENSITY
+    # 9. CALCULATE EXPECTED GOALS (Poisson Lambda)
+    # CRITICAL FIX: Base xG per team is 1.25, NOT 2.5!
+    BASE_TEAM_XG = AVG_GOALS / 2.0 
     
-    # 8. RUN SIMULATION
+    lam1 = BASE_TEAM_XG * m1 * mod1 * home_boost * TOURNAMENT_INTENSITY
+    lam2 = BASE_TEAM_XG * m2 * mod2 * away_boost * TOURNAMENT_INTENSITY
+    
+    # 10. RUN SIMULATION
     g1 = np.random.poisson(lam1)
     g2 = np.random.poisson(lam2)
     
@@ -770,9 +779,10 @@ def sim_match(t1, t2, knockout=False):
             return 'draw', g1, g2
             
         # EXTRA TIME (Knockout Only)
-        et_scale = 0.33
-        lam1_et = lam1 * et_scale * 0.80 # Tighter in ET
-        lam2_et = lam2 * et_scale * 0.80
+        # Extra time is notoriously dry. Usually 0 goals, rarely 1, almost never 2.
+        et_scale = 0.33 # 30 mins is 1/3rd of a game
+        lam1_et = lam1 * et_scale * 0.60 # Fatigue factor
+        lam2_et = lam2 * et_scale * 0.60
         
         g1_et = np.random.poisson(lam1_et)
         g2_et = np.random.poisson(lam2_et)
@@ -784,17 +794,16 @@ def sim_match(t1, t2, knockout=False):
         elif g2 > g1: return t2, g1, g2, 'aet'
             
         # PENALTIES
-        p1_bonus = 0.1 if style1 == 'Set-Piece Reliant' else 0
-        p2_bonus = 0.1 if style2 == 'Set-Piece Reliant' else 0
+        p1_bonus = 0.08 if style1 in ['Set-Piece Reliant', 'Control / Disciplined'] else 0
+        p2_bonus = 0.08 if style2 in ['Set-Piece Reliant', 'Control / Disciplined'] else 0
         
         pk_prob = np.clip(
-            0.5 + dr / 4000 + (p1_bonus - p2_bonus),
+            0.5 + (dr / 3000) + (p1_bonus - p2_bonus),
             0.35, 0.65
         )
         winner = t1 if random.random() < pk_prob else t2
         
         return winner, g1, g2, 'pks'
-
 def run_simulation(verbose=False, quiet=False, fast_mode=False):
     # Data containers
     structured_groups = {} if not fast_mode else None
