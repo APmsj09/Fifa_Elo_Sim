@@ -732,6 +732,10 @@ def sim_match(t1, t2, knockout=False):
 
     # 5. LOGARITHMIC COMPRESSION (The "Safety Valve")
     # RELAXED: Allows elite teams to score 2 or 3 goals realistically before throttling
+    m1_raw = off1_adj * def2_adj
+    m2_raw = off2_adj * def1_adj
+    
+    # RELAXED: Allows elite teams to score 2 or 3 goals realistically before throttling
     def compress(val):
         if val <= 1.5: return val
         return 1.5 + np.log(val - 0.5) * 0.85 
@@ -745,8 +749,7 @@ def sim_match(t1, t2, knockout=False):
     TOURNAMENT_INTENSITY = 0.95
     
     # 7. CALCULATE EXPECTED GOALS (Poisson Lambda)
-    # REMOVED: reg_mult1 and reg_mult2. Regional strength is already 
-    # baked into the team's Elo. Multiplying here was double-nerfing them.
+    # REMOVED: reg_mult1 and reg_mult2 to prevent double-nerfing.
     lam1 = AVG_GOALS * m1 * mod1 * home_boost * TOURNAMENT_INTENSITY
     lam2 = AVG_GOALS * m2 * mod2 * away_boost * TOURNAMENT_INTENSITY
     
