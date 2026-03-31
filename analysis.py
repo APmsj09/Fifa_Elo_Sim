@@ -137,14 +137,13 @@ async def run_sim_backtest(event):
             for t in finalists: track(t, 'final')
             for t in semifinalists: track(t, 'semi')
             
-            # Update Progress Bar
-            if i % 20 == 0:
-                pct = (i / sim_count) * 100
-                if prog_bar: prog_bar.style.width = f"{pct}%"
-                await asyncio.sleep(0.001)
+            # Critical fix: Gives PyScript renderer time to draw the progress bar
+            if i % max(1, sim_count // 50) == 0:
+                if prog_bar: prog_bar.style.width = f"{int((i / sim_count) * 100)}%"
+                await asyncio.sleep(0.01)
 
         if prog_bar: prog_bar.style.width = "100%"
-        await asyncio.sleep(0.2) 
+        await asyncio.sleep(0.2)
 
         # 3. Visualization
         sorted_by_win = sorted(stats.items(), key=lambda x: x[1]['win'], reverse=True)
