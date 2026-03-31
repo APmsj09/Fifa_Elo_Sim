@@ -266,15 +266,9 @@ def initialize_engine():
     all_teams_set = set(elo_df['home_team']).union(set(elo_df['away_team']))
     for t in all_teams_set:
         TEAM_STATS[t] = {
-            # --- Dynamic Elo ---
-            'elo': INITIAL_RATING,
-            'notable_results': [],
-            
-            # --- Tier Tracking (Live Elo) ---
-            # Format: [Wins, Draws, Losses]
-            'vs_stronger': [0, 0, 0], 
-            'vs_similar':  [0, 0, 0],
-            'vs_weaker':   [0, 0, 0],
+            'elo': INITIAL_RATING, 'notable_results': [],
+            'vs_elite': [0, 0, 0], # NEW: Tracks games against Top 20 caliber teams
+            'vs_stronger': [0, 0, 0], 'vs_similar':  [0, 0, 0], 'vs_weaker':   [0, 0, 0],
             
             # --- Upset Tracking (Live Elo) ---
             'upsets_major_won': 0,  'upsets_minor_won': 0,
@@ -319,12 +313,11 @@ def initialize_engine():
                 })
 
             # --- HOME PERSPECTIVE ---
-            diff_h = ra - rh # Positive = Away is stronger
-            
-            # Tier Tracking (Keep your existing code)
-            if diff_h > 100:    cat = 'vs_stronger'
+            diff_h = ra - rh 
+            if ra > 1750 or diff_h > 150: TEAM_STATS[h]['vs_elite'][res_h] += 1
+            if diff_h > 100: cat = 'vs_stronger'
             elif diff_h < -100: cat = 'vs_weaker'
-            else:               cat = 'vs_similar'
+            else: cat = 'vs_similar'
             TEAM_STATS[h][cat][res_h] += 1
             
             # Upset Logic + RECORDING
@@ -347,11 +340,11 @@ def initialize_engine():
                     # record_upset(h, a, score_h, diff_h, "LOST_MINOR", date)
 
             # --- AWAY PERSPECTIVE ---
-            diff_a = rh - ra # Positive = Home is stronger
-            
-            if diff_a > 100:    cat = 'vs_stronger'
+            diff_a = rh - ra 
+            if rh > 1750 or diff_a > 150: TEAM_STATS[a]['vs_elite'][res_a] += 1
+            if diff_a > 100: cat = 'vs_stronger'
             elif diff_a < -100: cat = 'vs_weaker'
-            else:               cat = 'vs_similar'
+            else: cat = 'vs_similar'
             TEAM_STATS[a][cat][res_a] += 1
             
             score_a = f"{as_}-{hs}"
@@ -598,37 +591,23 @@ def initialize_engine():
         # We now use 'adj_gf' and 'adj_ga' so the label matches the rating.
 
         has_history = m >= 10 
-    
-        # 1. "ELITE" COMBINATIONS
-        if has_history and s['adj_gf'] > 2.3 and s['cs_pct'] > 50:
-            style = "Dominant"              
-        elif has_history and s['late_pct'] > 30 and s['cs_pct'] > 45:
-            style = "Resilient"                 
-            
-        # 2. "CHAOS" COMBINATIONS
-        elif has_history and s['adj_gf'] > 2.0 and s['adj_ga'] > 1.5:
-            style = "High Risk / Reward"    
-        elif has_history and s['btts_pct'] > 60 and s['late_pct'] > 30:
-            style = "Late Drama"          
-            
-        # 3. "CONTROL" COMBINATIONS
-        elif has_history and s['adj_gf'] < 1.1 and s['cs_pct'] > 45:
-            style = "Defensive Wall"        
-        elif has_history and s['btts_pct'] < 35 and s['adj_ga'] < 1.0:
-            style = "Disciplined"           
-            
-        # 4. "TIMING" SPECIALISTS
-        elif has_history and s['fh_pct'] > 60 and s['adj_gf'] > 1.5:
-            style = "Aggressive Starter"    
-        elif has_history and s['pen_pct'] > 20 and s['adj_gf'] < 1.4:
-            style = "Set-Piece Reliant"
-            
-        # 5. FALLBACKS (Single Stat Dominance)
-        elif s['adj_gf'] > 2.1: style = "Strong Attack"
-        elif s['cs_pct'] > 45:  style = "Solid Defense"
-        elif s['btts_pct'] > 60: style = "Open Games"
-        elif s['adj_gf'] < 1.0: style = "Low Scoring"
         
+        # Calculate relative strength (1.0 = exactly average)
+        rel_gf = s['adj_gf'] / avg_goals_global
+        rel_ga = s['adj_ga'] / avg_goals_global
+    
+        if has_history:
+            # 1. ELITE: Adjusted to comfortably catch Spain, Argentina, France
+            if rel_gf > 1.28 and rel_ga < 0.85: style = "Elite / Dominant"
+            elif rel_gf > 1.20 and rel_ga > 1.15: style = "High Risk / Chaos"
+            elif rel_gf < 0.90 and rel_ga < 0.80: style = "Defensive Wall"
+            elif s['btts_pct'] < 50 and rel_ga < 0.95: style = "Control / Disciplined"
+            elif s['late_pct'] > 35: style = "Late Surge"
+            elif s['fh_pct'] > 55 and rel_gf > 1.05: style = "Fast Starters"
+            elif s['pen_pct'] > 20 and rel_gf < 1.1: style = "Set-Piece Reliant"
+            elif rel_gf > 1.10: style = "Strong Attack"
+            elif rel_ga < 0.90: style = "Solid Defense"
+            else: style = "Balanced"
         else:
             style = "Balanced"
         
