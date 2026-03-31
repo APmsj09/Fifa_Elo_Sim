@@ -213,6 +213,22 @@
         }
         .stat-pill-title { font-size: 0.7em; text-transform: uppercase; color: var(--text-light); font-weight: 700; margin-bottom: 5px; }
         .stat-pill-value { font-size: 1.4em; font-weight: 800; color: var(--text-main); }
+        
+        /* --- PLOTLY / MATPLOTLIB RESPONSIVE FIX --- */
+        #main-chart-container div {
+            width: 100% !important;
+            display: flex;
+            justify-content: center;
+        }
+        #main-chart-container svg, 
+        #main-chart-container img {
+            width: 100% !important;
+            height: auto !important;
+            max-height: 75vh;
+        }
+
+        
+        
     </style>
 </head>
 <body>
