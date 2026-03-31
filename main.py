@@ -1251,7 +1251,8 @@ async def plot_style_map(event):
     target_div.innerHTML = "<div style='text-align:center; padding:50px;'><div class='loader-circle' style='border-top-color:var(--accent-blue); margin: 0 auto 20px;'></div>Generating Tactical Landscape...</div>"
     await asyncio.sleep(0.1)
     
-    fig, ax = plt.subplots(figsize=(11, 8), dpi=100)
+    # 1. WIDER ASPECT RATIO (Changed from 11,8 to 14,7)
+    fig, ax = plt.subplots(figsize=(14, 7), dpi=100)
     fig.patch.set_alpha(0.0)
     ax.patch.set_alpha(0.0)
 
@@ -1279,7 +1280,7 @@ async def plot_style_map(event):
     # Plot points
     ax.scatter(x_vals, y_vals, s=sizes, c=colors, alpha=0.7, edgecolors='white', linewidth=1, zorder=3)
 
-    # Place text directly onto graph (No hover required)
+    # Place text directly onto graph
     for i, label in enumerate(labels):
         ax.text(x_vals[i], y_vals[i] + 0.04, label, fontsize=8, ha='center', va='bottom', color='#334155', fontweight='600', zorder=4, bbox=dict(facecolor='white', alpha=0.5, edgecolor='none', pad=0.5))
 
@@ -1300,9 +1301,17 @@ async def plot_style_map(event):
     ax.spines['bottom'].set_color('#cbd5e1')
     ax.grid(True, linestyle=':', alpha=0.4, color='#cbd5e1', zorder=0)
 
-    # Custom Legend
+    # 2. MOVED LEGEND TO THE BOTTOM CENTER HORIZONTALLY
     import matplotlib.patches as mpatches
-    ax.legend(handles=[mpatches.Patch(color=c, label=conf) for conf, c in confed_colors.items()], loc='upper left', bbox_to_anchor=(1.02, 1), frameon=False, title='Confederation', title_fontproperties={'weight':'bold'})
+    ax.legend(
+        handles=[mpatches.Patch(color=c, label=conf) for conf, c in confed_colors.items()], 
+        loc='upper center', 
+        bbox_to_anchor=(0.5, -0.1), 
+        ncol=6, 
+        frameon=False, 
+        title='Confederation', 
+        title_fontproperties={'weight':'bold'}
+    )
 
     plt.tight_layout()
     target_div.innerHTML = ""
