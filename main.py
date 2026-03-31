@@ -839,29 +839,26 @@ def update_dashboard_data():
     def_power = def_index # Defense is already relative to opponent in your engine
     
     # Percentile Logic (Casual Friendly)
-    if atk_power > 1.4: atk_desc = "Elite 🔥"; atk_color = "var(--accent-green)"
-    elif atk_power > 1.1: atk_desc = "Strong ⚔️"; atk_color = "var(--accent-blue)"
-    else: atk_desc = "Average ⚖️"; atk_color = "var(--text-light)"
+    if atk_power > 1.45: atk_desc, atk_color = "Elite 🔥", "var(--accent-green)"
+    elif atk_power > 1.10: atk_desc, atk_color = "Strong ⚔️", "var(--accent-blue)"
+    else: atk_desc, atk_color = "Average ⚖️", "var(--text-light)"
 
-    if def_power < 0.8: def_desc = "Iron Wall 🧱"; def_color = "var(--accent-green)"
-    elif def_power < 1.05: def_desc = "Solid 🛡️"; def_color = "var(--accent-blue)"
-    else: def_desc = "Leaky ⚠️"; def_color = "var(--accent-red)"
+    # Stricter Defensive UI Thresholds
+    if def_power < 0.65: def_desc, def_color = "Iron Wall 🧱", "var(--accent-green)"
+    elif def_power < 0.95: def_desc, def_color = "Solid 🛡️", "var(--accent-blue)"
+    else: def_desc, def_color = "Leaky ⚠️", "var(--accent-red)"
 
-    # --- 2. FORM DOTS ---
-    raw_form = stats.get('form', '-----')[-5:]
-    form_html = ""
-    for char in raw_form:
-        dot_class = f"form-{char}" if char in ['W', 'L', 'D'] else ""
-        form_html += f"<span class='form-dot {dot_class}'>{char if char != '-' else ''}</span>"
+    form_html = "".join([f"<span class='form-dot {'form-'+c if c in ['W','L','D'] else ''}'>{c if c != '-' else ''}</span>" for c in stats.get('form', '-----')[-5:]])
 
-    # --- 3. CLUTCH FACTOR (Die-Hard Stat) ---
-    s_w, s_d, s_l = stats.get('vs_stronger', [0,0,0])
-    strong_total = s_w + s_d + s_l
-    upset_pct = (s_w / strong_total * 100) if strong_total > 0 else 0
+    # Use the new vs_elite tracking
+    s_w, s_d, s_l = stats.get('vs_elite', [0,0,0])
+    upset_pct = (s_w / (s_w+s_d+s_l) * 100) if (s_w+s_d+s_l) > 0 else 0
     
-    if upset_pct > 30: clutch_label = "Giant Killer ⚔️"; clutch_color = "var(--accent-gold)"
-    elif stats.get('upsets_major_won', 0) > 0: clutch_label = "Upset Threat 🃏"; clutch_color = "#8b5cf6"
-    else: clutch_label = "Standard ⚖️"; clutch_color = "var(--text-light)"
+    # Accurate Identity Tags based on Global Rank
+    if global_rank > 15 and upset_pct > 30: clutch_label, clutch_color = "Giant Killer ⚔️", "var(--accent-gold)"
+    elif global_rank <= 15 and upset_pct > 40: clutch_label, clutch_color = "Big Game Player 🏆", "#8b5cf6"
+    elif stats.get('upsets_major_won', 0) > 0: clutch_label, clutch_color = "Upset Threat 🃏", "#8b5cf6"
+    else: clutch_label, clutch_color = "Standard ⚖️", "var(--text-light)"
 
     # --- 4. RENDER HEADER ---
     header = js.document.getElementById("dashboard-header")
@@ -980,7 +977,7 @@ def render_power_chart(atk, dfe, team):
     plt.close(fig)
 
 def generate_dynamic_report(team, atk, dfe, upset, stats):
-    """Generates a rich, dynamic text-based scouting report based on true analytics."""
+    import random
     report_paragraphs = []
     
     confed = sim.TEAM_CONFEDS.get(team, 'Unknown')
@@ -991,24 +988,46 @@ def generate_dynamic_report(team, atk, dfe, upset, stats):
     
     if rank <= 10: tier_text = "a global powerhouse"
     elif rank <= 30: tier_text = "a formidable contender"
-    elif rank <= 60: tier_text = "a competitive dark horse"
+    elif rank <= 60: tier_text = "a highly competitive dark horse"
     else: tier_text = "an emerging underdog"
     
-    # Overview
-    report_paragraphs.append(f"<b>Overview:</b> Ranked #{rank} globally, {team.title()} is {tier_text} out of {confed}. They play a <b>{style}</b> style of football.")
+    report_paragraphs.append(f"<b>Overview:</b> Ranked #{rank} globally, {team.title()} is {tier_text} out of {confed}. They are characterized by a <b>{style}</b> style of play.")
     
-    # Attack & Defense
     tactical = []
-    if atk > 1.5: tactical.append("Offensively, they are elite, generating high-quality chances with ease.")
-    elif atk > 1.1: tactical.append("They possess a reliable attack that can break down standard defenses.")
-    else: tactical.append("Goal-scoring can be a struggle, often relying on opportunism.")
+    # Attack Text Pool
+    if atk > 1.45:
+        tactical.append(random.choice([
+            "Offensively, they are elite, generating high-quality chances with ease.",
+            "They possess a world-class attacking unit capable of dismantling any defense.",
+            "Their forward line is terrifying, consistently overwhelming opponents in the final third."
+        ]))
+    elif atk > 1.10:
+        tactical.append(random.choice([
+            "They possess a reliable attack that can break down standard defenses.",
+            "Offensively, they are highly capable and dangerous when given space.",
+            "They have a structured offensive system that consistently finds the back of the net."
+        ]))
+    else:
+        tactical.append("Goal-scoring can be a struggle, often relying on counter-attacks or opportunism.")
         
-    if dfe < 0.8: tactical.append("At the back, they boast an 'iron wall', excelling at suffocating opponent attacks.")
-    elif dfe < 1.05: tactical.append("Their defensive unit is solid, though occasionally vulnerable to world-class forwards.")
-    else: tactical.append("Defensively, they are leaky, forcing them to frequently outscore their opponents.")
+    # Defense Text Pool (Much stricter bounds now)
+    if dfe < 0.65:
+        tactical.append(random.choice([
+            "At the back, they boast an 'iron wall', excelling at suffocating opponent attacks.",
+            "Defensively, they are incredibly disciplined, making them notoriously difficult to break down.",
+            "They execute a masterclass defensive setup that rarely concedes high-danger chances."
+        ]))
+    elif dfe < 0.95:
+        tactical.append(random.choice([
+            "Their defensive unit is solid and organized, though occasionally vulnerable to elite forwards.",
+            "They defend reasonably well as a collective, keeping clean sheets against average opposition.",
+            "At the back, they are dependable and rarely make unforced errors."
+        ]))
+    else:
+        tactical.append("Defensively, they are quite leaky, forcing them to frequently outscore their opponents in shootouts.")
+        
     report_paragraphs.append("<b>Tactical DNA:</b> " + " ".join(tactical))
     
-    # Statistical Quirks
     quirks = []
     if stats.get('fh_pct', 0) > 55: quirks.append("They are notoriously fast starters, looking to blitz opponents early in the first half.")
     if stats.get('late_pct', 0) > 30: quirks.append("Fitness is a key strength; they frequently score decisive goals after the 75th minute.")
@@ -1020,15 +1039,19 @@ def generate_dynamic_report(team, atk, dfe, upset, stats):
 
     if quirks: report_paragraphs.append("<b>Statistical Quirks:</b> " + " ".join(quirks))
         
-    # Big Game Factor
-    s_w, s_d, s_l = stats.get('vs_stronger', [0,0,0])
+    # Big Game Factor (Using the new vs_elite stats)
+    s_w, s_d, s_l = stats.get('vs_elite', [0,0,0])
     strong_games = s_w + s_d + s_l
     win_pct_strong = (s_w / strong_games * 100) if strong_games > 0 else 0
     
-    if rank > 20 and win_pct_strong > 25: report_paragraphs.append(f"<b>X-Factor:</b> {team.title()} is a certified 'giant killer' with an impressive track record of upsetting heavyweights.")
-    elif rank <= 20 and win_pct_strong > 40: report_paragraphs.append(f"<b>X-Factor:</b> They elevate their game against elite competition, boasting an excellent record against other top nations.")
-    elif strong_games > 5 and win_pct_strong < 10: report_paragraphs.append(f"<b>X-Factor:</b> They consistently fall short when stepping up in class against top-tier opposition.")
-    else: report_paragraphs.append(f"<b>X-Factor:</b> They are highly consistent, beating the teams they should beat and grinding out predictable results.")
+    if rank > 15 and win_pct_strong > 30:
+        report_paragraphs.append(f"<b>X-Factor:</b> {team.title()} is a certified 'giant killer' with an impressive track record of upsetting heavyweights.")
+    elif rank <= 15 and win_pct_strong > 40:
+        report_paragraphs.append(f"<b>X-Factor:</b> They are true 'Big Game Players', elevating their performance and dominating other top-tier nations.")
+    elif strong_games > 5 and win_pct_strong < 15:
+        report_paragraphs.append(f"<b>X-Factor:</b> They consistently fall short when stepping up in class against elite opposition.")
+    else:
+        report_paragraphs.append(f"<b>X-Factor:</b> They are highly consistent, comfortably beating the teams they should beat and grinding out predictable results.")
 
     return "".join([f"<div style='margin-bottom:12px;'>{p}</div>" for p in report_paragraphs])
 
