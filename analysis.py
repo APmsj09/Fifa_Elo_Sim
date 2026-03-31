@@ -1,7 +1,8 @@
 import js
 import asyncio
-import pandas as pd
+import traceback
 import numpy as np
+import pandas as pd
 import matplotlib.subplots as plt_subplots
 import matplotlib.pyplot as plt
 import simulation_engine as sim
@@ -9,15 +10,26 @@ from pyodide.ffi import create_proxy
 from pyscript import display
 
 # ==========================================================
-# --- 2022 BACKTEST SIMULATION (Upgraded to use main engine) ---
+# --- SECURE 2022 DATA MAPPING ---
 # ==========================================================
+# Hardcoded here to ensure it's always available to the analysis script
+WC_2022_GROUPS = {
+    'A': ['qatar', 'ecuador', 'senegal', 'netherlands'],
+    'B': ['england', 'iran', 'united states', 'wales'],
+    'C': ['argentina', 'saudi arabia', 'mexico', 'poland'],
+    'D': ['france', 'australia', 'denmark', 'tunisia'],
+    'E': ['spain', 'costa rica', 'germany', 'japan'],
+    'F': ['belgium', 'canada', 'morocco', 'croatia'],
+    'G': ['brazil', 'serbia', 'switzerland', 'cameroon'],
+    'H': ['portugal', 'ghana', 'uruguay', 'south korea']
+}
 
 def sim_2022_tournament():
     # 1. GROUP STAGE
     group_winners = {}
     group_runners = {}
     
-    for grp, teams in sim.WC_2022_GROUPS.items():
+    for grp, teams in WC_2022_GROUPS.items():
         table = {t: {'p':0, 'gd':0, 'gf':0} for t in teams}
         
         # Shuffle for random tie-breakers (simulates drawing lots if all else is equal)
@@ -28,7 +40,7 @@ def sim_2022_tournament():
             for j in range(i+1, len(teams_shuffled)):
                 t1, t2 = teams_shuffled[i], teams_shuffled[j]
                 
-                # USE THE REAL ENGINE WE JUST TUNED!
+                # USE THE REAL ENGINE
                 w, g1, g2 = sim.sim_match(t1, t2, knockout=False)
                 
                 # Update standings
@@ -59,7 +71,6 @@ def sim_2022_tournament():
     ]
     
     def play_ko(t1, t2):
-        # USE THE REAL ENGINE WE JUST TUNED!
         w, _, _, _ = sim.sim_match(t1, t2, knockout=True)
         return w
 
@@ -88,10 +99,11 @@ async def run_sim_backtest(event):
     prog_container = js.document.getElementById("sim-progress-container")
     prog_bar = js.document.getElementById("sim-progress-bar")
     
-    # --- GET DYNAMIC SIM COUNT FROM HTML INPUT ---
+    # --- GET DYNAMIC SIM COUNT ---
     try:
-        sim_count = int(js.document.getElementById("backtest-count").value)
-        sim_count = max(10, min(10000, sim_count)) # Keep it between 10 and 10,000
+        sim_count_el = js.document.getElementById("backtest-count")
+        sim_count = int(sim_count_el.value) if sim_count_el else 1000
+        sim_count = max(10, min(10000, sim_count)) 
     except:
         sim_count = 1000
         
@@ -111,11 +123,16 @@ async def run_sim_backtest(event):
         # 1. Fetch 2022 Elos
         elo_2022 = sim.get_historical_elo('2022-11-20')
         
-        # BACKUP current 2026 Elos & TEMPORARILY override with 2022 Elos
+        # BACKUP current 2026 Elos 
         current_stats_backup = {t: sim.TEAM_STATS[t]['elo'] for t in sim.TEAM_STATS}
-        for t in sim.WC_2022_GROUPS:
-            for team in sim.WC_2022_GROUPS[t]:
+        
+        # TEMPORARILY override with 2022 Elos (Bulletproofed against KeyErrors)
+        for t in WC_2022_GROUPS:
+            for team in WC_2022_GROUPS[t]:
                 if team in elo_2022:
+                    if team not in sim.TEAM_STATS:
+                        # Safety fallback if a 2022 team isn't in the 2026 data
+                        sim.TEAM_STATS[team] = {'elo': 1200, 'off': 1.0, 'def': 1.0}
                     sim.TEAM_STATS[team]['elo'] = elo_2022[team]
         
         # 2. Run Simulations
@@ -143,7 +160,8 @@ async def run_sim_backtest(event):
         
         # RESTORE the 2026 Elos so the rest of the app doesn't break
         for t, original_elo in current_stats_backup.items():
-            sim.TEAM_STATS[t]['elo'] = original_elo
+            if t in sim.TEAM_STATS:
+                sim.TEAM_STATS[t]['elo'] = original_elo
 
         # 3. Visualization: Bar Chart
         sorted_by_win = sorted(stats.items(), key=lambda x: x[1]['win'], reverse=True)
@@ -227,22 +245,17 @@ async def run_sim_backtest(event):
             """
         html += "</tbody></table></div>"
 
-        # ==========================================================
         # 5. DYNAMIC ANALYSIS REPORT GENERATOR
-        # ==========================================================
-        
-        # Extract specific stats for the report
         arg_win = (stats.get('argentina', {}).get('win', 0) / sim_count) * 100
         fra_fin = (stats.get('france', {}).get('final', 0) / sim_count) * 100
         mor_sem = (stats.get('morocco', {}).get('semi', 0) / sim_count) * 100
         cro_sem = (stats.get('croatia', {}).get('semi', 0) / sim_count) * 100
         
-        top_fav_name = top_5[0][0].title()
-        top_fav_win = (top_5[0][1]['win'] / sim_count) * 100
+        top_fav_name = top_5[0][0].title() if top_5 else "Unknown"
+        top_fav_win = (top_5[0][1]['win'] / sim_count * 100) if top_5 else 0
         
-        arg_rank = next((i for i, v in enumerate(sorted_by_win) if v[0] == 'argentina'), -1) + 1
+        arg_rank = next((i for i, v in enumerate(sorted_by_win) if v[0] == 'argentina'), 99) + 1
         
-        # Grade the engine
         if arg_rank <= 3: grade = "A+"
         elif arg_rank <= 5: grade = "B"
         else: grade = "C"
@@ -255,8 +268,6 @@ async def run_sim_backtest(event):
             </div>
 
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px;">
-                
-                <!-- Section 1: The Heavyweights -->
                 <div>
                     <h4 style="color: var(--accent-blue); margin-top: 0; display:flex; align-items:center; gap:8px;">
                         <span>🎯</span> Predicting the Favorites
@@ -271,7 +282,6 @@ async def run_sim_backtest(event):
                     </div>
                 </div>
 
-                <!-- Section 2: The Chaos -->
                 <div>
                     <h4 style="color: var(--accent-gold); margin-top: 0; display:flex; align-items:center; gap:8px;">
                         <span>🌪️</span> Measuring the Chaos (Anomalies)
@@ -284,10 +294,8 @@ async def run_sim_backtest(event):
                         A good simulation model does not predict anomalies as "likely"—if it did, it would be overfit. Because Morocco's semi-final probability sits strictly in the single-digits, the engine correctly identified their historic run as a <i>statistical Cinderella story</i> rather than a predictable outcome.
                     </p>
                 </div>
-
             </div>
 
-            <!-- Conclusion Box -->
             <div style="margin-top: 25px; padding: 18px; background: #f0fdf4; border-left: 4px solid var(--accent-green); border-radius: 6px;">
                 <strong style="color: #166534; font-size: 1.05em;">📊 Final Verdict:</strong>
                 <p style="font-size: 0.95em; color: #15803d; line-height: 1.6; margin: 8px 0 0 0;">
@@ -300,8 +308,15 @@ async def run_sim_backtest(event):
         out_div.innerHTML = html
         if prog_container: prog_container.style.display = "none"
 
+    # THIS IS THE CRITICAL DEBUGGING CATCH
     except Exception as e:
-        out_div.innerHTML = f"<div style='color:#ef4444; padding:10px; background:#fef2f2; border:1px solid #fca5a5; border-radius:8px;'>Error: {e}</div>"
+        error_trace = traceback.format_exc()
+        out_div.innerHTML = f"""
+        <div style='color:#ef4444; padding:15px; background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; overflow-x:auto;'>
+            <h3 style='margin-top:0;'>Critical Python Error:</h3>
+            <pre style='font-size:0.85em;'>{error_trace}</pre>
+        </div>
+        """
         js.console.error(f"ANALYSIS SCRIPT ERROR: {e}")
         
     finally:
@@ -309,9 +324,10 @@ async def run_sim_backtest(event):
             btn.disabled = False
             btn.innerHTML = "▶ Run Validation"
 
-# Remove duplicate initializations
 def init_analysis():
     btn = js.document.getElementById("btn-backtest-sim")
-    if btn: btn.onclick = create_proxy(run_sim_backtest)
+    if btn: 
+        # Create a fresh proxy that won't conflict
+        btn.onclick = create_proxy(run_sim_backtest)
 
 init_analysis()
