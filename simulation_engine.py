@@ -578,8 +578,6 @@ def initialize_engine():
         # -----------------------------------------------------------
         # E. ADVANCED STYLE LABEL (Updated for SOS-Adjusted Stats)
         # -----------------------------------------------------------
-        # We now use 'adj_gf' and 'adj_ga' so the label matches the rating.
-
         has_history = m >= 10 
         
         # Calculate relative strength (1.0 = exactly average)
@@ -587,8 +585,10 @@ def initialize_engine():
         rel_ga = s['adj_ga'] / avg_goals_global
     
         if has_history:
-            # 1. ELITE: Adjusted to comfortably catch Spain, Argentina, France
-            if rel_gf > 1.28 and rel_ga < 0.85: style = "Elite / Dominant"
+            # Require a true Elite Elo (>1850) to claim the Dominant tag
+            is_elite_elo = s['elo'] > 1850 
+            
+            if is_elite_elo and rel_gf > 1.25 and rel_ga < 0.85: style = "Elite / Dominant"
             elif rel_gf > 1.20 and rel_ga > 1.15: style = "High Risk / Chaos"
             elif rel_gf < 0.90 and rel_ga < 0.80: style = "Defensive Wall"
             elif s['btts_pct'] < 50 and rel_ga < 0.95: style = "Control / Disciplined"
@@ -721,18 +721,16 @@ def sim_match(t1, t2, knockout=False):
     bus_park_modifier_1 = 1.0
     bus_park_modifier_2 = 1.0
     
+    # Relaxed slightly so minnows can still counter-attack occasionally
     if dr > 300: 
-        # Team 2 is severely outclassed. They park the bus.
-        bus_park_modifier_2 = 0.50 # Their counter-attack is almost non-existent
-        bus_park_modifier_1 = 0.85 # Team 1 faces a low block (harder to break down)
+        bus_park_modifier_2 = 0.65 # Weaker team focuses 100% on defense
+        bus_park_modifier_1 = 0.90 # Strong team faces a stubborn low block
     elif dr < -300:
-        # Team 1 is severely outclassed.
-        bus_park_modifier_1 = 0.50 
-        bus_park_modifier_2 = 0.85
+        bus_park_modifier_1 = 0.65 
+        bus_park_modifier_2 = 0.90
         
     # 6. BRINGING IT ALL TOGETHER
-    # Combine Stats + Elo Probability + Pedigree Boost + Game State
-    class_boost1 = 1.0 + (we1 - 0.5) * 0.4  # Gives up to +20% for overwhelming favorites
+    class_boost1 = 1.0 + (we1 - 0.5) * 0.4  
     class_boost2 = 1.0 + (we2 - 0.5) * 0.4
     
     pedigree_boost1 = 1.0 + (pedigree_gap * 0.15)
@@ -741,9 +739,7 @@ def sim_match(t1, t2, knockout=False):
     m1_raw = (off1_adj * def2_adj) * class_boost1 * pedigree_boost1 * bus_park_modifier_1
     m2_raw = (off2_adj * def1_adj) * class_boost2 * pedigree_boost2 * bus_park_modifier_2
     
-    # 7. LOGARITHMIC COMPRESSION (Relaxed)
-    # Because we fixed the 2.5 Baseline Bug below, we can let this breathe.
-    # Teams can organically reach ~2.5x multipliers without breaking the universe.
+    # 7. LOGARITHMIC COMPRESSION
     def compress(val):
         if val <= 1.8: return val
         return 1.8 + np.log(val - 0.8) * 0.8 
@@ -752,12 +748,13 @@ def sim_match(t1, t2, knockout=False):
     m2 = compress(m2_raw)
 
     # 8. TOURNAMENT INTENSITY
-    # Groups are open, Knockouts are cagey.
-    TOURNAMENT_INTENSITY = 0.85 if knockout else 1.0
+    # Knockout games are naturally tighter, but Group stages play at normal pace
+    TOURNAMENT_INTENSITY = 0.88 if knockout else 1.0
     
     # 9. CALCULATE EXPECTED GOALS (Poisson Lambda)
-    # CRITICAL FIX: Base xG per team is 1.25, NOT 2.5!
-    BASE_TEAM_XG = AVG_GOALS / 2.0 
+    # CRITICAL FIX: AVG_GOALS is already calculated as the per-team average (~1.3).
+    # We do NOT halve it.
+    BASE_TEAM_XG = AVG_GOALS 
     
     lam1 = BASE_TEAM_XG * m1 * mod1 * home_boost * TOURNAMENT_INTENSITY
     lam2 = BASE_TEAM_XG * m2 * mod2 * away_boost * TOURNAMENT_INTENSITY
