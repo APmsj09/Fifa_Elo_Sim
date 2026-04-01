@@ -101,6 +101,16 @@ TEAM_CONFEDS = {
 # Where we will store the calculated multipliers
 CONFED_MULTIPLIERS = {}
 
+# Finalized 2026 World Cup Playoff Results (As of April 1, 2026)
+FINALIZED_SLOTS = {
+    'Path A': 'bosnia and herzegovina',  # Winner of Italy/Northern Ireland vs Wales
+    'Path B': 'sweden',                  # Winner of Ukraine vs Poland/Albania
+    'Path C': 'turkey',                  # Winner of Turkey vs Slovakia/Kosovo
+    'Path D': 'czech republic',          # Winner of Czech Republic/Republic of Ireland vs Denmark/North Macedonia
+    'ICP1': 'dr congo',                  # Winner of Jamaica vs OFC winner
+    'ICP2': 'iraq'                       # Winner of Iraq vs CONMEBOL playoffs
+}
+
 def load_data():
     """
     Loads data assuming all files are now standard CSVs.
@@ -801,36 +811,19 @@ def sim_match(t1, t2, knockout=False):
         winner = t1 if random.random() < pk_prob else t2
         
         return winner, g1, g2, 'pks'
-def run_simulation(verbose=False, quiet=False, fast_mode=False):
+def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=None):
     # Data containers
     structured_groups = {} if not fast_mode else None
     structured_bracket = [] if not fast_mode else None
     group_matches_log = {} if not fast_mode else None
 
     # --- 0. PRE-TOURNAMENT QUALIFIERS ---
-    slots = {}
-    uefa_paths = {
-        'Path A': [('italy', 'northern ireland'), ('wales', 'bosnia and herzegovina')],
-        'Path B': [('ukraine', 'sweden'), ('poland', 'albania')],
-        'Path C': [('turkey', 'romania'), ('slovakia', 'kosovo')],
-        'Path D': [('czech republic', 'republic of ireland'), ('denmark', 'north macedonia')]
-    }
-    
-    for path, semis in uefa_paths.items():
-        finalists = []
-        for t1, t2 in semis:
-            w, _, _, _ = sim_match(t1, t2, knockout=True)
-            finalists.append(w)
-        w_final, _, _, _ = sim_match(finalists[0], finalists[1], knockout=True)
-        slots[path] = w_final
-
-    w_ofc, _, _, _ = sim_match('dr congo', 'new caledonia', knockout=True)
-    w_icp1, _, _, _ = sim_match('jamaica', w_ofc, knockout=True)
-    slots['ICP1'] = w_icp1
-    
-    w_conmebol, _, _, _ = sim_match('bolivia', 'suriname', knockout=True)
-    w_icp2, _, _, _ = sim_match('iraq', w_conmebol, knockout=True)
-    slots['ICP2'] = w_icp2
+    # Use finalized playoff results (actual 2026 qualifiers)
+    # If custom slots provided, use those; otherwise use FINALIZED_SLOTS
+    if finalized_slots is None:
+        slots = FINALIZED_SLOTS.copy()
+    else:
+        slots = finalized_slots
 
     # --- 1. GROUP STAGE ---
     groups = {

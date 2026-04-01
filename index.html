@@ -218,6 +218,53 @@
         :root.dark-mode .rankings-table td { border-bottom: 1px solid #334155; }
         :root.dark-mode .rankings-table tbody tr:hover td { background-color: #334155; }
 
+        /* --- 9. TOOLTIP STYLING FOR CONFIDENCE INTERVALS --- */
+        .ci-value {
+            cursor: help; border-bottom: 1px dotted var(--accent-blue);
+            position: relative;
+        }
+        
+        .ci-value::after {
+            content: attr(data-ci);
+            position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%);
+            background: #1f2937; color: white; padding: 8px 12px;
+            border-radius: 6px; font-size: 0.85em; font-weight: 500;
+            white-space: nowrap; opacity: 0; pointer-events: none;
+            transition: opacity 0.2s ease; z-index: 100;
+            border: 1px solid #374151;
+        }
+        
+        .ci-value:hover::after {
+            opacity: 1;
+        }
+
+        /* Arrow for tooltip */
+        .ci-value::before {
+            content: '';
+            position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%);
+            width: 8px; height: 8px; background: #1f2937;
+            border-right: 1px solid #374151;
+            border-bottom: 1px solid #374151;
+            transform: translateX(-50%) rotate(45deg);
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.2s ease; z-index: 100;
+        }
+        
+        .ci-value:hover::before {
+            opacity: 1;
+        }
+
+        /* Dark mode tooltip */
+        :root.dark-mode .ci-value::after {
+            background: #e5e7eb; color: #1f2937;
+            border-color: #d1d5db;
+        }
+        
+        :root.dark-mode .ci-value::before {
+            background: #e5e7eb;
+            border-color: #d1d5db;
+        }
+
         /* Dark mode toggle button */
         .dark-mode-toggle {
             background: transparent;

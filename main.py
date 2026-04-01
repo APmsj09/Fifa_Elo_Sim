@@ -407,6 +407,7 @@ async def run_bulk_sim(event):
             
         # --- 7. GENERATE OUTPUT ---
         html = "<h2 style='color:#2c3e50;'>📋 PROJECTED GROUP STANDINGS</h2>"
+        html += "<p style='color:var(--text-light); font-size:0.9em; margin-bottom:20px;'><span style='cursor:help;'>💡 Hover over percentages to see 95% confidence intervals</span></p>"
         html += "<div style='display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px;'>"
         
         for grp in sorted(group_mapping.keys()):
@@ -438,8 +439,8 @@ async def run_bulk_sim(event):
                 
                 html += f"""<tr style='opacity:{opacity};'>
                     <td style='font-weight:600;'>{t.title()}</td>
-                    <td style='text-align:right;'>{win_grp_pct:.1f}% (±{win_grp_ci:.1f}%)</td>
-                    <td style='text-align:right; font-weight:bold;'>{adv_pct:.1f}% (±{adv_ci:.1f}%)</td>
+                    <td style='text-align:right;'><span class='ci-value' data-ci='95% CI: ±{win_grp_ci:.1f}%'>{win_grp_pct:.1f}%</span></td>
+                    <td style='text-align:right; font-weight:bold;'><span class='ci-value' data-ci='95% CI: ±{adv_ci:.1f}%'>{adv_pct:.1f}%</span></td>
                 </tr>"""
             html += "</table></div>"
         
@@ -447,6 +448,7 @@ async def run_bulk_sim(event):
 
         # SECTION 2: TOURNAMENT FAVORITES
         html += "<br><h2 style='color:#2c3e50; border-bottom:2px solid #ddd; padding-bottom:10px; margin-top:30px;'>🏆 TOURNAMENT FAVORITES</h2>"
+        html += "<p style='color:var(--text-light); font-size:0.9em; margin-bottom:15px;'><span style='cursor:help;'>💡 Hover over percentages to see 95% confidence intervals</span></p>"
         html += """
         <table style="width:100%; border-collapse:collapse; background:white; border-radius:8px; overflow:hidden; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
             <tr style="background:#2c3e50; color:white; text-align:left;">
@@ -481,11 +483,11 @@ async def run_bulk_sim(event):
             html += f"""
             <tr style="border-bottom:1px solid #eee;">
                 <td style="padding:10px; font-weight:bold;">{team.title()}</td>
-                <td style="padding:10px; text-align:right; color:#7f8c8d; background:#f8f9fa;">{r16_pct:.1f}% (±{r16_ci:.1f}%)</td>
-                <td style="padding:10px; text-align:right; color:#7f8c8d; background:#f8f9fa;">{qf_pct:.1f}% (±{qf_ci:.1f}%)</td>
-                <td style="padding:10px; text-align:right; color:#34495e;">{semi_pct:.1f}% (±{semi_ci:.1f}%)</td>
-                <td style="padding:10px; text-align:right;">{final_pct:.1f}% (±{final_ci:.1f}%)</td>
-                <td style="padding:10px; text-align:right; font-weight:bold; background:#fffcf5;">{win_pct:.1f}% (±{win_ci:.1f}%)</td>
+                <td style="padding:10px; text-align:right; color:#7f8c8d; background:#f8f9fa;"><span class='ci-value' data-ci='95% CI: ±{r16_ci:.1f}%'>{r16_pct:.1f}%</span></td>
+                <td style="padding:10px; text-align:right; color:#7f8c8d; background:#f8f9fa;"><span class='ci-value' data-ci='95% CI: ±{qf_ci:.1f}%'>{qf_pct:.1f}%</span></td>
+                <td style="padding:10px; text-align:right; color:#34495e;"><span class='ci-value' data-ci='95% CI: ±{semi_ci:.1f}%'>{semi_pct:.1f}%</span></td>
+                <td style="padding:10px; text-align:right;"><span class='ci-value' data-ci='95% CI: ±{final_ci:.1f}%'>{final_pct:.1f}%</span></td>
+                <td style="padding:10px; text-align:right; font-weight:bold; background:#fffcf5;"><span class='ci-value' data-ci='95% CI: ±{win_ci:.1f}%'>{win_pct:.1f}%</span></td>
             </tr>
             """
             
@@ -582,9 +584,9 @@ async def run_matchup_analysis(event):
                 <h3 style="margin-top:0; color:var(--text-light); text-transform:uppercase; font-size:0.85em;">Match Simulation ({sim_count:,} runs)</h3>
                 
                 <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-weight:800; font-size:1.2em;">
-                    <div style="color:#3b82f6;">{team_a.title()}<br><span style="font-size:0.6em; font-weight:400;">{p_a:.1f}% (±{ci_a:.1f}%)</span></div>
-                    <div style="color:#64748b; font-size:0.8em; align-self:center;">DRAW<br><span style="font-size:0.7em;">{p_d:.1f}% (±{ci_d:.1f}%)</span></div>
-                    <div style="color:#ef4444;">{team_b.title()}<br><span style="font-size:0.6em; font-weight:400;">{p_b:.1f}% (±{ci_b:.1f}%)</span></div>
+                    <div style="color:#3b82f6;">{team_a.title()}<br><span style="font-size:0.6em; font-weight:400;"><span class='ci-value' data-ci='95% CI: ±{ci_a:.1f}%'>{p_a:.1f}%</span></span></div>
+                    <div style="color:#64748b; font-size:0.8em; align-self:center;">DRAW<br><span style="font-size:0.7em;"><span class='ci-value' data-ci='95% CI: ±{ci_d:.1f}%'>{p_d:.1f}%</span></span></div>
+                    <div style="color:#ef4444;">{team_b.title()}<br><span style="font-size:0.6em; font-weight:400;"><span class='ci-value' data-ci='95% CI: ±{ci_b:.1f}%'>{p_b:.1f}%</span></span></div>
                 </div>
 
                 <div style="width:100%; height:30px; display:flex; border-radius:8px; overflow:hidden; box-shadow:var(--shadow-sm);">
