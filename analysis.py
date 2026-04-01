@@ -2,38 +2,95 @@ import js
 import asyncio
 import traceback
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 import simulation_engine as sim
 from pyodide.ffi import create_proxy
 from pyscript import display
 
+ANALYSIS_HANDLERS = []
+
 # ==========================================================
-# --- SECURE 2022 DATA MAPPING ---
+# --- HISTORICAL TOURNAMENT DATABASE ---
 # ==========================================================
-WC_2022_GROUPS = {
-    'A': ['qatar', 'ecuador', 'senegal', 'netherlands'],
-    'B': ['england', 'iran', 'united states', 'wales'],
-    'C': ['argentina', 'saudi arabia', 'mexico', 'poland'],
-    'D': ['france', 'australia', 'denmark', 'tunisia'],
-    'E': ['spain', 'costa rica', 'germany', 'japan'],
-    'F': ['belgium', 'canada', 'morocco', 'croatia'],
-    'G': ['brazil', 'serbia', 'switzerland', 'cameroon'],
-    'H': ['portugal', 'ghana', 'uruguay', 'south korea']
+TOURNAMENTS = {
+    '2022': {
+        'name': 'Qatar 2022',
+        'cutoff_date': '2022-11-20',
+        'real_winner': 'argentina',
+        'real_runner_up': 'france',
+        'real_surprises': ['croatia', 'morocco'], # 3rd and 4th place
+        'groups': {
+            'A': ['qatar', 'ecuador', 'senegal', 'netherlands'],
+            'B': ['england', 'iran', 'united states', 'wales'],
+            'C': ['argentina', 'saudi arabia', 'mexico', 'poland'],
+            'D': ['france', 'australia', 'denmark', 'tunisia'],
+            'E': ['spain', 'costa rica', 'germany', 'japan'],
+            'F': ['belgium', 'canada', 'morocco', 'croatia'],
+            'G': ['brazil', 'serbia', 'switzerland', 'cameroon'],
+            'H': ['portugal', 'ghana', 'uruguay', 'south korea']
+        },
+        'ui_results': [
+            ('argentina', '🥇 Winner', '#f59e0b'), ('france', '🥈 Runner-up', '#94a3b8'),
+            ('croatia', '🥉 3rd', '#b45309'), ('morocco', '4th', '#64748b'),
+            ('england', 'Q-Finals', '#cbd5e1'), ('brazil', 'Q-Finals', '#cbd5e1'), 
+            ('portugal', 'Q-Finals', '#cbd5e1'), ('netherlands', 'Q-Finals', '#cbd5e1')
+        ]
+    },
+    '2018': {
+        'name': 'Russia 2018',
+        'cutoff_date': '2018-06-14',
+        'real_winner': 'france',
+        'real_runner_up': 'croatia',
+        'real_surprises': ['belgium', 'england'],
+        'groups': {
+            'A': ['russia', 'saudi arabia', 'egypt', 'uruguay'],
+            'B': ['portugal', 'spain', 'morocco', 'iran'],
+            'C': ['france', 'australia', 'peru', 'denmark'],
+            'D': ['argentina', 'iceland', 'croatia', 'nigeria'],
+            'E': ['brazil', 'switzerland', 'costa rica', 'serbia'],
+            'F': ['germany', 'mexico', 'sweden', 'south korea'],
+            'G': ['belgium', 'panama', 'tunisia', 'england'],
+            'H': ['poland', 'senegal', 'colombia', 'japan']
+        },
+        'ui_results': [
+            ('france', '🥇 Winner', '#f59e0b'), ('croatia', '🥈 Runner-up', '#94a3b8'),
+            ('belgium', '🥉 3rd', '#b45309'), ('england', '4th', '#64748b'),
+            ('uruguay', 'Q-Finals', '#cbd5e1'), ('brazil', 'Q-Finals', '#cbd5e1'), 
+            ('sweden', 'Q-Finals', '#cbd5e1'), ('russia', 'Q-Finals', '#cbd5e1')
+        ]
+    },
+    '2014': {
+        'name': 'Brazil 2014',
+        'cutoff_date': '2014-06-12',
+        'real_winner': 'germany',
+        'real_runner_up': 'argentina',
+        'real_surprises': ['netherlands', 'brazil'],
+        'groups': {
+            'A': ['brazil', 'croatia', 'mexico', 'cameroon'],
+            'B': ['spain', 'netherlands', 'chile', 'australia'],
+            'C': ['colombia', 'greece', 'ivory coast', 'japan'],
+            'D': ['uruguay', 'costa rica', 'england', 'italy'],
+            'E': ['switzerland', 'ecuador', 'france', 'honduras'],
+            'F': ['argentina', 'bosnia and herzegovina', 'iran', 'nigeria'],
+            'G': ['germany', 'portugal', 'ghana', 'united states'],
+            'H': ['belgium', 'algeria', 'russia', 'south korea']
+        },
+        'ui_results': [
+            ('germany', '🥇 Winner', '#f59e0b'), ('argentina', '🥈 Runner-up', '#94a3b8'),
+            ('netherlands', '🥉 3rd', '#b45309'), ('brazil', '4th', '#64748b'),
+            ('colombia', 'Q-Finals', '#cbd5e1'), ('france', 'Q-Finals', '#cbd5e1'), 
+            ('costa rica', 'Q-Finals', '#cbd5e1'), ('belgium', 'Q-Finals', '#cbd5e1')
+        ]
+    }
 }
 
-# FIX 2: Global list to prevent Pyodide from garbage-collecting our button click
-ANALYSIS_HANDLERS = [] 
-
-def sim_2022_tournament():
-    # 1. GROUP STAGE
+def sim_32_team_tournament(groups_dict):
+    """Generic 32-team World Cup Simulator (Used from 1998 to 2022)"""
     group_winners = {}
     group_runners = {}
     
-    for grp, teams in WC_2022_GROUPS.items():
+    for grp, teams in groups_dict.items():
         table = {t: {'p':0, 'gd':0, 'gf':0} for t in teams}
-        
-        # Shuffle for random tie-breakers (simulates drawing lots if all else is equal)
         teams_shuffled = teams.copy()
         np.random.shuffle(teams_shuffled)
         
@@ -41,35 +98,28 @@ def sim_2022_tournament():
             for j in range(i+1, len(teams_shuffled)):
                 t1, t2 = teams_shuffled[i], teams_shuffled[j]
                 
-                # USE THE REAL ENGINE
                 result = sim.sim_match(t1, t2, knockout=False)
-                
-                # Handle draw case gracefully (returns 3-tuple)
                 if result[0] == 'draw':
                     w, g1, g2 = None, result[1], result[2]
                 else:
                     w, g1, g2 = result[0], result[1], result[2]
                 
-                # Update standings
                 table[t1]['gf'] += g1
                 table[t2]['gf'] += g2
                 table[t1]['gd'] += (g1 - g2)
                 table[t2]['gd'] += (g2 - g1)
                 
-                if g1 > g2: 
-                    table[t1]['p'] += 3
-                elif g2 > g1: 
-                    table[t2]['p'] += 3
+                if g1 > g2: table[t1]['p'] += 3
+                elif g2 > g1: table[t2]['p'] += 3
                 else: 
                     table[t1]['p'] += 1
                     table[t2]['p'] += 1
 
-        # Sort using proper FIFA tiebreakers
         sorted_teams = sorted(teams_shuffled, key=lambda t: (table[t]['p'], table[t]['gd'], table[t]['gf']), reverse=True)
         group_winners[grp] = sorted_teams[0]
         group_runners[grp] = sorted_teams[1]
 
-    # 2. KNOCKOUT STAGE (Official 2022 Bracket Flow)
+    # Standard 32-team Knockout Bracket mapping
     ro16_matches = [
         (group_winners['A'], group_runners['B']), (group_winners['C'], group_runners['D']),
         (group_winners['E'], group_runners['F']), (group_winners['G'], group_runners['H']),
@@ -81,44 +131,36 @@ def sim_2022_tournament():
         w, _, _, _ = sim.sim_match(t1, t2, knockout=True)
         return w
 
-    quarters = []
-    for t1, t2 in ro16_matches: 
-        quarters.append(play_ko(t1, t2))
-        
-    semis = []
-    for i in range(0, len(quarters), 2): 
-        semis.append(play_ko(quarters[i], quarters[i+1]))
-        
-    finalists = []
-    for i in range(0, len(semis), 2): 
-        finalists.append(play_ko(semis[i], semis[i+1]))
-        
+    quarters = [play_ko(t1, t2) for t1, t2 in ro16_matches]
+    semis = [play_ko(quarters[i], quarters[i+1]) for i in range(0, len(quarters), 2)]
+    finalists = [play_ko(semis[i], semis[i+1]) for i in range(0, len(semis), 2)]
     champion = play_ko(finalists[0], finalists[1])
     
     return champion, set(finalists), set(semis)
-
 
 async def run_sim_backtest(event):
     out_div = js.document.getElementById("validation-text")
     chart_div = js.document.getElementById("validation-charts")
     btn = js.document.getElementById("btn-backtest-sim")
-    
     prog_container = js.document.getElementById("sim-progress-container")
     prog_bar = js.document.getElementById("sim-progress-bar")
     
-    # --- GET DYNAMIC SIM COUNT ---
+    # 1. READ USER INPUTS
     try:
-        sim_count_el = js.document.getElementById("backtest-count")
-        sim_count = int(sim_count_el.value) if sim_count_el else 1000
-        sim_count = max(10, min(10000, sim_count)) 
+        tourney_id = js.document.getElementById("backtest-tourney").value
+        sim_count = int(js.document.getElementById("backtest-count").value)
+        sim_count = max(10, min(20000, sim_count)) 
     except:
+        tourney_id = '2022'
         sim_count = 1000
+        
+    t_data = TOURNAMENTS[tourney_id]
         
     if btn: 
         btn.disabled = True
         btn.innerHTML = "<span class='loader-circle' style='width:12px; height:12px; border-width:2px; display:inline-block; margin:0 8px -2px 0;'></span> Running..."
 
-    out_div.innerHTML = "Step 1: Calculating historical Elo (1872 - 2022)..."
+    out_div.innerHTML = f"Step 1: Calculating historical Elo (1872 - {t_data['name']})..."
     chart_div.innerHTML = ""
     if prog_container: 
         prog_container.style.display = "block"
@@ -127,36 +169,31 @@ async def run_sim_backtest(event):
     await asyncio.sleep(0.1)
 
     try:
-        # 1. Fetch 2022 Elos
-        elo_2022 = sim.get_historical_elo('2022-11-20')
+        # 2. FETCH HISTORICAL ELOS
+        elo_historic = sim.get_historical_elo(t_data['cutoff_date'])
         
-        # BACKUP current 2026 Elos 
+        # Backup current 2026 stats
         current_stats_backup = {t: sim.TEAM_STATS[t].copy() for t in sim.TEAM_STATS}
         
-        # TEMPORARILY override with 2022 Elos (with all required fields)
-        for t in WC_2022_GROUPS:
-            for team in WC_2022_GROUPS[t]:
-                if team in elo_2022:
+        # Override with historic Elos
+        for t in t_data['groups']:
+            for team in t_data['groups'][t]:
+                if team in elo_historic:
                     if team not in sim.TEAM_STATS:
                         sim.TEAM_STATS[team] = {
-                            'elo': 1200, 'off': 1.0, 'def': 1.0,
-                            'matches': 0, 'clean_sheets': 0, 'btts': 0,
-                            'gf_avg': 0, 'ga_avg': 0, 'penalties': 0, 
-                            'first_half': 0, 'late_goals': 0, 'total_goals_recorded': 0,
-                            'form': [], 'notable_results': [],
-                            'vs_elite': [0, 0, 0], 'vs_stronger': [0, 0, 0],
-                            'vs_similar': [0, 0, 0], 'vs_weaker': [0, 0, 0],
-                            'upsets_major_won': 0, 'upsets_minor_won': 0,
+                            'elo': 1200, 'off': 1.0, 'def': 1.0, 'matches': 0, 'clean_sheets': 0, 'btts': 0,
+                            'gf_avg': 0, 'ga_avg': 0, 'penalties': 0, 'first_half': 0, 'late_goals': 0, 'total_goals_recorded': 0,
+                            'form': [], 'notable_results': [], 'vs_elite': [0, 0, 0], 'vs_stronger': [0, 0, 0],
+                            'vs_similar': [0, 0, 0], 'vs_weaker': [0, 0, 0], 'upsets_major_won': 0, 'upsets_minor_won': 0,
                             'upsets_major_lost': 0, 'upsets_minor_lost': 0
                         }
-                    sim.TEAM_STATS[team]['elo'] = elo_2022[team]
+                    sim.TEAM_STATS[team]['elo'] = elo_historic[team]
         
-        # 2. Run Simulations
-        out_div.innerHTML = f"Step 2: Simulating Qatar World Cup {sim_count:,} times..."
-        
+        # 3. RUN SIMULATIONS
+        out_div.innerHTML = f"Step 2: Simulating {t_data['name']} {sim_count:,} times..."
         stats = {} 
         for i in range(sim_count):
-            champ, finalists, semifinalists = sim_2022_tournament()
+            champ, finalists, semifinalists = sim_32_team_tournament(t_data['groups'])
             
             def track(t, key):
                 if t not in stats: stats[t] = {'win':0, 'final':0, 'semi':0}
@@ -166,7 +203,6 @@ async def run_sim_backtest(event):
             for t in finalists: track(t, 'final')
             for t in semifinalists: track(t, 'semi')
             
-            # Progress Bar Update
             if i % max(1, sim_count // 50) == 0:
                 if prog_bar: prog_bar.style.width = f"{int((i / sim_count) * 100)}%"
                 await asyncio.sleep(0.01)
@@ -174,11 +210,11 @@ async def run_sim_backtest(event):
         if prog_bar: prog_bar.style.width = "100%"
         await asyncio.sleep(0.2)
         
-        # RESTORE the 2026 Elos so the rest of the app doesn't break
+        # RESTORE 2026 STATS
         sim.TEAM_STATS.clear()
         sim.TEAM_STATS.update(current_stats_backup)
 
-        # 3. Visualization: Bar Chart
+        # 4. VISUALIZATION: BAR CHART
         sorted_by_win = sorted(stats.items(), key=lambda x: x[1]['win'], reverse=True)
         top_5 = sorted_by_win[:5]
         
@@ -188,7 +224,8 @@ async def run_sim_backtest(event):
 
         teams = [x[0].title() for x in top_5]
         probs = [(x[1]['win']/sim_count)*100 for x in top_5]
-        colors = ['#10b981' if 'argentina' in t.lower() else '#3b82f6' for t in teams]
+        # Highlight the actual winner dynamically
+        colors = ['#10b981' if t_data['real_winner'] in t.lower() else '#3b82f6' for t in teams]
         
         bars = ax.bar(teams, probs, color=colors, edgecolor='none', width=0.6, alpha=0.9)
         ax.set_ylabel("Win Probability %", color="#64748b", fontweight='bold')
@@ -206,18 +243,7 @@ async def run_sim_backtest(event):
         display(fig, target="validation-charts")
         plt.close(fig)
         
-        # 4. UPGRADED REPORT CARD (Data Bars UI)
-        actual_results = [
-            ('argentina', '🥇 Winner', '#f59e0b'), 
-            ('france', '🥈 Runner-up', '#94a3b8'),
-            ('croatia', '🥉 3rd', '#b45309'), 
-            ('morocco', '4th', '#64748b'),
-            ('england', 'Q-Finals', '#cbd5e1'), 
-            ('brazil', 'Q-Finals', '#cbd5e1'), 
-            ('portugal', 'Q-Finals', '#cbd5e1'), 
-            ('netherlands', 'Q-Finals', '#cbd5e1')
-        ]
-        
+        # 5. DYNAMIC HTML REPORT GENERATOR
         def make_bar(val, max_val, color):
             w = min(100, (val / max_val) * 100) if max_val > 0 else 0
             return f"""
@@ -229,7 +255,7 @@ async def run_sim_backtest(event):
             </div>
             """
 
-        html = """
+        html = f"""
         <div style="overflow-x: auto;">
         <table class="rankings-table" style="margin-top:20px; min-width:600px;">
             <thead>
@@ -243,7 +269,7 @@ async def run_sim_backtest(event):
             </thead>
             <tbody>
         """
-        for team, result, badge_color in actual_results:
+        for team, result, badge_color in t_data['ui_results']:
             s = stats.get(team, {'win':0, 'final':0, 'semi':0})
             p_semi = (s['semi'] / sim_count) * 100
             p_final = (s['final'] / sim_count) * 100
@@ -260,33 +286,37 @@ async def run_sim_backtest(event):
             """
         html += "</tbody></table></div>"
 
-        # 5. DYNAMIC ANALYSIS REPORT GENERATOR
-        arg_win = (stats.get('argentina', {}).get('win', 0) / sim_count) * 100
-        fra_fin = (stats.get('france', {}).get('final', 0) / sim_count) * 100
-        mor_sem = (stats.get('morocco', {}).get('semi', 0) / sim_count) * 100
-        cro_sem = (stats.get('croatia', {}).get('semi', 0) / sim_count) * 100
+        # Dynamically extract numbers for the narrative
+        real_win_team = t_data['real_winner']
+        real_run_team = t_data['real_runner_up']
+        surp1, surp2 = t_data['real_surprises']
+        
+        act_win_prob = (stats.get(real_win_team, {}).get('win', 0) / sim_count) * 100
+        act_run_prob = (stats.get(real_run_team, {}).get('final', 0) / sim_count) * 100
+        surp1_prob = (stats.get(surp1, {}).get('semi', 0) / sim_count) * 100
+        surp2_prob = (stats.get(surp2, {}).get('semi', 0) / sim_count) * 100
         
         top_fav_name = top_5[0][0].title() if top_5 else "Unknown"
         top_fav_win = (top_5[0][1]['win'] / sim_count * 100) if top_5 else 0
         
-        arg_rank = next((i for i, v in enumerate(sorted_by_win) if v[0] == 'argentina'), 99) + 1
+        act_win_rank = next((i for i, v in enumerate(sorted_by_win) if v[0] == real_win_team), 99) + 1
         
-        if arg_rank <= 3: grade = "A+"
-        elif arg_rank <= 5: grade = "B"
+        if act_win_rank <= 3: grade = "A+"
+        elif act_win_rank <= 5: grade = "B"
         else: grade = "C"
 
         html += f"""
         <div style="margin-top: 35px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; box-shadow: var(--shadow-sm);">
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 20px;">
-                <h3 style="margin: 0; color: #0f172a; font-size:1.3em;">📊 Model Performance Metrics</h3>
+                <h3 style="margin: 0; color: #0f172a; font-size:1.3em;">📊 Model Performance Metrics: {t_data['name']}</h3>
             </div>
 
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 25px;">
                 <div style="background: #f0fdf4; padding: 20px; border-radius: 8px; border-left: 4px solid #10b981;">
-                    <div style="font-size: 0.8em; font-weight: 600; color: #166534; text-transform: uppercase; margin-bottom: 8px;">Overall Ranking Accuracy</div>
-                    <div style="font-size: 2.5em; font-weight: 900; color: #22c55e; margin: 10px 0;">Top 4 Match</div>
+                    <div style="font-size: 0.8em; font-weight: 600; color: #166534; text-transform: uppercase; margin-bottom: 8px;">Top 1 Accuracy</div>
+                    <div style="font-size: 2.5em; font-weight: 900; color: #22c55e; margin: 10px 0;">Rank #{act_win_rank}</div>
                     <div style="font-size: 0.85em; color: #15803d; line-height: 1.5;">
-                        Argentina & France both in Top 4. Actual: Argentina won, France final.
+                        Actual winner ({real_win_team.title()}) ranked #{act_win_rank} in engine probabilities.
                     </div>
                 </div>
 
@@ -294,108 +324,31 @@ async def run_sim_backtest(event):
                     <div style="font-size: 0.8em; font-weight: 600; color: #1e40af; text-transform: uppercase; margin-bottom: 8px;">Best Prediction</div>
                     <div style="font-size: 1.8em; font-weight: 900; color: #3b82f6; margin: 10px 0;">{top_fav_win:.1f}%</div>
                     <div style="font-size: 0.85em; color: #1e40af; line-height: 1.5;">
-                        Engine's #1 favorite to win. In binomial tournaments, 15-20% is extremely high given 4 KO rounds.
+                        Engine's #1 favorite to win ({top_fav_name}). Values over 15% are very high for knockout tournaments.
                     </div>
                 </div>
 
                 <div style="background: #fef3c7; padding: 20px; border-radius: 8px; border-left: 4px solid #f59e0b;">
-                    <div style="font-size: 0.8em; font-weight: 600; color: #92400e; text-transform: uppercase; margin-bottom: 8px;">Upset Detection</div>
-                    <div style="font-size: 1.8em; font-weight: 900; color: #f59e0b; margin: 10px 0;">{mor_sem:.1f}%</div>
+                    <div style="font-size: 0.8em; font-weight: 600; color: #92400e; text-transform: uppercase; margin-bottom: 8px;">Upset / Anomaly Capture</div>
+                    <div style="font-size: 1.8em; font-weight: 900; color: #f59e0b; margin: 10px 0;">{surp1_prob:.1f}%</div>
                     <div style="font-size: 0.85em; color: #92400e; line-height: 1.5;">
-                        Morocco semi-final odds. ✓ Correctly identified their run as anomaly, not baseline.
+                        {surp1.title()}'s semi-final odds. Correctly identified their deep run as an anomaly, not a baseline.
                     </div>
                 </div>
             </div>
 
-            <div style="margin-top: 20px;">
-                <h4 style="color: #0f172a; margin-bottom: 15px;">🎯 Key Performance Indicators</h4>
-                <div style="overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <thead style="background: #f1f5f9; border-bottom: 2px solid #e2e8f0;">
-                            <tr>
-                                <th style="padding: 12px; text-align: left; font-weight: 600; color: #0f172a;">Metric</th>
-                                <th style="padding: 12px; text-align: center; font-weight: 600; color: #0f172a;">Value</th>
-                                <th style="padding: 12px; text-align: left; font-weight: 600; color: #0f172a;">Interpretation</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr style="border-bottom: 1px solid #e2e8f0;">
-                                <td style="padding: 12px; color: #334155;"><span style="font-weight: 600;">Top 1 Accuracy</span></td>
-                                <td style="padding: 12px; text-align: center; color: #ef4444; font-weight: 600;">#{arg_rank}</td>
-                                <td style="padding: 12px; color: #64748b; font-size: 0.9em;">Argentina ranked #{arg_rank} in win probability (actual winner)</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
-                                <td style="padding: 12px; color: #334155;"><span style="font-weight: 600;">Top 4 Inclusion</span></td>
-                                <td style="padding: 12px; text-align: center; color: #10b981; font-weight: 600;">✓ 2/2</td>
-                                <td style="padding: 12px; color: #64748b; font-size: 0.9em;">Both Argentina & France predicted in Top 4 championship contenders</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid #e2e8f0;">
-                                <td style="padding: 12px; color: #334155;"><span style="font-weight: 600;">Top 5 Coverage</span></td>
-                                <td style="padding: 12px; text-align: center; color: #10b981; font-weight: 600;">{int(len(top_5))} teams</td>
-                                <td style="padding: 12px; color: #64748b; font-size: 0.9em;">{top_5[0][0].title()} — {top_5[-1][0].title()} in Top contenders</td>
-                            </tr>
-                            <tr style="background: #f8fafc;">
-                                <td style="padding: 12px; color: #334155;"><span style="font-weight: 600;">Anomaly Capture</span></td>
-                                <td style="padding: 12px; text-align: center; color: #10b981; font-weight: 600;">✓ Good</td>
-                                <td style="padding: 12px; color: #64748b; font-size: 0.9em;">Morocco & Croatia anomalies correctly identified as low-probability events</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
             <div style="margin-top: 25px; padding: 15px; background: linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%); border-left: 4px solid #f59e0b; border-radius: 6px;">
-                <h4 style="margin-top: 0; color: #92400e; display: flex; gap: 8px; align-items: center;">💡 What This Means</h4>
+                <h4 style="margin-top: 0; color: #92400e; display: flex; gap: 8px; align-items: center;">💡 Key Insights</h4>
                 <ul style="margin: 10px 0; color: #b45309; line-height: 1.7; font-size: 0.95em;">
-                    <li><b>✓ Picks the Winners:</b> The model consistently places the actual champions in the top contenders, not buried in the long tail.</li>
-                    <li><b>✓ Healthy Skepticism:</b> The model doesn't predict anomalies as routine (Morocco at ~1-5%, not 20%). This shows good calibration.</li>
-                    <li><b>✓ Compound Risk Respected:</b> Even the strongest teams get only ~15% to win because 4 consecutive KO matches have massive variance.</li>
-                    <li><b>⚠️ Limitation:</b> Pure statistical models can't predict black swan events (injuries, red cards, VAR controversies).</li>
+                    <li><b>✓ Ranking Calibration:</b> Ensure the actual winner was predicted inside the Top 5 contenders. If so, the core logic is sound.</li>
+                    <li><b>✓ Compound Risk:</b> Surviving 4 knockout rounds guarantees that even prime favorites sit at only ~15% to 20% to win it all.</li>
+                    <li><b>⚠️ Black Swan Limits:</b> Unexpected injuries or red cards during the real tournament dictate outcomes statistical models cannot foresee.</li>
                 </ul>
-            </div>
-        </div>
-
-        <div style="margin-top: 35px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; box-shadow: var(--shadow-sm);">
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 20px;">
-                <h3 style="margin: 0; color: #0f172a; font-size:1.3em;">🧠 Detailed Accuracy Narrative</h3>
-                <span style="background: var(--sidebar-bg); color: white; padding: 6px 12px; border-radius: 20px; font-weight: 800; font-size: 0.85em; letter-spacing: 1px;">GRADE: {grade}</span>
-            </div>
-
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px;">
-                <div>
-                    <h4 style="color: var(--accent-blue); margin-top: 0; display:flex; align-items:center; gap:8px;">
-                        <span>🎯</span> Predicting the Favorites
-                    </h4>
-                    <p style="font-size: 0.9em; color: var(--text-main); line-height: 1.7;">
-                        The engine's mathematical favorite heading into the tournament was <b>{top_fav_name}</b>, given a <b>{top_fav_win:.1f}%</b> chance to win. 
-                        In reality, Argentina took the cup. The engine gave Argentina a <b>{arg_win:.1f}%</b> probability to win it all (Ranked #{arg_rank} overall), 
-                        and correctly identified France as an elite threat, giving them a <b>{fra_fin:.1f}%</b> chance to reach the Final.
-                    </p>
-                </div>
-
-                <div>
-                    <h4 style="color: var(--accent-gold); margin-top: 0; display:flex; align-items:center; gap:8px;">
-                        <span>🌪️</span> Measuring the Chaos (Anomalies)
-                    </h4>
-                    <p style="font-size: 0.9em; color: var(--text-main); line-height: 1.7;">
-                        The 2022 World Cup featured massive historic anomalies: Morocco reaching the Semifinals and Croatia securing 3rd place. 
-                        Pre-tournament, the engine gave Morocco a <b>{mor_sem:.1f}%</b> chance to reach the Semis, and Croatia a <b>{cro_sem:.1f}%</b> chance.
-                    </p>
-                </div>
-            </div>
-
-            <div style="margin-top: 25px; padding: 18px; background: #f0fdf4; border-left: 4px solid var(--accent-green); border-radius: 6px;">
-                <strong style="color: #166534; font-size: 1.05em;">📊 Final Verdict:</strong>
-                <p style="font-size: 0.95em; color: #15803d; line-height: 1.6; margin: 8px 0 0 0;">
-                    If Argentina and France appear in your Top 4 most likely winners above, the engine's core mathematics are highly accurate. It proves that the custom <b>Pedigree Gap</b>, <b>Tournament Intensity</b>, and <b>Park-the-Bus</b> logic are correctly separating the elite tier from the pretenders, while still allowing the dice rolls of knockout football to create realistic upsets.
-                </p>
             </div>
         </div>
         """
         
         if prog_container: prog_container.style.display = "none"
-        
-        # FIX 3: Push the generated HTML into the browser DOM
         out_div.innerHTML = html
 
     except Exception as e:
@@ -416,7 +369,6 @@ async def run_sim_backtest(event):
 def init_analysis():
     btn = js.document.getElementById("btn-backtest-sim")
     if btn: 
-        # Attach the proxy and save it to our global list so it doesn't get deleted
         proxy = create_proxy(run_sim_backtest)
         ANALYSIS_HANDLERS.append(proxy)
         btn.onclick = proxy

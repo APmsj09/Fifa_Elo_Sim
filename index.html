@@ -1,17 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FIFA World Cup 2026 Engine</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="https://pyscript.net/releases/2023.05.1/pyscript.css">
     <script defer src="https://pyscript.net/releases/2023.05.1/pyscript.js"></script>
     <style>
         /* --- 1. CSS VARIABLES & BASE SETUP --- */
         :root {
             --bg-main: #f0f4f8;
-            --sidebar-bg: #0f172a; /* Slate 900 */
+            --sidebar-bg: #0f172a;
+            /* Slate 900 */
             --sidebar-border: #1e293b;
             --card-bg: #ffffff;
             --text-main: #334155;
@@ -39,18 +42,33 @@
         }
 
         body {
-            margin: 0; padding: 0;
+            margin: 0;
+            padding: 0;
             background-color: var(--bg-main);
             font-family: 'Inter', sans-serif;
             color: var(--text-main);
-            height: 100vh; overflow: hidden;
+            height: 100vh;
+            overflow: hidden;
         }
 
         /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
 
         /* --- 2. LAYOUT & SIDEBAR --- */
         .app-layout {
@@ -65,56 +83,92 @@
             padding: 24px 20px;
             overflow-y: auto;
             border-right: 1px solid var(--sidebar-border);
-            display: flex; flex-direction: column; gap: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
             z-index: 10;
         }
 
         .sidebar-panel h2 {
-            margin-top: 0; color: #f8fafc;
-            font-size: 1.25em; font-weight: 700;
-            padding-bottom: 15px; border-bottom: 1px solid var(--sidebar-border);
-            margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+            margin-top: 0;
+            color: #f8fafc;
+            font-size: 1.25em;
+            font-weight: 700;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--sidebar-border);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .nav-section-title {
-            font-size: 0.75em; font-weight: 600; color: #94a3b8;
-            letter-spacing: 0.05em; text-transform: uppercase;
+            font-size: 0.75em;
+            font-weight: 600;
+            color: #94a3b8;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
             margin: 15px 0 5px 5px;
         }
 
         .nav-btn {
-            display: block; width: 100%; padding: 12px 15px; text-align: left;
-            background: transparent; color: #cbd5e1;
-            border: 1px solid transparent; border-radius: 8px;
-            cursor: pointer; transition: all 0.2s ease;
-            font-weight: 500; font-size: 0.95em;
-            display: flex; align-items: center; gap: 10px;
+            display: block;
+            width: 100%;
+            padding: 12px 15px;
+            text-align: left;
+            background: transparent;
+            color: #cbd5e1;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+            font-size: 0.95em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .nav-btn:hover {
-            background: rgba(255,255,255,0.05); color: #fff;
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
             transform: translateX(3px);
         }
 
         /* --- 3. CONTROLS AREA --- */
         #controls-area {
-            background: rgba(0,0,0,0.2);
-            padding: 15px; border-radius: 10px; border: 1px solid var(--sidebar-border);
-            margin-top: auto; /* Pushes controls to bottom */
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid var(--sidebar-border);
+            margin-top: auto;
+            /* Pushes controls to bottom */
         }
 
         .control-group label {
-            display: block; font-size: 0.8em; font-weight: 600;
-            margin-bottom: 6px; color: #94a3b8;
+            display: block;
+            font-size: 0.8em;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #94a3b8;
         }
 
-        input[type="number"], select {
-            width: 100%; padding: 10px; border-radius: 6px;
-            border: 1px solid #334155; background: #1e293b; color: white;
-            font-family: 'Inter', sans-serif; transition: border-color 0.2s;
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            background: #1e293b;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            transition: border-color 0.2s;
         }
-        
-        input[type="number"]:focus { outline: none; border-color: var(--accent-blue); }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
 
         :root.dark-mode input[type="number"],
         :root.dark-mode select {
@@ -124,116 +178,335 @@
         }
 
         .action-btn {
-            background: var(--accent-blue); color: white;
-            border: none; padding: 12px; width: 100%;
-            border-radius: 6px; font-size: 0.95em; font-weight: 600;
-            cursor: pointer; transition: all 0.2s;
-            box-shadow: var(--shadow-sm); margin-top: 10px;
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 12px;
+            width: 100%;
+            border-radius: 6px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: var(--shadow-sm);
+            margin-top: 10px;
         }
 
-        .action-btn:hover { background: #2563eb; transform: translateY(-1px); box-shadow: var(--shadow-md); }
+        .action-btn:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
 
         /* --- 4. MAIN CONTENT & CARDS --- */
-        .content-panel { padding: 40px; overflow-y: auto; }
-        .tab-content { display: none; animation: fadeIn 0.4s ease-out; }
+        .content-panel {
+            padding: 40px;
+            overflow-y: auto;
+        }
 
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
 
         .dashboard-card {
-            background: var(--card-bg); padding: 25px; border-radius: 12px;
-            box-shadow: var(--shadow-sm); border: 1px solid #e2e8f0;
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid #e2e8f0;
             margin-bottom: 25px;
         }
 
         /* --- 5. GROUPS GRID --- */
         .groups-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 24px; margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 24px;
+            margin-top: 20px;
         }
 
         .group-box {
-            background: var(--card-bg); padding: 20px; border-radius: 12px;
-            box-shadow: var(--shadow-sm); border: 1px solid #e2e8f0;
-            cursor: pointer; transition: all 0.2s ease;
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid #e2e8f0;
+            cursor: pointer;
+            transition: all 0.2s ease;
         }
 
         .group-box:hover {
-            transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: #cbd5e1;
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: #cbd5e1;
         }
 
-        .group-table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
-        .group-table th { background: #f8fafc; text-align: left; padding: 8px 10px; color: var(--text-light); font-weight: 600; border-bottom: 2px solid #e2e8f0;}
-        .group-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; }
-        .group-table tr:hover td { background: #f8fafc; }
-        .qualified { font-weight: 600; color: #0f172a; position: relative; }
-        .qualified td:first-child::before { content: ''; position: absolute; left: 0; top: 15%; height: 70%; width: 3px; background: var(--accent-green); border-radius: 0 4px 4px 0; }
+        .group-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85em;
+        }
+
+        .group-table th {
+            background: #f8fafc;
+            text-align: left;
+            padding: 8px 10px;
+            color: var(--text-light);
+            font-weight: 600;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .group-table td {
+            padding: 10px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .group-table tr:hover td {
+            background: #f8fafc;
+        }
+
+        .qualified {
+            font-weight: 600;
+            color: #0f172a;
+            position: relative;
+        }
+
+        .qualified td:first-child::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 15%;
+            height: 70%;
+            width: 3px;
+            background: var(--accent-green);
+            border-radius: 0 4px 4px 0;
+        }
 
         /* --- 6. BRACKET STYLING --- */
         #bracket-container {
-            display: flex; overflow-x: auto; padding: 20px 5px; gap: 30px;
-            background: var(--card-bg); border-radius: 12px; border: 1px solid #e2e8f0;
+            display: flex;
+            overflow-x: auto;
+            padding: 20px 5px;
+            gap: 30px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
         }
 
-        .bracket-round { display: flex; flex-direction: column; justify-content: space-around; min-width: 180px; flex-shrink: 0; }
-        .round-title { text-align: center; font-size: 0.75em; color: var(--text-light); font-weight: 700; text-transform: uppercase; margin-bottom: 15px; letter-spacing: 0.5px; }
-        
-        .matchup {
-            background: white; border: 1px solid #e2e8f0; border-radius: 8px;
-            box-shadow: var(--shadow-sm); font-size: 0.85em; overflow: hidden;
-            transition: transform 0.2s; margin-bottom: 12px;
+        .bracket-round {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            min-width: 180px;
+            flex-shrink: 0;
         }
-        .matchup:hover { transform: scale(1.02); box-shadow: var(--shadow-md); border-color: #cbd5e1; }
-        .matchup-team { padding: 8px 12px; display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; }
-        .matchup-team:last-child { border-bottom: none; }
-        .winner-text { font-weight: 700; background: #f0fdf4; color: #166534; }
+
+        .round-title {
+            text-align: center;
+            font-size: 0.75em;
+            color: var(--text-light);
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            letter-spacing: 0.5px;
+        }
+
+        .matchup {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: var(--shadow-sm);
+            font-size: 0.85em;
+            overflow: hidden;
+            transition: transform 0.2s;
+            margin-bottom: 12px;
+        }
+
+        .matchup:hover {
+            transform: scale(1.02);
+            box-shadow: var(--shadow-md);
+            border-color: #cbd5e1;
+        }
+
+        .matchup-team {
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .matchup-team:last-child {
+            border-bottom: none;
+        }
+
+        .winner-text {
+            font-weight: 700;
+            background: #f0fdf4;
+            color: #166534;
+        }
 
         /* --- 7. LOADING SCREEN OVERLAY --- */
         #loading-screen {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(5px);
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            z-index: 9999; color: white;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(5px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: white;
         }
+
         .loader-circle {
-            width: 60px; height: 60px; border: 4px solid rgba(255,255,255,0.1);
-            border-top-color: var(--accent-blue); border-radius: 50%;
-            animation: spin 1s linear infinite; margin-bottom: 20px;
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
 
         /* --- 8. MODALS & TABLES --- */
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); }
-        .modal-content { background-color: var(--card-bg); margin: 8% auto; padding: 30px; border-radius: 16px; width: 90%; max-width: 550px; box-shadow: var(--shadow-lg); animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-        .close-btn { color: var(--text-light); float: right; font-size: 24px; cursor: pointer; transition: color 0.2s; }
-        .close-btn:hover { color: var(--accent-red); }
-        
-        .rankings-table { width: 100%; border-collapse: separate; border-spacing: 0; background: white; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-sm); border: 1px solid #e2e8f0; font-size: 0.9em; }
-        .rankings-table thead th { background-color: #f8fafc; color: var(--text-light); text-align: left; padding: 15px; font-weight: 600; text-transform: uppercase; font-size: 0.8em; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0;}
-        .rankings-table td { padding: 15px; border-bottom: 1px solid #f1f5f9; }
-        .rankings-table tbody tr:hover td { background-color: #f8fafc; }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+            background-color: var(--card-bg);
+            margin: 8% auto;
+            padding: 30px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 550px;
+            box-shadow: var(--shadow-lg);
+            animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .close-btn {
+            color: var(--text-light);
+            float: right;
+            font-size: 24px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .close-btn:hover {
+            color: var(--accent-red);
+        }
+
+        .rankings-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid #e2e8f0;
+            font-size: 0.9em;
+        }
+
+        .rankings-table thead th {
+            background-color: #f8fafc;
+            color: var(--text-light);
+            text-align: left;
+            padding: 15px;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.8em;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .rankings-table td {
+            padding: 15px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .rankings-table tbody tr:hover td {
+            background-color: #f8fafc;
+        }
 
         /* Dark mode table styling */
-        :root.dark-mode .rankings-table { background: #1e293b; border: 1px solid #475569; }
-        :root.dark-mode .rankings-table thead th { background-color: #0f172a; color: var(--text-light); border-bottom: 2px solid #334155; }
-        :root.dark-mode .rankings-table td { border-bottom: 1px solid #334155; }
-        :root.dark-mode .rankings-table tbody tr:hover td { background-color: #334155; }
+        :root.dark-mode .rankings-table {
+            background: #1e293b;
+            border: 1px solid #475569;
+        }
+
+        :root.dark-mode .rankings-table thead th {
+            background-color: #0f172a;
+            color: var(--text-light);
+            border-bottom: 2px solid #334155;
+        }
+
+        :root.dark-mode .rankings-table td {
+            border-bottom: 1px solid #334155;
+        }
+
+        :root.dark-mode .rankings-table tbody tr:hover td {
+            background-color: #334155;
+        }
 
         /* --- 9. TOOLTIP STYLING FOR CONFIDENCE INTERVALS --- */
         .ci-value {
-            cursor: help; border-bottom: 1px dotted var(--accent-blue);
+            cursor: help;
+            border-bottom: 1px dotted var(--accent-blue);
             position: relative;
         }
-        
+
         .ci-value::after {
             content: attr(data-ci);
-            position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%);
-            background: #1f2937; color: white; padding: 8px 12px;
-            border-radius: 6px; font-size: 0.85em; font-weight: 500;
-            white-space: nowrap; opacity: 0; pointer-events: none;
-            transition: opacity 0.2s ease; z-index: 100;
+            position: absolute;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1f2937;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: 500;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 100;
             border: 1px solid #374151;
         }
-        
+
         .ci-value:hover::after {
             opacity: 1;
         }
@@ -241,25 +514,33 @@
         /* Arrow for tooltip */
         .ci-value::before {
             content: '';
-            position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%);
-            width: 8px; height: 8px; background: #1f2937;
+            position: absolute;
+            bottom: 120%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 8px;
+            height: 8px;
+            background: #1f2937;
             border-right: 1px solid #374151;
             border-bottom: 1px solid #374151;
             transform: translateX(-50%) rotate(45deg);
-            opacity: 0; pointer-events: none;
-            transition: opacity 0.2s ease; z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 100;
         }
-        
+
         .ci-value:hover::before {
             opacity: 1;
         }
 
         /* Dark mode tooltip */
         :root.dark-mode .ci-value::after {
-            background: #e5e7eb; color: #1f2937;
+            background: #e5e7eb;
+            color: #1f2937;
             border-color: #d1d5db;
         }
-        
+
         :root.dark-mode .ci-value::before {
             background: #e5e7eb;
             border-color: #d1d5db;
@@ -297,42 +578,79 @@
         /* --- 9. TEAM ANALYSIS / CASUAL FAN UI --- */
         .rank-badge {
             background: linear-gradient(135deg, #f59e0b, #d97706);
-            color: white; padding: 4px 12px; border-radius: 20px;
-            font-weight: 800; font-size: 0.85em; box-shadow: var(--shadow-sm);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 800;
+            font-size: 0.85em;
+            box-shadow: var(--shadow-sm);
             letter-spacing: 0.5px;
         }
+
         .form-dot {
-            display: inline-flex; justify-content: center; align-items: center;
-            width: 24px; height: 24px; border-radius: 50%; color: white;
-            font-weight: bold; font-size: 0.7em; margin-right: 4px;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            color: white;
+            font-weight: bold;
+            font-size: 0.7em;
+            margin-right: 4px;
         }
-        .form-W { background-color: var(--accent-green); }
-        .form-D { background-color: #cbd5e1; color: #475569; }
-        .form-L { background-color: var(--accent-red); }
+
+        .form-W {
+            background-color: var(--accent-green);
+        }
+
+        .form-D {
+            background-color: #cbd5e1;
+            color: #475569;
+        }
+
+        .form-L {
+            background-color: var(--accent-red);
+        }
+
         .stat-pill {
-            background: #f8fafc; border: 1px solid #e2e8f0;
-            padding: 12px; border-radius: 8px; text-align: center;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
         }
-        .stat-pill-title { font-size: 0.7em; text-transform: uppercase; color: var(--text-light); font-weight: 700; margin-bottom: 5px; }
-        .stat-pill-value { font-size: 1.4em; font-weight: 800; color: var(--text-main); }
-        
+
+        .stat-pill-title {
+            font-size: 0.7em;
+            text-transform: uppercase;
+            color: var(--text-light);
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .stat-pill-value {
+            font-size: 1.4em;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
         /* --- PLOTLY / MATPLOTLIB RESPONSIVE FIX --- */
         #main-chart-container div {
             width: 100% !important;
             display: flex;
             justify-content: center;
         }
-        #main-chart-container svg, 
+
+        #main-chart-container svg,
         #main-chart-container img {
             width: 100% !important;
             height: auto !important;
             max-height: 75vh;
         }
-
-        
-        
     </style>
 </head>
+
 <body>
 
     <div id="loading-screen">
@@ -353,9 +671,11 @@
             <button class="nav-btn" id="btn-tab-data"><span>📈</span> Global Rankings</button>
             <button class="nav-btn" id="btn-tab-history"><span>🔍</span> Team Analysis</button>
             <button class="nav-btn" id="btn-tab-matchup"><span>⚔️</span> H2H Matchup</button>
-            
+
             <div class="nav-section-title" style="margin-top: 20px;">Testing</div>
-            <button class="nav-btn" id="btn-tab-analysis" style="color:#e2e8f0; background:rgba(255,255,255,0.05); border-left:3px solid var(--accent-blue);"><span>🤖</span> Backtest & ML</button>
+            <button class="nav-btn" id="btn-tab-analysis"
+                style="color:#e2e8f0; background:rgba(255,255,255,0.05); border-left:3px solid var(--accent-blue);"><span>🤖</span>
+                Backtest & ML</button>
 
             <div id="controls-area">
                 <div class="control-group">
@@ -366,13 +686,15 @@
                 <div class="control-group" style="margin-top:15px;">
                     <label>Ranking Filter</label>
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <input type="checkbox" id="hist-filter-wc" style="width:16px; height:16px; accent-color:var(--accent-blue);">
+                        <input type="checkbox" id="hist-filter-wc"
+                            style="width:16px; height:16px; accent-color:var(--accent-blue);">
                         <span style="font-size:0.85em; color:#cbd5e1;">WC Teams Only</span>
                     </div>
                 </div>
 
                 <button id="btn-run-single" class="action-btn">▶ Run Single</button>
-                <button id="btn-run-bulk" class="action-btn" style="background:var(--accent-green); margin-top:10px;">⚡ Run Bulk</button>
+                <button id="btn-run-bulk" class="action-btn" style="background:var(--accent-green); margin-top:10px;">⚡
+                    Run Bulk</button>
             </div>
         </aside>
 
@@ -381,14 +703,20 @@
             <!-- SINGLE SIM TAB -->
             <div id="tab-single" class="tab-content" style="display:block;">
                 <div id="visual-loading" style="display:none; text-align:center; padding:80px;">
-                    <div class="loader-circle" style="border-top-color: var(--accent-green); margin: 0 auto 20px;"></div>
+                    <div class="loader-circle" style="border-top-color: var(--accent-green); margin: 0 auto 20px;">
+                    </div>
                     <h2 style="color:var(--text-main);">Simulating Tournament...</h2>
                 </div>
 
                 <div id="visual-results-container" style="display:none;">
-                    <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 40px; border-radius: 16px; text-align: center; margin-bottom: 30px; box-shadow: var(--shadow-md);">
-                        <div style="font-size: 1em; font-weight: 600; opacity: 0.9; letter-spacing: 3px; margin-bottom: 10px;">2026 WORLD CHAMPION</div>
-                        <div id="visual-champion-name" style="font-size: 4.5em; font-weight: 800; text-transform: uppercase; text-shadow: 0 4px 10px rgba(0,0,0,0.1);">---</div>
+                    <div
+                        style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 40px; border-radius: 16px; text-align: center; margin-bottom: 30px; box-shadow: var(--shadow-md);">
+                        <div
+                            style="font-size: 1em; font-weight: 600; opacity: 0.9; letter-spacing: 3px; margin-bottom: 10px;">
+                            2026 WORLD CHAMPION</div>
+                        <div id="visual-champion-name"
+                            style="font-size: 4.5em; font-weight: 800; text-transform: uppercase; text-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                            ---</div>
                     </div>
 
                     <h3 style="margin: 30px 0 15px; font-size: 1.2em; color: var(--text-main);">Knockout Bracket</h3>
@@ -403,7 +731,8 @@
             <div id="tab-bulk" class="tab-content">
                 <div class="dashboard-card">
                     <h2 style="margin-top:0;">Bulk Simulation Results</h2>
-                    <div id="bulk-results" style="color:var(--text-light);">Click "Run Bulk" in the sidebar to generate statistical probabilities.</div>
+                    <div id="bulk-results" style="color:var(--text-light);">Click "Run Bulk" in the sidebar to generate
+                        statistical probabilities.</div>
                 </div>
             </div>
 
@@ -411,7 +740,8 @@
             <div id="tab-data" class="tab-content">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
                     <h2 style="margin:0;">Global Power Rankings</h2>
-                    <button class="action-btn" id="data-filter-wc" style="width:auto; margin:0; padding:8px 16px;">Refresh View</button>
+                    <button class="action-btn" id="data-filter-wc"
+                        style="width:auto; margin:0; padding:8px 16px;">Refresh View</button>
                 </div>
                 <div id="data-table-container"></div>
             </div>
@@ -425,28 +755,39 @@
 
             <!-- MATCHUP TAB -->
             <div id="tab-matchup" class="tab-content">
-                <div class="dashboard-card" style="margin-bottom: 20px; background: linear-gradient(to right, #0f172a, #1e293b); color: white;">
-                    <h2 style="margin-top:0; color: white; display: flex; align-items: center; gap: 10px;">⚔️ Matchup Predictor</h2>
+                <div class="dashboard-card"
+                    style="margin-bottom: 20px; background: linear-gradient(to right, #0f172a, #1e293b); color: white;">
+                    <h2 style="margin-top:0; color: white; display: flex; align-items: center; gap: 10px;">⚔️ Matchup
+                        Predictor</h2>
                     <div style="display:flex; gap:15px; align-items:flex-end; margin-top: 15px;">
                         <div style="flex:2;">
-                            <label style="color:#94a3b8; font-size:0.8em; font-weight:bold; text-transform:uppercase; margin-bottom:5px; display:block;">Team A (Home)</label>
-                            <select id="matchup-team-a" style="width:100%; padding:12px; border-radius:8px; background:white; color:#0f172a; font-weight:bold; font-size:1.1em;"></select>
+                            <label
+                                style="color:#94a3b8; font-size:0.8em; font-weight:bold; text-transform:uppercase; margin-bottom:5px; display:block;">Team
+                                A (Home)</label>
+                            <select id="matchup-team-a"
+                                style="width:100%; padding:12px; border-radius:8px; background:white; color:#0f172a; font-weight:bold; font-size:1.1em;"></select>
                         </div>
                         <div style="font-size:1.5em; font-weight:900; color:#cbd5e1; padding-bottom:10px;">VS</div>
                         <div style="flex:2;">
-                            <label style="color:#94a3b8; font-size:0.8em; font-weight:bold; text-transform:uppercase; margin-bottom:5px; display:block;">Team B (Away)</label>
-                            <select id="matchup-team-b" style="width:100%; padding:12px; border-radius:8px; background:white; color:#0f172a; font-weight:bold; font-size:1.1em;"></select>
+                            <label
+                                style="color:#94a3b8; font-size:0.8em; font-weight:bold; text-transform:uppercase; margin-bottom:5px; display:block;">Team
+                                B (Away)</label>
+                            <select id="matchup-team-b"
+                                style="width:100%; padding:12px; border-radius:8px; background:white; color:#0f172a; font-weight:bold; font-size:1.1em;"></select>
                         </div>
                         <div style="flex:1; max-width:120px;">
-                            <label style="color:#94a3b8; font-size:0.8em; font-weight:bold; text-transform:uppercase; margin-bottom:5px; display:block;">Runs</label>
-                            <input type="number" id="matchup-sim-count" value="10000" min="1" max="100000" style="width:100%; padding:10px; border-radius:8px; border:none; font-weight:bold; font-size:1.1em; text-align:center;">
+                            <label
+                                style="color:#94a3b8; font-size:0.8em; font-weight:bold; text-transform:uppercase; margin-bottom:5px; display:block;">Runs</label>
+                            <input type="number" id="matchup-sim-count" value="10000" min="1" max="100000"
+                                style="width:100%; padding:10px; border-radius:8px; border:none; font-weight:bold; font-size:1.1em; text-align:center;">
                         </div>
                         <div>
-                            <button id="btn-run-matchup" class="action-btn" style="background:var(--accent-green); margin:0; padding:12px 25px; height: 46px;">Analyze</button>
+                            <button id="btn-run-matchup" class="action-btn"
+                                style="background:var(--accent-green); margin:0; padding:12px 25px; height: 46px;">Analyze</button>
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- NEW: This is required for main.py to inject the matchup HTML -->
                 <div id="matchup-results-container"></div>
 
@@ -456,34 +797,52 @@
             <div id="tab-analysis" class="tab-content">
                 <div style="max-width: 950px; margin: 0 auto;">
                     <div class="dashboard-card">
-                        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:15px; margin-bottom:20px;">
-                            <h2 style="margin:0; font-size: 1.4em;">🕰️ Time Machine: Qatar 2022</h2>
-                            <button id="btn-backtest-sim" class="action-btn" style="width:auto; margin:0; padding:8px 16px; background:var(--sidebar-bg);">▶ Run Validation</button>
+
+                        <!-- UPDATED CONTROLS SECTION -->
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:1px solid #e2e8f0; padding-bottom:15px; margin-bottom:20px; flex-wrap: wrap; gap: 15px;">
+                            <div style="flex-grow: 1;">
+                                <h2 style="margin:0 0 10px 0; font-size: 1.4em;">🕰️ Time Machine Backtesting</h2>
+                                <div style="display: flex; gap: 15px; align-items: center;">
+                                    <div>
+                                        <label
+                                            style="display:block; font-size:0.75em; font-weight:bold; color:var(--text-light); text-transform:uppercase; margin-bottom:4px;">Tournament</label>
+                                        <select id="backtest-tourney"
+                                            style="padding:10px; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:600; min-width: 200px;">
+                                            <option value="2022">🇶🇦 Qatar 2022</option>
+                                            <option value="2018">🇷🇺 Russia 2018</option>
+                                            <option value="2014">🇧🇷 Brazil 2014</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label
+                                            style="display:block; font-size:0.75em; font-weight:bold; color:var(--text-light); text-transform:uppercase; margin-bottom:4px;">Simulations</label>
+                                        <input type="number" id="backtest-count" value="1000" min="100" max="10000"
+                                            step="100"
+                                            style="padding:9px; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:600; width: 100px;">
+                                    </div>
+                                </div>
+                            </div>
+                            <button id="btn-backtest-sim" class="action-btn"
+                                style="width:auto; margin:0; padding:12px 24px; background:var(--sidebar-bg); height: 42px;">▶
+                                Run Validation</button>
                         </div>
+
                         <p style="color:var(--text-light); line-height:1.6; font-size:0.95em;">
-                            This tool validates the simulation engine by stripping all data after Nov 20, 2022.
-                            It then runs <b>1,000 simulations</b> of the 32-team Qatar format to verify if the engine accurately predicts the outcome.
+                            This tool strips all data *after* the opening day of the selected World Cup. It then runs
+                            pure Elo simulations to verify if the engine accurately predicts the outcome and captures
+                            anomalies.
                         </p>
-                        <div id="sim-progress-container" style="display:none; width:100%; background:#e2e8f0; border-radius:20px; margin: 20px 0; overflow:hidden; height: 10px;">
-                            <div id="sim-progress-bar" style="width:0%; height:100%; background:var(--accent-blue); transition: width 0.2s ease;"></div>
+                        <div id="sim-progress-container"
+                            style="display:none; width:100%; background:#e2e8f0; border-radius:20px; margin: 20px 0; overflow:hidden; height: 10px;">
+                            <div id="sim-progress-bar"
+                                style="width:0%; height:100%; background:var(--accent-blue); transition: width 0.2s ease;">
+                            </div>
                         </div>
-                        <div id="validation-text" style="margin: 20px 0; font-weight:600; color:var(--accent-blue);"></div>
+                        <div id="validation-text" style="margin: 20px 0; font-weight:600; color:var(--accent-blue);">
+                        </div>
                         <div id="validation-charts" style="min-height:200px;"></div>
                     </div>
-
-                    <div class="dashboard-card" style="border-left: 4px solid #8b5cf6;">
-                        <h2 style="margin-top:0; font-size: 1.2em;">📊 ML Analysis & Findings</h2>
-                        <div style="color:var(--text-main); line-height:1.6; font-size:0.95em;">
-                            <p>Extensive Machine Learning testing (Random Forest / XGBoost) is being conducted externally.</p>
-                            <ul style="color:var(--text-light); background:#f8fafc; padding:20px 40px; border-radius:8px;">
-                                <li>The pure Elo Simulation consistently outperforms ML in predicting "Chaos" (upsets).</li>
-                                <li>ML models tend to be over-confident in favorites, assigning >60% win probabilities to top seeds.</li>
-                                <li>The final 2026 forecast will blend Elo stability with specific match-up insights.</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
         </main>
     </div>
@@ -492,7 +851,8 @@
     <div id="group-modal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="document.getElementById('group-modal').style.display='none'">&times;</span>
-            <h2 id="modal-title" style="margin-top:0; border-bottom:1px solid #e2e8f0; padding-bottom:15px;">Group Results</h2>
+            <h2 id="modal-title" style="margin-top:0; border-bottom:1px solid #e2e8f0; padding-bottom:15px;">Group
+                Results</h2>
             <div id="modal-matches" style="max-height: 400px; overflow-y:auto; padding-right:10px;"></div>
         </div>
     </div>
@@ -510,4 +870,5 @@
     <py-script src="./analysis.py"></py-script>
 
 </body>
+
 </html>
