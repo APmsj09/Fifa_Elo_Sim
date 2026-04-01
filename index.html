@@ -158,11 +158,40 @@
             width: 100%;
             padding: 10px;
             border-radius: 6px;
-            border: 1px solid #334155;
-            background: #1e293b;
-            color: white;
+            border: 1px solid var(--sidebar-border);
+            background: #f8fafc;
+            color: var(--text-main);
             font-family: 'Inter', sans-serif;
             transition: border-color 0.2s;
+        }
+
+        .content-panel select,
+        .content-panel input[type="number"],
+        #tab-matchup select,
+        #tab-matchup input[type="number"],
+        .control-group select,
+        .control-group input[type="number"] {
+            background: var(--card-bg) !important;
+            color: var(--text-main) !important;
+            border: 1px solid var(--sidebar-border) !important;
+        }
+
+        :root.dark-mode input[type="number"],
+        :root.dark-mode select {
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+
+        :root.dark-mode .content-panel select,
+        :root.dark-mode .content-panel input[type="number"],
+        :root.dark-mode #tab-matchup select,
+        :root.dark-mode #tab-matchup input[type="number"],
+        :root.dark-mode .control-group select,
+        :root.dark-mode .control-group input[type="number"] {
+            background: #0f172a !important;
+            color: #e2e8f0 !important;
+            border: 1px solid #334155 !important;
         }
 
         input[type="number"]:focus {
@@ -228,6 +257,19 @@
             box-shadow: var(--shadow-sm);
             border: 1px solid #e2e8f0;
             margin-bottom: 25px;
+            color: var(--text-main);
+        }
+
+        :root.dark-mode .dashboard-card {
+            border: 1px solid #334155;
+            box-shadow: var(--shadow-lg);
+            color: #e2e8f0;
+        }
+
+        :root.dark-mode .group-box {
+            border: 1px solid #334155;
+            box-shadow: var(--shadow-lg);
+            color: #e2e8f0;
         }
 
         /* --- 5. GROUPS GRID --- */
@@ -272,6 +314,8 @@
         .group-table td {
             padding: 10px;
             border-bottom: 1px solid #f1f5f9;
+            color: var(--text-main);
+            background: var(--card-bg);
         }
 
         .group-table tr:hover td {
@@ -282,6 +326,27 @@
             font-weight: 600;
             color: #0f172a;
             position: relative;
+        }
+
+        /* --- DARK MODE TABLE OVERRIDES --- */
+        :root.dark-mode .group-table th {
+            background: #0f172a;
+            color: #e2e8f0;
+            border-bottom: 2px solid #334155;
+        }
+
+        :root.dark-mode .group-table td {
+            color: #e2e8f0;
+            border-bottom: 1px solid #334155;
+            background: #1e293b;
+        }
+
+        :root.dark-mode .group-table tr:hover td {
+            background: #334155;
+        }
+
+        :root.dark-mode .qualified {
+            color: #a7f3d0;
         }
 
         .qualified td:first-child::before {
@@ -325,7 +390,7 @@
         }
 
         .matchup {
-            background: white;
+            background: var(--card-bg);
             border: 1px solid #e2e8f0;
             border-radius: 8px;
             box-shadow: var(--shadow-sm);
@@ -333,6 +398,7 @@
             overflow: hidden;
             transition: transform 0.2s;
             margin-bottom: 12px;
+            color: var(--text-main);
         }
 
         .matchup:hover {
@@ -356,6 +422,21 @@
             font-weight: 700;
             background: #f0fdf4;
             color: #166534;
+        }
+
+        :root.dark-mode .matchup {
+            border: 1px solid #334155;
+            box-shadow: var(--shadow-md);
+        }
+
+        :root.dark-mode .matchup-team {
+            border-bottom: 1px solid #334155;
+            color: #e2e8f0;
+        }
+
+        :root.dark-mode .winner-text {
+            background: #0f2f1b;
+            color: #0de47c;
         }
 
         /* --- 7. LOADING SCREEN OVERLAY --- */
@@ -619,6 +700,8 @@
             padding: 12px;
             border-radius: 8px;
             text-align: center;
+            color: var(--text-main);
+            box-shadow: var(--shadow-sm);
         }
 
         .stat-pill-title {
@@ -633,6 +716,21 @@
             font-size: 1.4em;
             font-weight: 800;
             color: var(--text-main);
+        }
+
+        :root.dark-mode .stat-pill {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            box-shadow: var(--shadow-md);
+        }
+
+        :root.dark-mode .stat-pill-title {
+            color: #cbd5e1;
+        }
+
+        :root.dark-mode .stat-pill-value {
+            color: #e2e8f0;
         }
 
         /* --- PLOTLY / MATPLOTLIB RESPONSIVE FIX --- */
