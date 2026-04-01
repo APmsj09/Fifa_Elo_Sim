@@ -582,11 +582,19 @@ async def run_matchup_analysis(event):
         elo_diff = abs(sa_elo - sb_elo)
         stronger_team = team_a if sa_elo > sb_elo else team_b
         
-        # Calculate matchup dimension scores (0-10 scale)
-        atk_a = min(10, (sa.get('off', 1.0) / sb.get('def', 1.0)) * 5)
-        atk_b = min(10, (sb.get('off', 1.0) / sa.get('def', 1.0)) * 5)
-        def_a = min(10, (sa.get('def', 1.0) / sb.get('off', 1.0)) * 5)
-        def_b = min(10, (sb.get('def', 1.0) / sa.get('off', 1.0)) * 5)
+        # Calculate matchup dimension scores (0-10 scale) using log scale for better sensitivity
+        import math
+        def calc_tactical_score(attacking, defending):
+            """Convert off/def ratio to 0-10 scale with better sensitivity. Center at 5 when equal."""
+            ratio = attacking / defending if defending > 0 else 1.0
+            # Use logarithmic scale: log(2) * 3 ≈ 2.08, so dominant teams reach ~7-9
+            score = 5 + 2.5 * math.log(ratio)
+            return max(0.5, min(9.5, score))  # Clamp to [0.5, 9.5] for visibility
+        
+        atk_a = calc_tactical_score(sa.get('off', 1.0), sb.get('def', 1.0))
+        atk_b = calc_tactical_score(sb.get('off', 1.0), sa.get('def', 1.0))
+        def_a = calc_tactical_score(sa.get('def', 1.0), sb.get('off', 1.0))
+        def_b = calc_tactical_score(sb.get('def', 1.0), sa.get('off', 1.0))
         consistency_a = min(10, (7.5 - (sa.get('btts_pct', 50) - 50) / 10))
         consistency_b = min(10, (7.5 - (sb.get('btts_pct', 50) - 50) / 10))
         
@@ -690,13 +698,14 @@ async def run_matchup_analysis(event):
 
         <!-- EXPANDED: Tactical Dimensions Comparison -->
         <div class="dashboard-card" style="border-left:4px solid #f59e0b; margin-top:20px;">
-            <h3 style="margin-top:0; color:#f59e0b;">⚔️ Tactical Dimension Comparison</h3>
-            <p style="color:var(--text-light); font-size:0.9em; margin-bottom:15px;">How teams match up across key tactical battlegrounds (higher bars = advantageous)</p>
+            <h3 style="margin-top:0; color:#f59e0b;">⚔️ Tactical Comparison (Head-to-Head Edge)</h3>
+            <p style="color:var(--text-light); font-size:0.85em; margin-bottom:15px;">Scale: 0-10 shows who has the advantage in each area. 5 = evenly matched. Higher = advantage to that team.</p>
             
             <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:15px;">
                 <!-- Attacking Power -->
                 <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #ef4444;">
-                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px; color:var(--text-light);">Attacking Power</div>
+                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px; color:#b45309;">Attacking Power ⚽</div>
+                    <div style="font-size:0.7em; color:var(--text-light); margin-bottom:10px;">Who scores more easily?</div>
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
                         <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
                             <div style="background:#3b82f6; height:100%; width:{(atk_a/10)*100:.0f}%;"></div>
@@ -713,7 +722,8 @@ async def run_matchup_analysis(event):
                 
                 <!-- Defensive Solidity -->
                 <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #10b981;">
-                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px; color:var(--text-light);">Defensive Solidity</div>
+                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px; color:#059669;">Defensive Solidity 🛡️</div>
+                    <div style="font-size:0.7em; color:var(--text-light); margin-bottom:10px;">Who prevents goals better?</div>
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
                         <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
                             <div style="background:#3b82f6; height:100%; width:{(def_a/10)*100:.0f}%;"></div>
@@ -728,9 +738,10 @@ async def run_matchup_analysis(event):
                     </div>
                 </div>
                 
-                <!-- Tactical Balance -->
+                <!-- Consistency -->
                 <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #8b5cf6;">
-                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px; color:var(--text-light);">Consistency</div>
+                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px; color:#6d28d9;">Consistency 📊</div>
+                    <div style="font-size:0.7em; color:var(--text-light); margin-bottom:10px;">Who plays more predictably?</div>
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
                         <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
                             <div style="background:#3b82f6; height:100%; width:{(consistency_a/10)*100:.0f}%;"></div>
@@ -1288,15 +1299,17 @@ def update_dashboard_data():
     # --- 5. RENDER METRICS ---
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
     <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:20px; margin-bottom:25px;">
-        <div class="stat-pill">
-            <div class="stat-pill-title">Offensive Power</div>
+        <div class="stat-pill" title="Expected goals scored per match vs. average team (1.0x = average, 1.5x = 50% more)">
+            <div class="stat-pill-title">Offensive Power 💪</div>
             <div class="stat-pill-value" style="color:var(--accent-blue);">{round(atk_power, 2)}x</div>
             <div style="font-size:0.75em; font-weight:600; color:{atk_color}; margin-top:4px;">{atk_desc}</div>
+            <div style="font-size:0.65em; color:var(--text-light); margin-top:6px;">Expected goals/match: <b>{stats.get('adj_gf', 0):.2f}</b></div>
         </div>
-        <div class="stat-pill">
-            <div class="stat-pill-title">Defensive Solidity</div>
-            <div class="stat-pill-value" style="color:var(--accent-green);">{round(2.0 - def_power, 2)}x</div>
+        <div class="stat-pill" title="How well they defend - lower is better (0.7x = good defense, 1.2x = leaky)">
+            <div class="stat-pill-title">Defensive Solidity 🛡️</div>
+            <div class="stat-pill-value" style="color:var(--accent-green);">{round(def_index, 2)}x</div>
             <div style="font-size:0.75em; font-weight:600; color:{def_color}; margin-top:4px;">{def_desc}</div>
+            <div style="font-size:0.65em; color:var(--text-light); margin-top:6px;">Concedes/match: <b>{stats.get('adj_ga', 0):.2f}</b></div>
         </div>
         <div class="stat-pill">
             <div class="stat-pill-title">Big Game Record</div>
@@ -1333,17 +1346,39 @@ def update_dashboard_data():
 
     <!-- EXPANDED: Notable Results & Achievements -->
     <div class="dashboard-card" style="background:linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%); border-left:4px solid #f59e0b; margin-top:20px;">
-        <h4 style="margin:0 0 12px 0; color:#92400e; font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">⭐ Notable Achievements</h4>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+        <h4 style="margin:0 0 12px 0; color:#92400e; font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">⭐ Notable Achievements & Playing Style</h4>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px;">
             <div>
-                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">Major Upsets</div>
+                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">Upset Wins</div>
                 <div style="font-size:2em; font-weight:900; color:#f59e0b;">{stats.get('upsets_major_won', 0)}</div>
                 <div style="font-size:0.75em; color:var(--text-light);">Wins vs stronger teams</div>
             </div>
             <div>
-                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">vs Elite Record</div>
+                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">vs Elite Win %</div>
                 <div style="font-size:2em; font-weight:900; color:#f59e0b;">{upset_pct:.0f}%</div>
-                <div style="font-size:0.75em; color:var(--text-light);">Win rate vs top tier</div>
+                <div style="font-size:0.75em; color:var(--text-light);">vs top tier teams</div>
+            </div>
+            <div>
+                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">Clean Sheets</div>
+                <div style="font-size:2em; font-weight:900; color:#f59e0b;">{int(stats.get('cs_pct',0))}%</div>
+                <div style="font-size:0.75em; color:var(--text-light);">Shutout rate</div>
+            </div>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; margin-top:15px; padding-top:15px; border-top:1px solid rgba(245, 158, 11, 0.2);">
+            <div>
+                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">Both Teams Score</div>
+                <div style="font-size:1.5em; font-weight:900; color:#f59e0b;">{int(stats.get('btts_pct',0))}%</div>
+                <div style="font-size:0.75em; color:var(--text-light);">High-scoring games</div>
+            </div>
+            <div>
+                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">Late Goals (75'+)</div>
+                <div style="font-size:1.5em; font-weight:900; color:#f59e0b;">{int(stats.get('late_pct',0))}%</div>
+                <div style="font-size:0.75em; color:var(--text-light);">Clutch finishers</div>
+            </div>
+            <div>
+                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">Penalty Conversion</div>
+                <div style="font-size:1.5em; font-weight:900; color:#f59e0b;">{int(stats.get('pen_pct',0))}%</div>
+                <div style="font-size:0.75em; color:var(--text-light);">From the spot</div>
             </div>
         </div>
     </div>
