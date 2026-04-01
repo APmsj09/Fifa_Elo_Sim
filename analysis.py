@@ -3,7 +3,6 @@ import asyncio
 import traceback
 import numpy as np
 import pandas as pd
-import matplotlib.subplots as plt_subplots
 import matplotlib.pyplot as plt
 import simulation_engine as sim
 from pyodide.ffi import create_proxy
@@ -12,7 +11,6 @@ from pyscript import display
 # ==========================================================
 # --- SECURE 2022 DATA MAPPING ---
 # ==========================================================
-# Hardcoded here to ensure it's always available to the analysis script
 WC_2022_GROUPS = {
     'A': ['qatar', 'ecuador', 'senegal', 'netherlands'],
     'B': ['england', 'iran', 'united states', 'wales'],
@@ -23,6 +21,9 @@ WC_2022_GROUPS = {
     'G': ['brazil', 'serbia', 'switzerland', 'cameroon'],
     'H': ['portugal', 'ghana', 'uruguay', 'south korea']
 }
+
+# FIX 2: Global list to prevent Pyodide from garbage-collecting our button click
+ANALYSIS_HANDLERS = [] 
 
 def sim_2022_tournament():
     # 1. GROUP STAGE
@@ -43,7 +44,7 @@ def sim_2022_tournament():
                 # USE THE REAL ENGINE
                 result = sim.sim_match(t1, t2, knockout=False)
                 
-                # FIXED per audit: Handle draw case gracefully (returns 3-tuple)
+                # Handle draw case gracefully (returns 3-tuple)
                 if result[0] == 'draw':
                     w, g1, g2 = None, result[1], result[2]
                 else:
@@ -137,7 +138,6 @@ async def run_sim_backtest(event):
             for team in WC_2022_GROUPS[t]:
                 if team in elo_2022:
                     if team not in sim.TEAM_STATS:
-                        # Create complete default entry with all required fields for 2022 teams not in 2026
                         sim.TEAM_STATS[team] = {
                             'elo': 1200, 'off': 1.0, 'def': 1.0,
                             'matches': 0, 'clean_sheets': 0, 'btts': 0,
@@ -275,14 +275,13 @@ async def run_sim_backtest(event):
         elif arg_rank <= 5: grade = "B"
         else: grade = "C"
 
-        html += """
+        html += f"""
         <div style="margin-top: 35px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; box-shadow: var(--shadow-sm);">
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 20px;">
                 <h3 style="margin: 0; color: #0f172a; font-size:1.3em;">📊 Model Performance Metrics</h3>
             </div>
 
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 25px;">
-                <!-- Overall Ranking Accuracy -->
                 <div style="background: #f0fdf4; padding: 20px; border-radius: 8px; border-left: 4px solid #10b981;">
                     <div style="font-size: 0.8em; font-weight: 600; color: #166534; text-transform: uppercase; margin-bottom: 8px;">Overall Ranking Accuracy</div>
                     <div style="font-size: 2.5em; font-weight: 900; color: #22c55e; margin: 10px 0;">Top 4 Match</div>
@@ -291,7 +290,6 @@ async def run_sim_backtest(event):
                     </div>
                 </div>
 
-                <!-- Probability Calibration -->
                 <div style="background: #f0f9ff; padding: 20px; border-radius: 8px; border-left: 4px solid #3b82f6;">
                     <div style="font-size: 0.8em; font-weight: 600; color: #1e40af; text-transform: uppercase; margin-bottom: 8px;">Best Prediction</div>
                     <div style="font-size: 1.8em; font-weight: 900; color: #3b82f6; margin: 10px 0;">{top_fav_win:.1f}%</div>
@@ -300,7 +298,6 @@ async def run_sim_backtest(event):
                     </div>
                 </div>
 
-                <!-- Upset Detection -->
                 <div style="background: #fef3c7; padding: 20px; border-radius: 8px; border-left: 4px solid #f59e0b;">
                     <div style="font-size: 0.8em; font-weight: 600; color: #92400e; text-transform: uppercase; margin-bottom: 8px;">Upset Detection</div>
                     <div style="font-size: 1.8em; font-weight: 900; color: #f59e0b; margin: 10px 0;">{mor_sem:.1f}%</div>
@@ -310,7 +307,6 @@ async def run_sim_backtest(event):
                 </div>
             </div>
 
-            <!-- Detailed Comparison Table -->
             <div style="margin-top: 20px;">
                 <h4 style="color: #0f172a; margin-bottom: 15px;">🎯 Key Performance Indicators</h4>
                 <div style="overflow-x: auto;">
@@ -324,69 +320,41 @@ async def run_sim_backtest(event):
                         </thead>
                         <tbody>
                             <tr style="border-bottom: 1px solid #e2e8f0;">
-                                <td style="padding: 12px; color: #334155;">
-                                    <span style="font-weight: 600;">Top 1 Accuracy</span>
-                                </td>
-                                <td style="padding: 12px; text-align: center; color: #ef4444; font-weight: 600;">
-                                    {arg_rank}
-                                </td>
-                                <td style="padding: 12px; color: #64748b; font-size: 0.9em;">
-                                    Argentina ranked #{arg_rank} in win probability (actual winner)
-                                </td>
+                                <td style="padding: 12px; color: #334155;"><span style="font-weight: 600;">Top 1 Accuracy</span></td>
+                                <td style="padding: 12px; text-align: center; color: #ef4444; font-weight: 600;">#{arg_rank}</td>
+                                <td style="padding: 12px; color: #64748b; font-size: 0.9em;">Argentina ranked #{arg_rank} in win probability (actual winner)</td>
                             </tr>
                             <tr style="border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
-                                <td style="padding: 12px; color: #334155;">
-                                    <span style="font-weight: 600;">Top 4 Inclusion</span>
-                                </td>
-                                <td style="padding: 12px; text-align: center; color: #10b981; font-weight: 600;">
-                                    ✓ 2/2
-                                </td>
-                                <td style="padding: 12px; color: #64748b; font-size: 0.9em;">
-                                    Both Argentina & France predicted in Top 4 championship contenders
-                                </td>
+                                <td style="padding: 12px; color: #334155;"><span style="font-weight: 600;">Top 4 Inclusion</span></td>
+                                <td style="padding: 12px; text-align: center; color: #10b981; font-weight: 600;">✓ 2/2</td>
+                                <td style="padding: 12px; color: #64748b; font-size: 0.9em;">Both Argentina & France predicted in Top 4 championship contenders</td>
                             </tr>
                             <tr style="border-bottom: 1px solid #e2e8f0;">
-                                <td style="padding: 12px; color: #334155;">
-                                    <span style="font-weight: 600;">Top 8 Coverage</span>
-                                </td>
-                                <td style="padding: 12px; text-align: center; color: #10b981; font-weight: 600;">
-                                    {int(len(top_5))} teams
-                                </td>
-                                <td style="padding: 12px; color: #64748b; font-size: 0.9em;">
-                                    {top_5[0][0].title()} — {top_5[-1][0].title()} in Top contenders
-                                </td>
+                                <td style="padding: 12px; color: #334155;"><span style="font-weight: 600;">Top 5 Coverage</span></td>
+                                <td style="padding: 12px; text-align: center; color: #10b981; font-weight: 600;">{int(len(top_5))} teams</td>
+                                <td style="padding: 12px; color: #64748b; font-size: 0.9em;">{top_5[0][0].title()} — {top_5[-1][0].title()} in Top contenders</td>
                             </tr>
                             <tr style="background: #f8fafc;">
-                                <td style="padding: 12px; color: #334155;">
-                                    <span style="font-weight: 600;">Anomaly Capture</span>
-                                </td>
-                                <td style="padding: 12px; text-align: center; color: #10b981; font-weight: 600;">
-                                    ✓ Good
-                                </td>
-                                <td style="padding: 12px; color: #64748b; font-size: 0.9em;">
-                                    Morocco & Croatia anomalies correctly identified as low-probability events
-                                </td>
+                                <td style="padding: 12px; color: #334155;"><span style="font-weight: 600;">Anomaly Capture</span></td>
+                                <td style="padding: 12px; text-align: center; color: #10b981; font-weight: 600;">✓ Good</td>
+                                <td style="padding: 12px; color: #64748b; font-size: 0.9em;">Morocco & Croatia anomalies correctly identified as low-probability events</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- Key Insights -->
             <div style="margin-top: 25px; padding: 15px; background: linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%); border-left: 4px solid #f59e0b; border-radius: 6px;">
-                <h4 style="margin-top: 0; color: #92400e; display: flex; gap: 8px; align-items: center;">
-                    💡 What This Means
-                </h4>
+                <h4 style="margin-top: 0; color: #92400e; display: flex; gap: 8px; align-items: center;">💡 What This Means</h4>
                 <ul style="margin: 10px 0; color: #b45309; line-height: 1.7; font-size: 0.95em;">
                     <li><b>✓ Picks the Winners:</b> The model consistently places the actual champions in the top contenders, not buried in the long tail.</li>
                     <li><b>✓ Healthy Skepticism:</b> The model doesn't predict anomalies as routine (Morocco at ~1-5%, not 20%). This shows good calibration.</li>
                     <li><b>✓ Compound Risk Respected:</b> Even the strongest teams get only ~15% to win because 4 consecutive KO matches have massive variance.</li>
-                    <li><b>⚠️ Limitation:</b> Pure statistical models can't predict black swan events (injuries, red cards, VAR controversies). The model predicts baseline expectations.</li>
+                    <li><b>⚠️ Limitation:</b> Pure statistical models can't predict black swan events (injuries, red cards, VAR controversies).</li>
                 </ul>
             </div>
         </div>
 
-        <!-- Original Accuracy Narrative Report -->
         <div style="margin-top: 35px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; box-shadow: var(--shadow-sm);">
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 20px;">
                 <h3 style="margin: 0; color: #0f172a; font-size:1.3em;">🧠 Detailed Accuracy Narrative</h3>
@@ -403,9 +371,6 @@ async def run_sim_backtest(event):
                         In reality, Argentina took the cup. The engine gave Argentina a <b>{arg_win:.1f}%</b> probability to win it all (Ranked #{arg_rank} overall), 
                         and correctly identified France as an elite threat, giving them a <b>{fra_fin:.1f}%</b> chance to reach the Final.
                     </p>
-                    <div style="background: #f8fafc; padding: 10px 15px; border-radius: 6px; font-size: 0.85em; color: #64748b; font-style: italic;">
-                        <b>Context:</b> In pure statistical modeling, a 15-20% chance to win a 32-team knockout tournament is incredibly high. Because surviving 4 consecutive knockout games inherently carries massive compound risk, no team is ever a "guarantee".
-                    </div>
                 </div>
 
                 <div>
@@ -415,9 +380,6 @@ async def run_sim_backtest(event):
                     <p style="font-size: 0.9em; color: var(--text-main); line-height: 1.7;">
                         The 2022 World Cup featured massive historic anomalies: Morocco reaching the Semifinals and Croatia securing 3rd place. 
                         Pre-tournament, the engine gave Morocco a <b>{mor_sem:.1f}%</b> chance to reach the Semis, and Croatia a <b>{cro_sem:.1f}%</b> chance.
-                    </p>
-                    <p style="font-size: 0.9em; color: var(--text-main); line-height: 1.7;">
-                        A good simulation model does not predict anomalies as "likely"—if it did, it would be overfit. Because Morocco's semi-final probability sits strictly in the single-digits, the engine correctly identified their historic run as a <i>statistical Cinderella story</i> rather than a predictable outcome.
                     </p>
                 </div>
             </div>
@@ -429,9 +391,13 @@ async def run_sim_backtest(event):
                 </p>
             </div>
         </div>
+        """
+        
         if prog_container: prog_container.style.display = "none"
+        
+        # FIX 3: Push the generated HTML into the browser DOM
+        out_div.innerHTML = html
 
-    # THIS IS THE CRITICAL DEBUGGING CATCH
     except Exception as e:
         error_trace = traceback.format_exc()
         out_div.innerHTML = f"""
@@ -450,7 +416,9 @@ async def run_sim_backtest(event):
 def init_analysis():
     btn = js.document.getElementById("btn-backtest-sim")
     if btn: 
-        # Create a fresh proxy that won't conflict
-        btn.onclick = create_proxy(run_sim_backtest)
+        # Attach the proxy and save it to our global list so it doesn't get deleted
+        proxy = create_proxy(run_sim_backtest)
+        ANALYSIS_HANDLERS.append(proxy)
+        btn.onclick = proxy
 
 init_analysis()
