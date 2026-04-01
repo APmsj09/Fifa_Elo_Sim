@@ -576,6 +576,23 @@ async def run_matchup_analysis(event):
                 tactical_clash = f"<b>Clash of Styles:</b> It is a classic battle of ideologies as {team_a.title()}'s <i>{style_a}</i> tries to impose its will against {team_b.title()}'s <i>{style_b}</i>."
 
         # 4. Build Output HTML
+        # First, add tactical weakness/strength analysis
+        sa_elo = int(sa.get('elo', 1200))
+        sb_elo = int(sb.get('elo', 1200))
+        elo_diff = abs(sa_elo - sb_elo)
+        stronger_team = team_a if sa_elo > sb_elo else team_b
+        
+        # Calculate matchup dimension scores (0-10 scale)
+        atk_a = min(10, (sa.get('off', 1.0) / sb.get('def', 1.0)) * 5)
+        atk_b = min(10, (sb.get('off', 1.0) / sa.get('def', 1.0)) * 5)
+        def_a = min(10, (sa.get('def', 1.0) / sb.get('off', 1.0)) * 5)
+        def_b = min(10, (sb.get('def', 1.0) / sa.get('off', 1.0)) * 5)
+        consistency_a = min(10, (7.5 - (sa.get('btts_pct', 50) - 50) / 10))
+        consistency_b = min(10, (7.5 - (sb.get('btts_pct', 50) - 50) / 10))
+        
+        # Determine key tactical mismatches
+        atk_mismatch = "Strong Possession" if atk_a > atk_b + 1.5 else ("Leaky Defense" if atk_b > atk_a + 1.5 else "Balanced Midfield")
+        
         html = f"""
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
             
@@ -669,6 +686,91 @@ async def run_matchup_analysis(event):
                     </tr>
                 </tbody>
             </table>
+        </div>
+
+        <!-- EXPANDED: Tactical Dimensions Comparison -->
+        <div class="dashboard-card" style="border-left:4px solid #f59e0b; margin-top:20px;">
+            <h3 style="margin-top:0; color:#f59e0b;">⚔️ Tactical Dimension Comparison</h3>
+            <p style="color:var(--text-light); font-size:0.9em; margin-bottom:15px;">How teams match up across key tactical battlegrounds (higher bars = advantageous)</p>
+            
+            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:15px;">
+                <!-- Attacking Power -->
+                <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #ef4444;">
+                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px; color:var(--text-light);">Attacking Power</div>
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
+                            <div style="background:#3b82f6; height:100%; width:{(atk_a/10)*100:.0f}%;"></div>
+                        </div>
+                        <div style="font-weight:bold; font-size:0.9em; width:20px;">{atk_a:.1f}</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
+                            <div style="background:#ef4444; height:100%; width:{(atk_b/10)*100:.0f}%;"></div>
+                        </div>
+                        <div style="font-weight:bold; font-size:0.9em; width:20px;">{atk_b:.1f}</div>
+                    </div>
+                </div>
+                
+                <!-- Defensive Solidity -->
+                <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #10b981;">
+                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px; color:var(--text-light);">Defensive Solidity</div>
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
+                            <div style="background:#3b82f6; height:100%; width:{(def_a/10)*100:.0f}%;"></div>
+                        </div>
+                        <div style="font-weight:bold; font-size:0.9em; width:20px;">{def_a:.1f}</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
+                            <div style="background:#ef4444; height:100%; width:{(def_b/10)*100:.0f}%;"></div>
+                        </div>
+                        <div style="font-weight:bold; font-size:0.9em; width:20px;">{def_b:.1f}</div>
+                    </div>
+                </div>
+                
+                <!-- Tactical Balance -->
+                <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #8b5cf6;">
+                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px; color:var(--text-light);">Consistency</div>
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
+                            <div style="background:#3b82f6; height:100%; width:{(consistency_a/10)*100:.0f}%;"></div>
+                        </div>
+                        <div style="font-weight:bold; font-size:0.9em; width:20px;">{consistency_a:.1f}</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
+                            <div style="background:#ef4444; height:100%; width:{(consistency_b/10)*100:.0f}%;"></div>
+                        </div>
+                        <div style="font-weight:bold; font-size:0.9em; width:20px;">{consistency_b:.1f}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- KEY STRATEGIC INSIGHTS -->
+        <div class="dashboard-card" style="background:linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%); border-left:4px solid #3b82f6; margin-top:20px;">
+            <h3 style="margin-top:0; color:#0f172a;">💡 Strategic Insights</h3>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+                <div>
+                    <div style="font-weight:bold; margin-bottom:8px; color: #3b82f6;">{team_a.title()}'s Strengths</div>
+                    <ul style="margin:0; padding-left:18px; font-size:0.9em; line-height:1.6;">
+                        <li>{('💪 Dominant Attack' if atk_a > atk_b + 1.5 else '⚔️ Balanced Offense') if abs(atk_a - atk_b) > 0.5 else '⚖️ Average Attack'}</li>
+                        <li>{('🧱 Fortress Defense' if def_a > def_b + 1.5 else '🛡️ Solid Backline') if abs(def_a - def_b) > 0.5 else '⚖️ Average Defense'}</li>
+                        <li>{('✓ Game Control' if consistency_a > consistency_b else '⚠️ Unpredictable') if abs(consistency_a - consistency_b) > 1.5 else '↔️ Similar Control'}</li>
+                    </ul>
+                </div>
+                <div>
+                    <div style="font-weight:bold; margin-bottom:8px; color: #ef4444;">{team_b.title()}'s Strengths</div>
+                    <ul style="margin:0; padding-left:18px; font-size:0.9em; line-height:1.6;">
+                        <li>{('💪 Dominant Attack' if atk_b > atk_a + 1.5 else '⚔️ Balanced Offense') if abs(atk_b - atk_a) > 0.5 else '⚖️ Average Attack'}</li>
+                        <li>{('🧱 Fortress Defense' if def_b > def_a + 1.5 else '🛡️ Solid Backline') if abs(def_b - def_a) > 0.5 else '⚖️ Average Defense'}</li>
+                        <li>{('✓ Game Control' if consistency_b > consistency_a else '⚠️ Unpredictable') if abs(consistency_b - consistency_a) > 1.5 else '↔️ Similar Control'}</li>
+                    </ul>
+                </div>
+            </div>
+            <div style="margin-top:15px; padding-top:15px; border-top:1px solid #e2e8f0;">
+                <div style="font-size:0.9em; color:var(--text-light);"><b>Prediction Confidence:</b> {('Very High' if elo_diff > 200 else ('High' if elo_diff > 100 else 'Moderate'))} based on {elo_diff} Elo point difference</div>
+            </div>
         </div>
         """
         
@@ -1228,6 +1330,45 @@ def update_dashboard_data():
             <div style="font-weight:800; font-size:1.1em;">{int(stats.get('pen_pct',0))}%</div>
         </div>
     </div>
+
+    <!-- EXPANDED: Notable Results & Achievements -->
+    <div class="dashboard-card" style="background:linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%); border-left:4px solid #f59e0b; margin-top:20px;">
+        <h4 style="margin:0 0 12px 0; color:#92400e; font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">⭐ Notable Achievements</h4>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+            <div>
+                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">Major Upsets</div>
+                <div style="font-size:2em; font-weight:900; color:#f59e0b;">{stats.get('upsets_major_won', 0)}</div>
+                <div style="font-size:0.75em; color:var(--text-light);">Wins vs stronger teams</div>
+            </div>
+            <div>
+                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">vs Elite Record</div>
+                <div style="font-size:2em; font-weight:900; color:#f59e0b;">{upset_pct:.0f}%</div>
+                <div style="font-size:0.75em; color:var(--text-light);">Win rate vs top tier</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- EXPANDED: Detailed Performance Metrics -->
+    <div class="dashboard-card" style="border-left:4px solid #3b82f6; margin-top:20px;">
+        <h4 style="margin:0 0 12px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">📊 Detailed Performance</h4>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; font-size:0.9em;">
+            <div style="background:#f0fdf4; padding:12px; border-radius:6px; border-left:3px solid #10b981;">
+                <div style="font-weight:bold; color:#166534; font-size:0.8em; text-transform:uppercase;">Avg Goals For</div>
+                <div style="font-size:1.6em; font-weight:bold; color:#22c55e; margin:4px 0;">{stats.get('adj_gf', 0):.2f}</div>
+                <div style="font-size:0.7em; color:var(--text-light);">per match</div>
+            </div>
+            <div style="background:#fef2f2; padding:12px; border-radius:6px; border-left:3px solid #ef4444;">
+                <div style="font-weight:bold; color:#991b1b; font-size:0.8em; text-transform:uppercase;">Avg Goals Against</div>
+                <div style="font-size:1.6em; font-weight:bold; color:#ef4444; margin:4px 0;">{stats.get('adj_ga', 0):.2f}</div>
+                <div style="font-size:0.7em; color:var(--text-light);">per match</div>
+            </div>
+            <div style="background:#f0f9ff; padding:12px; border-radius:6px; border-left:3px solid #3b82f6;">
+                <div style="font-weight:bold; color:#1e40af; font-size:0.8em; text-transform:uppercase;">Goal Difference</div>
+                <div style="font-size:1.6em; font-weight:bold; color:#3b82f6; margin:4px 0;">{(stats.get('adj_gf', 0) - stats.get('adj_ga', 0)):+.2f}</div>
+                <div style="font-size:0.7em; color:var(--text-light);">per match</div>
+            </div>
+        </div>
+    </div>
     """
 
     # --- 6. RE-RENDER CHARTS ---
@@ -1276,6 +1417,27 @@ def render_power_chart(atk, dfe, team):
     fig.tight_layout()
     display(fig, target="dashboard_chart_radar")
     plt.close(fig)
+
+def _generate_notable_results_html(team, notable_results):
+    """Generate HTML for notable results section."""
+    if not notable_results:
+        return '<div style="color:var(--text-light); font-size:0.9em;">Recent match data being processed...</div>'
+    
+    html = ""
+    for result in notable_results[:4]:  # Show top 4
+        result_type = result.get('type', '')
+        icon = {'WON_MAJOR': '🌟', 'WON_MINOR': '✓', 'LOST_MAJOR': '💔', 'LOST_MINOR': '⚠️'}.get(result_type, '•')
+        color = {'WON_MAJOR': '#22c55e', 'WON_MINOR': '#86efac', 'LOST_MAJOR': '#ef4444', 'LOST_MINOR': '#fca5a5'}.get(result_type, '#94a3b8')
+        
+        html += f"""<div style="display:flex; align-items:center; gap:10px; padding:8px; background:white; border-radius:6px; border-left:3px solid {color};">
+            <div style="font-size:1.4em;">{icon}</div>
+            <div style="flex:1;">
+                <div style="font-weight:600; font-size:0.9em;">{result.get('opp', 'Unknown').title()}</div>
+                <div style="font-size:0.75em; color:var(--text-light);">{result.get('score', 'N/A')}</div>
+            </div>
+        </div>"""
+    
+    return html
 
 def generate_dynamic_report(team, atk, dfe, upset, stats):
     import random
