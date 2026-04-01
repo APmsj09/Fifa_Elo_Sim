@@ -41,7 +41,13 @@ def sim_2022_tournament():
                 t1, t2 = teams_shuffled[i], teams_shuffled[j]
                 
                 # USE THE REAL ENGINE
-                w, g1, g2 = sim.sim_match(t1, t2, knockout=False)
+                result = sim.sim_match(t1, t2, knockout=False)
+                
+                # FIXED per audit: Handle draw case gracefully (returns 3-tuple)
+                if result[0] == 'draw':
+                    w, g1, g2 = None, result[1], result[2]
+                else:
+                    w, g1, g2 = result[0], result[1], result[2]
                 
                 # Update standings
                 table[t1]['gf'] += g1

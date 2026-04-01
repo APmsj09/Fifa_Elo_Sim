@@ -16,11 +16,54 @@ LAST_SIM_RESULTS = {}
 EVENT_HANDLERS = []
 
 # =============================================================================
+# --- UTILITY FUNCTIONS ---
+# =============================================================================
+def calculate_ci(count, total):
+    """
+    Calculate 95% confidence interval margin for a binomial proportion.
+    Returns the ± margin as a percentage (e.g., 2.4 for ±2.4%)
+    """
+    p = count / total if total > 0 else 0
+    margin = 1.96 * np.sqrt(p * (1 - p) / total) * 100 if total > 0 else 0
+    return margin
+
+def toggle_dark_mode(event):
+    """Toggle dark mode theme and persist preference to localStorage."""
+    html = js.document.documentElement
+    btn = js.document.getElementById("dark-mode-btn")
+    
+    # Toggle class on root element
+    if html.classList.contains("dark-mode"):
+        html.classList.remove("dark-mode")
+        js.localStorage.setItem("theme", "light")
+        if btn: btn.innerText = "🌙"
+    else:
+        html.classList.add("dark-mode")
+        js.localStorage.setItem("theme", "dark")
+        if btn: btn.innerText = "☀️"
+
+def apply_saved_theme():
+    """Apply saved theme preference from localStorage on page load."""
+    saved_theme = js.localStorage.getItem("theme")
+    html = js.document.documentElement
+    btn = js.document.getElementById("dark-mode-btn")
+    
+    if saved_theme == "dark":
+        html.classList.add("dark-mode")
+        if btn: btn.innerText = "☀️"
+    else:
+        html.classList.remove("dark-mode")
+        if btn: btn.innerText = "🌙"
+
+# =============================================================================
 # --- STARTUP & INITIALIZATION ---
 # =============================================================================
 async def initialize_app():
     try:
         js.console.log("Initializing Engine...")
+        
+        # 0. Apply saved theme preference
+        apply_saved_theme()
         
         # 1. Initialize Backend
         sim.DATA_DIR = "."
@@ -93,6 +136,9 @@ def setup_interactions():
     bind_click("btn-tab-analysis", lambda e: switch_tab("tab-analysis"))
     bind_click("btn-tab-matchup", lambda e: switch_tab("tab-matchup"))
     bind_click("btn-run-matchup", run_matchup_analysis)
+    
+    # --- Dark Mode Toggle ---
+    bind_click("dark-mode-btn", toggle_dark_mode)
     
     # Populate the new dropdowns
     populate_team_dropdown(target_id="matchup-team-a")
@@ -383,13 +429,17 @@ async def run_bulk_sim(event):
                 adv_pct = (s['r32'] / num) * 100
                 win_grp_pct = (s['grp_1st'] / num) * 100
                 
+                # Calculate confidence intervals
+                adv_ci = calculate_ci(s['r32'], num)
+                win_grp_ci = calculate_ci(s['grp_1st'], num)
+                
                 # If a team only appears in 10% of sims (playoffs), we fade their name
                 opacity = "1.0" if (s['apps']/num) > 0.5 else "0.5"
                 
                 html += f"""<tr style='opacity:{opacity};'>
                     <td style='font-weight:600;'>{t.title()}</td>
-                    <td style='text-align:right;'>{win_grp_pct:.1f}%</td>
-                    <td style='text-align:right; font-weight:bold;'>{adv_pct:.1f}%</td>
+                    <td style='text-align:right;'>{win_grp_pct:.1f}% (±{win_grp_ci:.1f}%)</td>
+                    <td style='text-align:right; font-weight:bold;'>{adv_pct:.1f}% (±{adv_ci:.1f}%)</td>
                 </tr>"""
             html += "</table></div>"
         
@@ -418,17 +468,24 @@ async def run_bulk_sim(event):
             qf_pct = (s['qf'] / num) * 100
             r16_pct = (s['r16'] / num) * 100
             
+            # Calculate confidence intervals
+            win_ci = calculate_ci(s['win'], num)
+            final_ci = calculate_ci(s['final'], num)
+            semi_ci = calculate_ci(s['sf'], num)
+            qf_ci = calculate_ci(s['qf'], num)
+            r16_ci = calculate_ci(s['r16'], num)
+            
             # Threshold to hide unlikely teams (Adjusted slightly to show more depth)
             if r16_pct < 1.0 and win_pct < 0.1: continue
             
             html += f"""
             <tr style="border-bottom:1px solid #eee;">
                 <td style="padding:10px; font-weight:bold;">{team.title()}</td>
-                <td style="padding:10px; text-align:right; color:#7f8c8d; background:#f8f9fa;">{r16_pct:.1f}%</td>
-                <td style="padding:10px; text-align:right; color:#7f8c8d; background:#f8f9fa;">{qf_pct:.1f}%</td>
-                <td style="padding:10px; text-align:right; color:#34495e;">{semi_pct:.1f}%</td>
-                <td style="padding:10px; text-align:right;">{final_pct:.1f}%</td>
-                <td style="padding:10px; text-align:right; font-weight:bold; background:#fffcf5;">{win_pct:.1f}%</td>
+                <td style="padding:10px; text-align:right; color:#7f8c8d; background:#f8f9fa;">{r16_pct:.1f}% (±{r16_ci:.1f}%)</td>
+                <td style="padding:10px; text-align:right; color:#7f8c8d; background:#f8f9fa;">{qf_pct:.1f}% (±{qf_ci:.1f}%)</td>
+                <td style="padding:10px; text-align:right; color:#34495e;">{semi_pct:.1f}% (±{semi_ci:.1f}%)</td>
+                <td style="padding:10px; text-align:right;">{final_pct:.1f}% (±{final_ci:.1f}%)</td>
+                <td style="padding:10px; text-align:right; font-weight:bold; background:#fffcf5;">{win_pct:.1f}% (±{win_ci:.1f}%)</td>
             </tr>
             """
             
@@ -483,6 +540,11 @@ async def run_matchup_analysis(event):
         p_d = (draws / sim_count) * 100
         p_b = (b_wins / sim_count) * 100
         
+        # Calculate confidence intervals
+        ci_a = calculate_ci(a_wins, sim_count)
+        ci_d = calculate_ci(draws, sim_count)
+        ci_b = calculate_ci(b_wins, sim_count)
+        
         avg_ga = a_goals / sim_count
         avg_gb = b_goals / sim_count
 
@@ -520,9 +582,9 @@ async def run_matchup_analysis(event):
                 <h3 style="margin-top:0; color:var(--text-light); text-transform:uppercase; font-size:0.85em;">Match Simulation ({sim_count:,} runs)</h3>
                 
                 <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-weight:800; font-size:1.2em;">
-                    <div style="color:#3b82f6;">{team_a.title()} ({p_a:.1f}%)</div>
-                    <div style="color:#64748b; font-size:0.8em; align-self:center;">DRAW ({p_d:.1f}%)</div>
-                    <div style="color:#ef4444;">{team_b.title()} ({p_b:.1f}%)</div>
+                    <div style="color:#3b82f6;">{team_a.title()}<br><span style="font-size:0.6em; font-weight:400;">{p_a:.1f}% (±{ci_a:.1f}%)</span></div>
+                    <div style="color:#64748b; font-size:0.8em; align-self:center;">DRAW<br><span style="font-size:0.7em;">{p_d:.1f}% (±{ci_d:.1f}%)</span></div>
+                    <div style="color:#ef4444;">{team_b.title()}<br><span style="font-size:0.6em; font-weight:400;">{p_b:.1f}% (±{ci_b:.1f}%)</span></div>
                 </div>
 
                 <div style="width:100%; height:30px; display:flex; border-radius:8px; overflow:hidden; box-shadow:var(--shadow-sm);">
@@ -865,6 +927,63 @@ def generate_scout_report(stats):
 DASHBOARD_BUILT = False
 
 def populate_team_dropdown(target_id="team-select-dashboard", wc_only=False):
+    """
+    Populates a team dropdown/select element with sorted teams by Elo rating.
+    Can target multiple select elements by ID.
+    Supports searchable dropdown through standard HTML select.
+    """
+    select = js.document.getElementById(target_id)
+    
+    if not select:
+        return  # Exit if element doesn't exist
+
+    current_val = select.value
+    select.innerHTML = ""  # Clear existing options
+
+    # Sort teams by ELO
+    sorted_teams = sorted(
+        sim.TEAM_STATS.items(),
+        key=lambda x: x[1]['elo'],
+        reverse=True
+    )
+
+    # Create Options
+    for team, stats in sorted_teams:
+        if wc_only and team not in sim.WC_TEAMS:
+            continue
+
+        opt = js.document.createElement("option")
+        opt.value = team
+        opt.text = team.title()
+        select.appendChild(opt)
+
+    # Restore selection or default to first option
+    if current_val:
+        select.value = current_val
+    
+    if not select.value and select.options.length > 0:
+        select.selectedIndex = 0
+        select.value = select.options[0].value
+
+        asyncio.sleep(0.1)  # Small delay to allow click event
+        dropdown.style.display = "none"
+    
+    # Bind events
+    proxy_search = create_proxy(on_search)
+    proxy_select = create_proxy(on_select)
+    proxy_blur = create_proxy(on_blur)
+    
+    EVENT_HANDLERS.append(proxy_search)
+    EVENT_HANDLERS.append(proxy_select)
+    EVENT_HANDLERS.append(proxy_blur)
+    
+    search_input.addEventListener("input", proxy_search)
+    search_input.addEventListener("focus", proxy_search)
+    search_input.addEventListener("blur", proxy_blur)
+    dropdown.addEventListener("click", proxy_select)
+
+def populate_team_dropdown(target_id="team-select-dashboard", wc_only=False):
+
     """
     Robustly populates the team dropdown. 
     Can target either the dashboard select or a specific ID.

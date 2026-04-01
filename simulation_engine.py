@@ -27,34 +27,32 @@ STYLE_MATRIX = {
     ('Dominant', 'High Risk / Reward'): 1.10      # Dominant exploits risky teams
 }
 
-# This includes the 40 fixed teams + all potential qualifier teams
-# Updated to match YOUR results.csv exactly
+# The 48 Teams of World Cup 2026 (Fully Qualified)
 WC_TEAMS = [
-    # Fixed Group Teams
-    'mexico', 'south africa', 'south korea', # Matches CSV
-    'canada', 'switzerland', 'qatar', 
-    'brazil', 'morocco', 'haiti', 'scotland', 
-    'united states',
-    'paraguay', 'australia', 
-    'germany', 'curaçao', # FIXED: CSV uses special character 'ç'
-    'ivory coast', 'ecuador', # Matches CSV
-    'netherlands', 'japan', 'tunisia', 
-    'belgium', 'egypt', 'iran', 'new zealand', 
-    'spain', 'cape verde', 'saudi arabia', 'uruguay', 
-    'france', 'senegal', 'norway', 
-    'argentina', 'algeria', 'austria', 'jordan', 
-    'portugal', 'uzbekistan', 'colombia', 
-    'england', 'croatia', 'ghana', 'panama',
-    
-    # Potential Qualifiers (UEFA Paths)
-    'italy', 'northern ireland', 'wales', 'bosnia and herzegovina',
-    'ukraine', 'sweden', 'poland', 'albania',
-    'turkey', 'romania', 'slovakia', 'kosovo',
-    'czech republic', 'republic of ireland', 'denmark', 'north macedonia',
-    
-    # Potential Qualifiers (Inter-Confederation)
-    'dr congo', 'new caledonia', 'jamaica',
-    'bolivia', 'suriname', 'iraq'
+    # Group A
+    'mexico', 'south africa', 'south korea', 'czech republic',
+    # Group B
+    'canada', 'bosnia and herzegovina', 'qatar', 'switzerland',
+    # Group C
+    'brazil', 'morocco', 'haiti', 'scotland',
+    # Group D
+    'united states', 'paraguay', 'australia', 'turkey',
+    # Group E
+    'germany', 'curaçao', 'ivory coast', 'ecuador',
+    # Group F
+    'netherlands', 'japan', 'sweden', 'tunisia',
+    # Group G
+    'belgium', 'egypt', 'iran', 'new zealand',
+    # Group H
+    'spain', 'cape verde', 'saudi arabia', 'uruguay',
+    # Group I
+    'france', 'senegal', 'iraq', 'norway',
+    # Group J
+    'argentina', 'algeria', 'austria', 'jordan',
+    # Group K
+    'portugal', 'dr congo', 'uzbekistan', 'colombia',
+    # Group L
+    'england', 'croatia', 'ghana', 'panama'
 ]
 
 # Map teams to Confederations
@@ -218,9 +216,10 @@ def get_k_factor(tourney, goal_diff, home_team, away_team):
         k = 20
 
     # --- MARGIN OF VICTORY BOOSTER ---
-    if goal_diff == 2: k *= 1.25
-    elif goal_diff == 3: k *= 1.5
-    elif goal_diff >= 4: k *= (1.5 + (goal_diff-3)/8)
+    # REDUCED per audit: prevents excessive Elo gains in high K-factor tournaments
+    if goal_diff == 2: k *= 1.15  # Reduced from 1.25
+    elif goal_diff == 3: k *= 1.30  # Reduced from 1.5
+    elif goal_diff >= 4: k *= 1.35  # Capped instead of unbounded
     
     return k
 
@@ -529,7 +528,8 @@ def initialize_engine():
         # C. ELO BLENDING (THE "TRUST THE SIM" UPDATE)
         # -----------------------------------------------------------
         
-        elo_ratio = s['elo'] / 1500.0
+        # FIXED per audit: Use actual global mean instead of hardcoded 1500
+        elo_ratio = s['elo'] / GLOBAL_ELO_MEAN
         
         # Power curve reduced from 2.0 to 1.5. 
         # A 2100 Elo team now gets a ~1.65x base multiplier instead of 1.96x.
@@ -777,9 +777,9 @@ def sim_match(t1, t2, knockout=False):
             
         # EXTRA TIME (Knockout Only)
         # Extra time is notoriously dry. Usually 0 goals, rarely 1, almost never 2.
-        et_scale = 0.33 # 30 mins is 1/3rd of a game
-        lam1_et = lam1 * et_scale * 0.60 # Fatigue factor
-        lam2_et = lam2 * et_scale * 0.60
+        # FIXED per audit: Historical data shows ~40% of normal goal rate, not 19.8%
+        lam1_et = lam1 * 0.40  # 30 mins with fatigue scaled
+        lam2_et = lam2 * 0.40
         
         g1_et = np.random.poisson(lam1_et)
         g2_et = np.random.poisson(lam2_et)
