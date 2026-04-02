@@ -482,8 +482,8 @@ def build_bulk_dashboard():
     
     # B. Cinderella / Dark Horse
     # Criteria: Rank > 15, highest chance to reach Quarter-finals
-    sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
-    eligible_underdogs = [t[0] for i, t in enumerate(sorted_teams) if i > 14 and t[0] in state['stats']]
+    sorted_teams_elo = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
+    eligible_underdogs = [t[0] for i, t in enumerate(sorted_teams_elo) if i > 14 and t[0] in state['stats']]
     cinderella = "None"
     if eligible_underdogs:
         cinderella = max(eligible_underdogs, key=lambda t: state['stats'][t]['qf'])
@@ -497,7 +497,7 @@ def build_bulk_dashboard():
     group_elos = {g: data['total_elo'] for g, data in state['groups'].items()}
     group_of_death = max(group_elos, key=group_elos.get) if group_elos else "A"
 
-    # --- NEW: CALCULATE TOURNAMENT TRIVIA ---
+    # --- CALCULATE TOURNAMENT TRIVIA ---
     ko_counts = {}
     giant_killer = ("None", "None", 0, 0) # team, victim, wins, total
     
@@ -505,14 +505,8 @@ def build_bulk_dashboard():
         elo1 = sim.TEAM_STATS.get(t1, {}).get('elo', 1200)
         for t2, data in opps.items():
             pair = tuple(sorted((t1, t2)))
-            # Count knockout matches for rivalry (avoid double counting)
             if pair not in ko_counts and t1 < t2:
-                # Approximate KO matches by checking if they are not in the same group
-                grp_t1 = next((g for g, d in state['groups'].items() if t1 in d['teams']), "1")
-                grp_t2 = next((g for g, d in state['groups'].items() if t2 in d['teams']), "2")
-                if grp_t1 != grp_t2: ko_counts[pair] = data['m']
-
-            # Find biggest giant killer (Team 1 is >100 Elo worse, but wins frequently)
+                ko_counts[pair] = data['m']
             elo2 = sim.TEAM_STATS.get(t2, {}).get('elo', 1200)
             if elo2 - elo1 > 100 and data['m'] > max(5, num * 0.02):
                 win_pct = data['w'] / data['m']
@@ -523,7 +517,7 @@ def build_bulk_dashboard():
     rivalry_matches = ko_counts.get(top_rivalry, 0)
     gk_text = f"{giant_killer[0].title()} beats {giant_killer[1].title()} ({giant_killer[2]*100:.1f}%)" if giant_killer[0] != "None" else "None"
 
-    # 2. Build HTML
+    # 2. Build HTML String
     html = f"""
     <!-- SUMMARY DASHBOARD -->
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
@@ -553,20 +547,15 @@ def build_bulk_dashboard():
             </div>
         </div>
         <div class="dashboard-card" style="margin:0; background:rgba(239, 68, 68, 0.05); border:1px solid rgba(239, 68, 68, 0.2);">
-            <div style="font-size:0.75em; text-transform:uppercase; color:#ef4444; font-weight:700;">💀 Biggest Bogey Matchup (Giant Killer)</div>
-            <div style="font-size:1.1em; font-weight:700; color:var(--text-main); margin-top:5px;">
-                {gk_text}
-            </div>
+            <div style="font-size:0.75em; text-transform:uppercase; color:#ef4444; font-weight:700;">💀 Biggest Bogey Matchup</div>
+            <div style="font-size:1.1em; font-weight:700; color:var(--text-main); margin-top:5px;">{gk_text}</div>
         </div>
     </div>
-    """
 
-    <!-- GROUPS GRID -->
     <h3 style='color:var(--text-main); border-bottom:2px solid var(--sidebar-border); padding-bottom:10px;'>📋 Projected Group Standings</h3>
     <div style='display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:15px; margin-bottom:40px;'>
     """
     
-    # Render Groups
     for grp in sorted(state['groups'].keys()):
         is_god = "💀" if grp == group_of_death else ""
         html += f"""<div class='dashboard-card' style='margin:0; padding:15px;'>
@@ -575,22 +564,17 @@ def build_bulk_dashboard():
         
         group_teams = list(state['groups'][grp]['teams'].keys())
         group_teams.sort(key=lambda t: state['stats'][t]['r32'], reverse=True)
-
         for t in group_teams:
             s = state['stats'][t]
             adv_pct = (s['r32'] / num) * 100
             opacity = "1.0" if (s['apps']/num) > 0.5 else "0.5"
-            
             html += f"""<tr style='opacity:{opacity}; border-bottom:1px solid var(--sidebar-border);'>
                 <td style='padding:6px 0; font-weight:600;'>{t.title()}</td>
                 <td style='padding:6px 0; text-align:right; font-weight:bold; color:var(--accent-green);'>{adv_pct:.1f}%</td>
             </tr>"""
         html += "</table></div>"
     
-    html += "</div>"
-
-    # FAVORITES HEADER & CONTROLS
-    html += """
+    html += """</div>
     <div style='display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid var(--sidebar-border); padding-bottom:10px; margin-bottom:15px;'>
         <div>
             <h3 style='color:var(--text-main); margin:0;'>🏆 Tournament Favorites</h3>
@@ -602,15 +586,11 @@ def build_bulk_dashboard():
             <option value="amer">American Odds (+150)</option>
         </select>
     </div>
-    
     <div id="favorites-table-container"></div>
-    
-    <!-- MODAL INJECTION AREA -->
     <div id="path-modal-container"></div>
     """
-    
     out_div.innerHTML = html
-    render_favorites_table() # Renders the actual table into the container
+    render_favorites_table()
 
 def render_favorites_table(event=None):
     """Renders the favorites table with perfect alignment and R32 data."""
