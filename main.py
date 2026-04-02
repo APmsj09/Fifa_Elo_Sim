@@ -349,14 +349,13 @@ async def run_bulk_sim(event):
     if not num_el or not out_div: return
     num = int(num_el.value)
     
-    # Initialize Tracking Structures
     team_stats = {}   
     group_mapping = {} 
     goals_tracker = {}
     matchups = {}
-    chaos_events = 0 # Track wins by teams outside the Top 5
+    h2h_tracker = {} # NEW: Tracks Head-to-Head win rates
+    chaos_events = 0 
     
-    # Identify the Top 5 teams by Elo to calculate "Chaos"
     sorted_elos = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
     top_5_teams = [t[0] for t in sorted_elos[:5]]
     
@@ -364,9 +363,23 @@ async def run_bulk_sim(event):
         if t not in team_stats:
             team_stats[t] = {'apps': 0, 'grp_1st': 0, 'r32': 0, 'r16':0, 'qf':0, 'sf': 0, 'final': 0, 'win': 0}
             goals_tracker[t] = 0
-            # Added Round of 32 to the matchup tracker
             matchups[t] = {'Round of 32': {}, 'Round of 16': {}, 'Quarter-finals': {}, 'Semi-finals': {}, 'Final': {}}
+            h2h_tracker[t] = {} # Initialize H2H dict
             
+    def update_h2h(t1, t2, winner):
+        if t2 not in h2h_tracker[t1]: h2h_tracker[t1][t2] = {'m': 0, 'w': 0, 'l': 0, 'd': 0}
+        if t1 not in h2h_tracker[t2]: h2h_tracker[t2][t1] = {'m': 0, 'w': 0, 'l': 0, 'd': 0}
+        
+        h2h_tracker[t1][t2]['m'] += 1
+        h2h_tracker[t2][t1]['m'] += 1
+        
+        if winner == t1:
+            h2h_tracker[t1][t2]['w'] += 1; h2h_tracker[t2][t1]['l'] += 1
+        elif winner == t2:
+            h2h_tracker[t2][t1]['w'] += 1; h2h_tracker[t1][t2]['l'] += 1
+        else:
+            h2h_tracker[t1][t2]['d'] += 1; h2h_tracker[t2][t1]['d'] += 1
+
     out_div.innerHTML = f"""
     <div style='text-align:center; padding:40px;'>
         <h2 style='color:var(--text-main); margin-bottom:15px;'>🎲 Simulating {num:,} Tournaments...</h2>
@@ -382,16 +395,14 @@ async def run_bulk_sim(event):
         for i in range(num):
             res = sim.run_simulation(fast_mode=False, quiet=True)
             
-            # --- A. GROUP TRACKING ---
+            # --- A. GROUP TRACKING & H2H ---
             for grp, table in res['groups_data'].items():
                 if grp not in group_mapping: group_mapping[grp] = {'teams': {}, 'total_elo': 0}
                 
-                # First place
                 first_team = table[0]['team']
                 init_team(first_team)
                 team_stats[first_team]['grp_1st'] += 1
                 
-                # Track Apps & Goals
                 for row in table:
                     t = row['team']
                     init_team(t)
@@ -399,6 +410,12 @@ async def run_bulk_sim(event):
                     group_mapping[grp]['teams'][t] = True
                     goals_tracker[t] += row['gf']
                     if i == 0: group_mapping[grp]['total_elo'] += sim.TEAM_STATS.get(t, {}).get('elo', 1200)
+            
+            # Track Group Stage H2H
+            for grp, matches in res['group_matches'].items():
+                for m in matches:
+                    w = m['t1'] if m['g1'] > m['g2'] else (m['t2'] if m['g2'] > m['g1'] else 'draw')
+                    update_h2h(m['t1'], m['t2'], w)
 
             # --- B. KNOCKOUT & MATCHUP TRACKING ---
             bracket = res['bracket_data']
@@ -409,35 +426,27 @@ async def run_bulk_sim(event):
                         t1, t2 = m['t1'], m['t2']
                         init_team(t1); init_team(t2)
                         
-                        # Stats
-                        if r_name == 'Round of 32':
-                            team_stats[t1]['r32'] += 1; team_stats[t2]['r32'] += 1
-                        elif r_name == 'Round of 16':
-                            team_stats[t1]['r16'] += 1; team_stats[t2]['r16'] += 1
-                        elif r_name == 'Quarter-finals':
-                            team_stats[t1]['qf'] += 1; team_stats[t2]['qf'] += 1
-                        elif r_name == 'Semi-finals':
-                            team_stats[t1]['sf'] += 1; team_stats[t2]['sf'] += 1
-                        elif r_name == 'Final':
-                            team_stats[t1]['final'] += 1; team_stats[t2]['final'] += 1
+                        if r_name == 'Round of 32': team_stats[t1]['r32'] += 1; team_stats[t2]['r32'] += 1
+                        elif r_name == 'Round of 16': team_stats[t1]['r16'] += 1; team_stats[t2]['r16'] += 1
+                        elif r_name == 'Quarter-finals': team_stats[t1]['qf'] += 1; team_stats[t2]['qf'] += 1
+                        elif r_name == 'Semi-finals': team_stats[t1]['sf'] += 1; team_stats[t2]['sf'] += 1
+                        elif r_name == 'Final': team_stats[t1]['final'] += 1; team_stats[t2]['final'] += 1
                             
-                        # Goals
                         goals_tracker[t1] += m['g1']
                         goals_tracker[t2] += m['g2']
                         
-                        # Matchups (Who played who)
-                        if r_name in matchups[t1]:
-                            matchups[t1][r_name][t2] = matchups[t1][r_name].get(t2, 0) + 1
-                            matchups[t2][r_name][t1] = matchups[t2][r_name].get(t1, 0) + 1
+                        matchups[t1][r_name][t2] = matchups[t1][r_name].get(t2, 0) + 1
+                        matchups[t2][r_name][t1] = matchups[t2][r_name].get(t1, 0) + 1
+                        
+                        # Track KO H2H
+                        update_h2h(t1, t2, m['winner'])
 
-            # Track Winner & Chaos
             champ = res['champion']
             init_team(champ)
             team_stats[champ]['win'] += 1
             if champ not in top_5_teams:
                 chaos_events += 1
             
-            # Progress Update
             if i % max(1, num // 20) == 0:
                 pct = int((i / num) * 100)
                 pbar = js.document.getElementById("bulk-progress-bar")
@@ -446,13 +455,12 @@ async def run_bulk_sim(event):
                 if ptext: ptext.innerHTML = f"{pct}% Complete"
                 await asyncio.sleep(0.01)
 
-        # --- SAVE STATE GLOBALLY ---
         BULK_STATE = {
             'num': num, 'stats': team_stats, 'matchups': matchups, 
-            'goals': goals_tracker, 'groups': group_mapping, 'chaos': chaos_events
+            'goals': goals_tracker, 'groups': group_mapping, 'chaos': chaos_events,
+            'h2h': h2h_tracker # Passed to UI
         }
 
-        # --- BUILD INITIAL UI ---
         build_bulk_dashboard()
 
     except Exception as e:
@@ -489,10 +497,36 @@ def build_bulk_dashboard():
     group_elos = {g: data['total_elo'] for g, data in state['groups'].items()}
     group_of_death = max(group_elos, key=group_elos.get) if group_elos else "A"
 
+    # --- NEW: CALCULATE TOURNAMENT TRIVIA ---
+    ko_counts = {}
+    giant_killer = ("None", "None", 0, 0) # team, victim, wins, total
+    
+    for t1, opps in state['h2h'].items():
+        elo1 = sim.TEAM_STATS.get(t1, {}).get('elo', 1200)
+        for t2, data in opps.items():
+            pair = tuple(sorted((t1, t2)))
+            # Count knockout matches for rivalry (avoid double counting)
+            if pair not in ko_counts and t1 < t2:
+                # Approximate KO matches by checking if they are not in the same group
+                grp_t1 = next((g for g, d in state['groups'].items() if t1 in d['teams']), "1")
+                grp_t2 = next((g for g, d in state['groups'].items() if t2 in d['teams']), "2")
+                if grp_t1 != grp_t2: ko_counts[pair] = data['m']
+
+            # Find biggest giant killer (Team 1 is >100 Elo worse, but wins frequently)
+            elo2 = sim.TEAM_STATS.get(t2, {}).get('elo', 1200)
+            if elo2 - elo1 > 100 and data['m'] > max(5, num * 0.02):
+                win_pct = data['w'] / data['m']
+                if win_pct > giant_killer[2]: 
+                    giant_killer = (t1, t2, win_pct, data['m'])
+
+    top_rivalry = max(ko_counts, key=ko_counts.get) if ko_counts else ("None", "None")
+    rivalry_matches = ko_counts.get(top_rivalry, 0)
+    gk_text = f"{giant_killer[0].title()} beats {giant_killer[1].title()} ({giant_killer[2]*100:.1f}%)" if giant_killer[0] != "None" else "None"
+
     # 2. Build HTML
     html = f"""
     <!-- SUMMARY DASHBOARD -->
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:30px;">
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
         <div class="dashboard-card" style="margin:0; border-left:4px solid {chaos_col};">
             <div style="font-size:0.75em; text-transform:uppercase; color:var(--text-light); font-weight:700;">Chaos Index</div>
             <div style="font-size:1.6em; font-weight:900; color:var(--text-main); margin:5px 0;">{chaos_desc}</div>
@@ -509,6 +543,23 @@ def build_bulk_dashboard():
             <div style="font-size:0.8em; color:var(--text-light);">{avg_goals[top_scorer]:.1f} projected tournament goals</div>
         </div>
     </div>
+
+    <!-- FUN INSIGHTS / TRIVIA -->
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:30px;">
+        <div class="dashboard-card" style="margin:0; background:rgba(139, 92, 246, 0.05); border:1px solid rgba(139, 92, 246, 0.2);">
+            <div style="font-size:0.75em; text-transform:uppercase; color:#8b5cf6; font-weight:700;">⚔️ Most Frequent Knockout Matchup</div>
+            <div style="font-size:1.1em; font-weight:700; color:var(--text-main); margin-top:5px;">
+                {top_rivalry[0].title()} vs {top_rivalry[1].title()} <span style="font-size:0.8em; color:var(--text-light); font-weight:normal;">({rivalry_matches} meetings)</span>
+            </div>
+        </div>
+        <div class="dashboard-card" style="margin:0; background:rgba(239, 68, 68, 0.05); border:1px solid rgba(239, 68, 68, 0.2);">
+            <div style="font-size:0.75em; text-transform:uppercase; color:#ef4444; font-weight:700;">💀 Biggest Bogey Matchup (Giant Killer)</div>
+            <div style="font-size:1.1em; font-weight:700; color:var(--text-main); margin-top:5px;">
+                {gk_text}
+            </div>
+        </div>
+    </div>
+    """
 
     <!-- GROUPS GRID -->
     <h3 style='color:var(--text-main); border-bottom:2px solid var(--sidebar-border); padding-bottom:10px;'>📋 Projected Group Standings</h3>
@@ -618,15 +669,15 @@ def render_favorites_table(event=None):
     js.document.getElementById("favorites-table-container").innerHTML = html
 
 def open_team_path_modal(team):
-    """Generates a popup showing the most likely opponents including R32."""
     state = BULK_STATE
     matchups = state['matchups'].get(team)
+    h2h = state['h2h'].get(team, {})
     if not matchups: return
     
     def get_top_opponents(round_name, limit=3):
         opps = matchups.get(round_name, {})
         total_games = sum(opps.values())
-        if total_games == 0: return "<div style='color:var(--text-light); font-size:0.85em;'>Probability too low to track.</div>"
+        if total_games == 0: return "<div style='color:var(--text-light); font-size:0.85em;'>Probability too low.</div>"
         
         sorted_opps = sorted(opps.items(), key=lambda x: x[1], reverse=True)[:limit]
         out = ""
@@ -638,6 +689,25 @@ def open_team_path_modal(team):
                 <span style="color:var(--accent-blue); font-weight:bold;">{pct:.1f}%</span>
             </div>"""
         return out
+
+    # --- EXTRACT BEST AND WORST MATCHUPS ---
+    # Only consider teams they played reasonably often (at least 1% of tournaments)
+    min_matches = max(5, state['num'] * 0.01)
+    
+    valid_opps = []
+    for opp, data in h2h.items():
+        if data['m'] >= min_matches:
+            win_pct = (data['w'] / data['m']) * 100
+            valid_opps.append((opp, win_pct, data['m']))
+            
+    valid_opps.sort(key=lambda x: x[1], reverse=True)
+    
+    def render_h2h(data_list):
+        if not data_list: return "<div style='font-size:0.85em; color:var(--text-light);'>Not enough data.</div>"
+        return "".join([f"<div style='display:flex; justify-content:space-between; font-size:0.85em; margin-bottom:4px;'><span style='font-weight:600;'>{x[0].title()}</span> <b>{x[1]:.1f}%</b></div>" for x in data_list])
+
+    best_opps_html = render_h2h(valid_opps[:3])
+    worst_opps_html = render_h2h(valid_opps[-3:][::-1]) # Reverse so lowest is first
 
     html = f"""
     <div id="path-modal-overlay" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center; backdrop-filter:blur(3px);" onclick="document.getElementById('path-modal-overlay').remove()">
@@ -664,7 +734,17 @@ def open_team_path_modal(team):
                 {get_top_opponents('Semi-finals')}
             </div>
             
-            <p style="font-size:0.75em; color:var(--text-light); font-style:italic; border-top:1px solid var(--sidebar-border); padding-top:10px;">Note: Opponent data is aggregated from {state['num']} simulations.</p>
+            <!-- NEW: BEST & WORST MATCHUPS -->
+            <div style="display:flex; gap:15px; margin-top:20px; border-top:2px solid var(--sidebar-border); padding-top:15px; background:rgba(0,0,0,0.02); border-radius:8px; padding:15px;">
+                <div style="flex:1;">
+                    <h4 style="margin:0 0 8px 0; color:#10b981; font-size:0.8em; text-transform:uppercase;">🟢 High Win Rate Vs.</h4>
+                    {best_opps_html}
+                </div>
+                <div style="flex:1; border-left:1px solid var(--sidebar-border); padding-left:15px;">
+                    <h4 style="margin:0 0 8px 0; color:#ef4444; font-size:0.8em; text-transform:uppercase;">🔴 Bogey Teams</h4>
+                    {worst_opps_html}
+                </div>
+            </div>
         </div>
     </div>
     """
