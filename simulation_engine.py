@@ -315,7 +315,7 @@ def get_k_factor(tourney, goal_diff, home_team, away_team):
     # =========================================================
     # TIER 2: CONTINENTAL MAJORS (FINALS)
     # =========================================================
-     elif any(x in t_str for x in ['Copa América', 'UEFA Euro', 'African Cup of Nations', 'Asian Cup', 'Gold Cup', 'CONCACAF Championship', 'Oceania Nations Cup', 'CONMEBOL–UEFA Cup of Champions']) and 'qualification' not in t_str:
+    elif any(x in t_str for x in ['Copa América', 'UEFA Euro', 'African Cup of Nations', 'Asian Cup', 'Gold Cup', 'CONCACAF Championship', 'Oceania Nations Cup', 'CONMEBOL–UEFA Cup of Champions']) and 'qualification' not in t_str:
         k = 50
     # =========================================================
     # TIER 3: QUALIFIERS & MAJOR OFFICIAL (Weighted by Region)
