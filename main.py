@@ -451,7 +451,7 @@ async def run_bulk_sim(event):
         html += "</div>"
 
         # SECTION 2: TOURNAMENT FAVORITES
-        html += "<br><h2 style='color:#2c3e50; border-bottom:2px solid #ddd; padding-bottom:10px; margin-top:30px;'>🏆 TOURNAMENT FAVORITES</h2>"
+        html += "<br><h2 style='color:var(--text-main); border-bottom:2px solid #ddd; padding-bottom:10px; margin-top:30px;'>🏆 TOURNAMENT FAVORITES</h2>"
         html += "<p style='color:var(--text-light); font-size:0.9em; margin-bottom:15px;'><span style='cursor:help;'>💡 Hover over percentages to see 95% confidence intervals</span></p>"
         html += """
         <table class="favorites-table">
@@ -487,11 +487,11 @@ async def run_bulk_sim(event):
             html += f"""
             <tr style="border-bottom:1px solid #eee;">
                 <td style="padding:10px; font-weight:bold;">{team.title()}</td>
-                <td style="padding:10px; text-align:right; color:#7f8c8d; background:#f8f9fa;"><span class='ci-value' data-ci='95% CI: ±{r16_ci:.1f}%'>{r16_pct:.1f}%</span></td>
-                <td style="padding:10px; text-align:right; color:#7f8c8d; background:#f8f9fa;"><span class='ci-value' data-ci='95% CI: ±{qf_ci:.1f}%'>{qf_pct:.1f}%</span></td>
-                <td style="padding:10px; text-align:right; color:#34495e;"><span class='ci-value' data-ci='95% CI: ±{semi_ci:.1f}%'>{semi_pct:.1f}%</span></td>
+                <td style="padding:10px; text-align:right;"><span class='ci-value' data-ci='95% CI: ±{r16_ci:.1f}%'>{r16_pct:.1f}%</span></td>
+                <td style="padding:10px; text-align:right;"><span class='ci-value' data-ci='95% CI: ±{qf_ci:.1f}%'>{qf_pct:.1f}%</span></td>
+                <td style="padding:10px; text-align:right;"><span class='ci-value' data-ci='95% CI: ±{semi_ci:.1f}%'>{semi_pct:.1f}%</span></td>
                 <td style="padding:10px; text-align:right;"><span class='ci-value' data-ci='95% CI: ±{final_ci:.1f}%'>{final_pct:.1f}%</span></td>
-                <td style="padding:10px; text-align:right; font-weight:bold; background:#fffcf5;"><span class='ci-value' data-ci='95% CI: ±{win_ci:.1f}%'>{win_pct:.1f}%</span></td>
+                <td style="padding:10px; text-align:right; font-weight:bold;"><span class='ci-value' data-ci='95% CI: ±{win_ci:.1f}%'>{win_pct:.1f}%</span></td>
             </tr>
             """
             

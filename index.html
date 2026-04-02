@@ -726,6 +726,8 @@
         .favorites-table td {
             padding: 10px;
             border-bottom: 1px solid #e2e8f0;
+            background: transparent;
+            color: #2d3748;
         }
 
         .favorites-table tr:nth-child(odd) {
@@ -738,7 +740,18 @@
         }
 
         .favorites-table td {
-            color: #34495e;
+            color: #2d3748;
+        }
+
+        :root.dark-mode .favorites-table th,
+        :root.dark-mode .favorites-table td {
+            border-bottom: 1px solid #334155;
+            color: #e2e8f0;
+            background: transparent;
+        }
+
+        :root.dark-mode .favorites-table tr:nth-child(odd) {
+            background: #0f172a;
         }
 
         :root.dark-mode .favorites-table {
@@ -788,6 +801,7 @@
             font-weight:900;
             letter-spacing:2px;
             width:80px;
+            color: var(--text-main);
         }
 
         .scoreline-row .scoreline-pct {
@@ -799,6 +813,11 @@
         :root.dark-mode .scoreline-row {
             background: #0f172a;
             border-left: 4px solid #f59e0b;
+            color: #e2e8f0;
+        }
+
+        :root.dark-mode .scoreline-row .scoreline-label,
+        :root.dark-mode .scoreline-row .scoreline-pct {
             color: #e2e8f0;
         }
 
