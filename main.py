@@ -32,7 +32,6 @@ def toggle_dark_mode(event):
     html = js.document.documentElement
     btn = js.document.getElementById("dark-mode-btn")
     
-    # Toggle class on root element
     if html.classList.contains("dark-mode"):
         html.classList.remove("dark-mode")
         js.localStorage.setItem("theme", "light")
@@ -41,6 +40,10 @@ def toggle_dark_mode(event):
         html.classList.add("dark-mode")
         js.localStorage.setItem("theme", "dark")
         if btn: btn.innerText = "☀️"
+        
+    # Re-render active charts if in history tab to update text colors
+    if js.document.getElementById("tab-history").style.display == "block":
+        update_dashboard_data()
 
 def apply_saved_theme():
     """Apply saved theme preference from localStorage on page load."""
@@ -800,17 +803,14 @@ async def run_matchup_analysis(event):
 # =============================================================================
 
 def build_dashboard_shell():
-    """
-    Injects the dashboard layout using the modern CSS variables from index.html
-    """
     container = js.document.getElementById("tab-history")
     
     container.innerHTML = """
-    <div style="background:var(--card-bg); padding:15px; border-radius:12px; display:flex; gap:15px; align-items:center; margin-bottom:20px; box-shadow:var(--shadow-sm); border:1px solid #e2e8f0;">
+    <div style="background:var(--card-bg); padding:15px; border-radius:12px; display:flex; gap:15px; align-items:center; margin-bottom:20px; box-shadow:var(--shadow-sm); border:1px solid var(--sidebar-border);">
         <label style="font-weight:600; color:var(--text-main); font-size:0.9em;">Select Team:</label>
-        <select id="team-select-dashboard" onchange="window.refresh_team_analysis()" style="padding:10px; border-radius:8px; border:1px solid #cbd5e1; flex-grow:1; background:#f8fafc; color:var(--text-main); font-weight:500;"></select>
+        <select id="team-select-dashboard" onchange="window.refresh_team_analysis()" style="padding:10px; border-radius:8px; border:1px solid var(--sidebar-border); flex-grow:1; background:transparent; color:var(--text-main); font-weight:500;"></select>
         
-        <div style="width:1px; height:30px; background:#e2e8f0; margin:0 5px;"></div>
+        <div style="width:1px; height:30px; background:var(--sidebar-border); margin:0 5px;"></div>
         
         <button id="btn-show-dashboard" class="action-btn" style="width:auto; margin:0; background:var(--sidebar-bg); padding:10px 20px;">📊 Profile</button>
         <button id="btn-show-style" class="action-btn" style="width:auto; margin:0; background:#8b5cf6; padding:10px 20px;">🗺️ 5D Style Map</button>
@@ -1307,23 +1307,24 @@ def update_dashboard_data():
             <div class="stat-pill-title">Offensive Power 💪</div>
             <div class="stat-pill-value" style="color:var(--accent-blue);">{round(atk_power, 2)}x</div>
             <div style="font-size:0.75em; font-weight:600; color:{atk_color}; margin-top:4px;">{atk_desc}</div>
-            <div style="font-size:0.65em; color:var(--text-light); margin-top:6px;">Expected goals/match: <b>{stats.get('adj_gf', 0):.2f}</b></div>
+            <div style="font-size:0.65em; color:var(--text-light); margin-top:6px;">Expected goals/match: <b style="color:var(--text-main);">{stats.get('adj_gf', 0):.2f}</b></div>
         </div>
         <div class="stat-pill" title="How well they defend - lower is better (0.7x = good defense, 1.2x = leaky)">
             <div class="stat-pill-title">Defensive Solidity 🛡️</div>
             <div class="stat-pill-value" style="color:var(--accent-green);">{round(def_index, 2)}x</div>
             <div style="font-size:0.75em; font-weight:600; color:{def_color}; margin-top:4px;">{def_desc}</div>
-            <div style="font-size:0.65em; color:var(--text-light); margin-top:6px;">Concedes/match: <b>{stats.get('adj_ga', 0):.2f}</b></div>
+            <div style="font-size:0.65em; color:var(--text-light); margin-top:6px;">Concedes/match: <b style="color:var(--text-main);">{stats.get('adj_ga', 0):.2f}</b></div>
         </div>
         <div class="stat-pill">
             <div class="stat-pill-title">Big Game Record</div>
             <div class="stat-pill-value">{s_w}W - {s_d}D - {s_l}L</div>
             <div style="font-size:0.7em; color:var(--text-light); margin-top:4px;">Record vs. Top Tier Opponents</div>
+            <div style="font-size:0.65em; color:var(--text-light); margin-top:6px;">Upset Wins: <b style="color:var(--text-main);">{stats.get('upsets_major_won', 0)}</b></div>
         </div>
     </div>
 
-    <div class="dashboard-card" style="background:#f8fafc; border-left:4px solid var(--accent-blue); padding:20px; margin-bottom:0;">
-        <h4 style="margin:0 0 10px 0; color:var(--sidebar-bg); font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">🔭 AI Scout Report</h4>
+    <div class="dashboard-card" style="background:rgba(59, 130, 246, 0.05); border-left:4px solid var(--accent-blue); padding:20px; margin-bottom:0;">
+        <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">🔭 AI Scout Report</h4>
         <div style="font-size:1em; line-height:1.6; color:var(--text-main); font-weight:500;">
             {generate_dynamic_report(team, atk_power, def_power, upset_pct, stats)}
         </div>
@@ -1332,11 +1333,11 @@ def update_dashboard_data():
     <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:15px; margin-top:20px;">
         <div class="stat-pill" style="padding:10px;">
             <div class="stat-pill-title" style="font-size:0.6em;">Clean Sheets</div>
-            <div style="font-weight:800; font-size:1.1em;">{int(stats.get('cs_pct',0))}%</div>
+            <div style="font-weight:800; font-size:1.1em; color:var(--text-main);">{int(stats.get('cs_pct',0))}%</div>
         </div>
         <div class="stat-pill" style="padding:10px;">
             <div class="stat-pill-title" style="font-size:0.6em;">Both Teams Score</div>
-            <div style="font-weight:800; font-size:1.1em;">{int(stats.get('btts_pct',0))}%</div>
+            <div style="font-weight:800; font-size:1.1em; color:var(--text-main);">{int(stats.get('btts_pct',0))}%</div>
         </div>
         <div class="stat-pill" style="padding:10px;">
             <div class="stat-pill-title" style="font-size:0.6em;">Late Gls (75'+)</div>
@@ -1344,9 +1345,10 @@ def update_dashboard_data():
         </div>
         <div class="stat-pill" style="padding:10px;">
             <div class="stat-pill-title" style="font-size:0.6em;">Penalty Rely</div>
-            <div style="font-weight:800; font-size:1.1em;">{int(stats.get('pen_pct',0))}%</div>
+            <div style="font-weight:800; font-size:1.1em; color:var(--text-main);">{int(stats.get('pen_pct',0))}%</div>
         </div>
     </div>
+    """
 
     <!-- EXPANDED: Notable Results & Achievements -->
     <div class="dashboard-card" style="background:linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%); border-left:4px solid #f59e0b; margin-top:20px;">
@@ -1417,41 +1419,56 @@ def update_dashboard_data():
 
 def render_elo_chart(history, team):
     js.document.getElementById("dashboard_chart_elo").innerHTML = ""
+    
+    # Detect dark mode
+    is_dark = js.document.documentElement.classList.contains("dark-mode")
+    text_color = "#e2e8f0" if is_dark else "#64748b"
+    grid_color = "#334155" if is_dark else "#cbd5e1"
+    
     fig, ax = plt.subplots(figsize=(6, 3.5))
     fig.patch.set_alpha(0.0) 
     ax.patch.set_alpha(0.0)
     ax.plot(history['dates'], history['elo'], color='#3b82f6', linewidth=3)
-    ax.grid(True, linestyle='--', alpha=0.2, color="#cbd5e1")
+    ax.grid(True, linestyle='--', alpha=0.4, color=grid_color)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    ax.tick_params(colors='#64748b', labelsize=8)
+    ax.spines['bottom'].set_color(grid_color)
+    ax.spines['left'].set_color(grid_color)
+    ax.tick_params(colors=text_color, labelsize=8)
     fig.tight_layout()
     display(fig, target="dashboard_chart_elo")
     plt.close(fig)
 
 def render_power_chart(atk, dfe, team):
     js.document.getElementById("dashboard_chart_radar").innerHTML = ""
+    
+    # Detect dark mode
+    is_dark = js.document.documentElement.classList.contains("dark-mode")
+    text_color = "#e2e8f0" if is_dark else "#64748b"
+    line_color = "#475569" if is_dark else "#94a3b8"
+    
     fig, ax = plt.subplots(figsize=(6, 3.5))
     fig.patch.set_alpha(0.0) 
     ax.patch.set_alpha(0.0)
     
     labels = ['Attack', 'Defense']
-    # Defense is inverted so "Higher Bar" always = "Better"
     vals = [atk, 2.0 - dfe]
     
     colors = ['#3b82f6', '#10b981']
     bars = ax.bar(labels, vals, color=colors, width=0.5, alpha=0.9)
-    ax.axhline(y=1.0, color='#94a3b8', linestyle='--', linewidth=1, label="Global Avg")
+    ax.axhline(y=1.0, color=line_color, linestyle='--', linewidth=1, label="Global Avg")
     
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_color(line_color)
+    ax.spines['left'].set_color(line_color)
     ax.set_ylim(0, max(vals) * 1.3)
-    ax.tick_params(colors='#64748b', labelsize=9)
+    ax.tick_params(colors=text_color, labelsize=9)
     
     for bar in bars:
         height = bar.get_height()
         ax.text(bar.get_x() + bar.get_width()/2., height + 0.05,
-                f'{height:.2f}x', ha='center', va='bottom', fontsize=9, fontweight='bold')
+                f'{height:.2f}x', ha='center', va='bottom', fontsize=9, fontweight='bold', color=text_color)
     
     fig.tight_layout()
     display(fig, target="dashboard_chart_radar")
