@@ -149,6 +149,7 @@ def setup_interactions():
 
     # --- Simulation Buttons ---
     bind_click("btn-run-single", run_single_sim)
+    bind_click("btn-run-single-top", run_single_sim)
     bind_click("btn-run-bulk", run_bulk_sim)
 
     # --- Analysis Buttons ---
@@ -199,6 +200,7 @@ async def run_single_sim(event):
     global LAST_SIM_RESULTS
     
     # UI Prep
+    js.document.getElementById("single-start-card").style.display = "none"
     js.document.getElementById("visual-loading").style.display = "block"
     js.document.getElementById("visual-results-container").style.display = "none"
     
@@ -218,6 +220,11 @@ async def run_single_sim(event):
 
         # Render Groups
         groups_html = ""
+
+        # Fun single-sim narrative text
+        if js.document.getElementById("visual-champion-fun"):
+            fun_text = f"In this run, {champion.upper()} emerges as the surprise powerhouse. Are you ready for the next simulation?"
+            js.document.getElementById("visual-champion-fun").innerText = fun_text
         group_names = [] # List to track groups for binding clicks later
 
         for grp_name, team_list in groups_data.items():

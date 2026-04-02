@@ -137,12 +137,12 @@
 
         /* --- 3. CONTROLS AREA --- */
         #controls-area {
-            background: rgba(0, 0, 0, 0.2);
+            background: rgba(0, 0, 0, 0.14);
             padding: 15px;
             border-radius: 10px;
             border: 1px solid var(--sidebar-border);
-            margin-top: auto;
-            /* Pushes controls to bottom */
+            margin-top: 20px;
+            /* Keep controls near top for better UX */
         }
 
         .control-group label {
@@ -800,6 +800,15 @@
 
             <!-- SINGLE SIM TAB -->
             <div id="tab-single" class="tab-content" style="display:block;">
+                <div id="single-start-card" class="dashboard-card" style="text-align:center; padding:40px; margin-bottom:30px;">
+                    <h2 style="margin:0 0 10px;">🎯 Kickoff: Single Simulation</h2>
+                    <p style="margin:0 0 20px; color:var(--text-light);">
+                        Start with a fun, fast single-run simulation and crown a champion instantly.
+                        Scroll to find the bracket + group stage when simulation finishes.
+                    </p>
+                    <button id="btn-run-single-top" class="action-btn" style="max-width:260px; margin:0 auto;">⚡ Run Single Simulation</button>
+                </div>
+
                 <div id="visual-loading" style="display:none; text-align:center; padding:80px;">
                     <div class="loader-circle" style="border-top-color: var(--accent-green); margin: 0 auto 20px;">
                     </div>
@@ -808,13 +817,14 @@
 
                 <div id="visual-results-container" style="display:none;">
                     <div
-                        style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 40px; border-radius: 16px; text-align: center; margin-bottom: 30px; box-shadow: var(--shadow-md);">
+                        style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 40px; border-radius: 16px; text-align: center; margin-bottom: 20px; box-shadow: var(--shadow-md);">
                         <div
                             style="font-size: 1em; font-weight: 600; opacity: 0.9; letter-spacing: 3px; margin-bottom: 10px;">
                             2026 WORLD CHAMPION</div>
                         <div id="visual-champion-name"
                             style="font-size: 4.5em; font-weight: 800; text-transform: uppercase; text-shadow: 0 4px 10px rgba(0,0,0,0.1);">
                             ---</div>
+                        <p id="visual-champion-fun" style="margin-top: 18px; font-size: 1.1em; opacity: 0.9;">Let the tournament magic begin!</p>
                     </div>
 
                     <h3 style="margin: 30px 0 15px; font-size: 1.2em; color: var(--text-main);">Knockout Bracket</h3>
