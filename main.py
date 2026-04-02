@@ -364,8 +364,9 @@ async def run_bulk_sim(event):
         if t not in team_stats:
             team_stats[t] = {'apps': 0, 'grp_1st': 0, 'r32': 0, 'r16':0, 'qf':0, 'sf': 0, 'final': 0, 'win': 0}
             goals_tracker[t] = 0
-            matchups[t] = {'Round of 16': {}, 'Quarter-finals': {}, 'Semi-finals': {}, 'Final': {}}
-
+            # Added Round of 32 to the matchup tracker
+            matchups[t] = {'Round of 32': {}, 'Round of 16': {}, 'Quarter-finals': {}, 'Semi-finals': {}, 'Final': {}}
+            
     out_div.innerHTML = f"""
     <div style='text-align:center; padding:40px;'>
         <h2 style='color:var(--text-main); margin-bottom:15px;'>🎲 Simulating {num:,} Tournaments...</h2>
@@ -561,14 +562,13 @@ def build_bulk_dashboard():
     render_favorites_table() # Renders the actual table into the container
 
 def render_favorites_table(event=None):
-    """Renders the favorites table based on the selected odds format."""
+    """Renders the favorites table with perfect alignment and R32 data."""
     state = BULK_STATE
     if not state: return
     
     num = state['num']
     team_stats = state['stats']
     
-    # Safely get format (default to pct)
     format_el = js.document.getElementById("odds-format-selector")
     fmt = format_el.value if format_el else "pct"
     
@@ -581,19 +581,32 @@ def render_favorites_table(event=None):
             if p >= 0.5: return f"{int(-(p / (1 - p)) * 100)}"
             else: return f"+{int(((1 - p) / p) * 100)}"
     
-    html = """<table class="favorites-table">
+    # Updated Headers with explicit text-align:right to match the data cells
+    html = f"""<table class="favorites-table">
         <tr style="text-align:left;">
-            <th>Team</th><th>R16</th><th>QF</th><th>Semis</th><th>Finals</th><th style="color:var(--accent-gold);">Win</th>
+            <th style="text-align:left; width: 25%;">Team</th>
+            <th style="text-align:right; width: 12%;">R32</th>
+            <th style="text-align:right; width: 12%;">R16</th>
+            <th style="text-align:right; width: 12%;">QF</th>
+            <th style="text-align:right; width: 12%;">SF</th>
+            <th style="text-align:right; width: 12%;">Final</th>
+            <th style="text-align:right; width: 15%; color:var(--accent-gold);">Win</th>
         </tr>"""
     
     all_teams_sorted = sorted(team_stats.items(), key=lambda x: x[1]['win'], reverse=True)
     
     for team, s in all_teams_sorted:
-        if (s['r16'] / num) < 0.01 and (s['win'] / num) < 0.001: continue
+        # Hide teams that don't even make the R32 1% of the time
+        if (s['r32'] / num) < 0.01: continue
         
         html += f"""
         <tr>
-            <td><button onclick="window.show_team_path('{team}')" style="background:transparent; border:none; color:var(--accent-blue); font-weight:bold; cursor:pointer; font-size:1em; padding:0; text-align:left;">{team.title()} 🔍</button></td>
+            <td style="text-align:left;">
+                <button onclick="window.show_team_path('{team}')" style="background:transparent; border:none; color:var(--accent-blue); font-weight:bold; cursor:pointer; font-size:1em; padding:0; text-align:left;">
+                    {team.title()} 🔍
+                </button>
+            </td>
+            <td style="text-align:right;">{format_odds(s['r32'], num)}</td>
             <td style="text-align:right;">{format_odds(s['r16'], num)}</td>
             <td style="text-align:right;">{format_odds(s['qf'], num)}</td>
             <td style="text-align:right;">{format_odds(s['sf'], num)}</td>
@@ -605,7 +618,7 @@ def render_favorites_table(event=None):
     js.document.getElementById("favorites-table-container").innerHTML = html
 
 def open_team_path_modal(team):
-    """Generates a popup showing the most likely opponents for a specific team."""
+    """Generates a popup showing the most likely opponents including R32."""
     state = BULK_STATE
     matchups = state['matchups'].get(team)
     if not matchups: return
@@ -613,7 +626,7 @@ def open_team_path_modal(team):
     def get_top_opponents(round_name, limit=3):
         opps = matchups.get(round_name, {})
         total_games = sum(opps.values())
-        if total_games == 0: return "<div style='color:var(--text-light); font-size:0.85em;'>Did not reach this round enough.</div>"
+        if total_games == 0: return "<div style='color:var(--text-light); font-size:0.85em;'>Probability too low to track.</div>"
         
         sorted_opps = sorted(opps.items(), key=lambda x: x[1], reverse=True)[:limit]
         out = ""
@@ -628,26 +641,30 @@ def open_team_path_modal(team):
 
     html = f"""
     <div id="path-modal-overlay" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center; backdrop-filter:blur(3px);" onclick="document.getElementById('path-modal-overlay').remove()">
-        <div style="background:var(--card-bg); width:90%; max-width:500px; border-radius:12px; padding:25px; box-shadow:var(--shadow-lg);" onclick="event.stopPropagation()">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--sidebar-border); padding-bottom:10px;">
-                <h2 style="margin:0; color:var(--text-main);">🔮 The Path: {team.title()}</h2>
+        <div style="background:var(--card-bg); width:95%; max-width:500px; border-radius:12px; padding:25px; box-shadow:var(--shadow-lg); max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid var(--sidebar-border); padding-bottom:10px;">
+                <h2 style="margin:0; color:var(--text-main); font-size:1.3em;">🔮 The Path: {team.title()}</h2>
                 <button onclick="document.getElementById('path-modal-overlay').remove()" style="background:transparent; border:none; font-size:1.5em; cursor:pointer; color:var(--text-light);">&times;</button>
             </div>
             
-            <p style="font-size:0.85em; color:var(--text-light); margin-bottom:20px;">If they reach these rounds, here are their most mathematically likely opponents based on the bracket structure:</p>
-            
-            <div style="margin-bottom:20px;">
-                <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.8em; text-transform:uppercase;">Round of 16 Matchups</h4>
+            <div style="margin-bottom:15px;">
+                <h4 style="margin:0 0 8px 0; color:var(--accent-green); font-size:0.75em; text-transform:uppercase; letter-spacing:1px;">Round of 32 (First Knockout)</h4>
+                {get_top_opponents('Round of 32')}
+            </div>
+            <div style="margin-bottom:15px;">
+                <h4 style="margin:0 0 8px 0; color:var(--text-main); font-size:0.75em; text-transform:uppercase; letter-spacing:1px;">Round of 16</h4>
                 {get_top_opponents('Round of 16')}
             </div>
-            <div style="margin-bottom:20px;">
-                <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.8em; text-transform:uppercase;">Quarter-Final Matchups</h4>
+            <div style="margin-bottom:15px;">
+                <h4 style="margin:0 0 8px 0; color:var(--text-main); font-size:0.75em; text-transform:uppercase; letter-spacing:1px;">Quarter-Finals</h4>
                 {get_top_opponents('Quarter-finals')}
             </div>
-            <div style="margin-bottom:20px;">
-                <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.8em; text-transform:uppercase;">Semi-Final Matchups</h4>
+            <div style="margin-bottom:15px;">
+                <h4 style="margin:0 0 8px 0; color:var(--text-main); font-size:0.75em; text-transform:uppercase; letter-spacing:1px;">Semi-Finals</h4>
                 {get_top_opponents('Semi-finals')}
             </div>
+            
+            <p style="font-size:0.75em; color:var(--text-light); font-style:italic; border-top:1px solid var(--sidebar-border); padding-top:10px;">Note: Opponent data is aggregated from {state['num']} simulations.</p>
         </div>
     </div>
     """
