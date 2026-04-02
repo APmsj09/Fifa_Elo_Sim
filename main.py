@@ -1200,13 +1200,15 @@ DASHBOARD_BUILT = False
 def populate_team_dropdown(target_id="team-select-dashboard", wc_only=False):
     """
     Populates a team dropdown/select element with sorted teams by Elo rating.
-    Can target multiple select elements by ID.
-    Supports searchable dropdown through standard HTML select.
     """
     select = js.document.getElementById(target_id)
     
     if not select:
-        return  # Exit if element doesn't exist
+        # Fallback if standard ID isn't used
+        select = js.document.getElementById("team-select")
+        
+    if not select:
+        return # Exit if element doesn't exist
 
     current_val = select.value
     select.innerHTML = ""  # Clear existing options
@@ -1235,23 +1237,6 @@ def populate_team_dropdown(target_id="team-select-dashboard", wc_only=False):
     if not select.value and select.options.length > 0:
         select.selectedIndex = 0
         select.value = select.options[0].value
-
-        asyncio.sleep(0.1)  # Small delay to allow click event
-        dropdown.style.display = "none"
-    
-    # Bind events
-    proxy_search = create_proxy(on_search)
-    proxy_select = create_proxy(on_select)
-    proxy_blur = create_proxy(on_blur)
-    
-    EVENT_HANDLERS.append(proxy_search)
-    EVENT_HANDLERS.append(proxy_select)
-    EVENT_HANDLERS.append(proxy_blur)
-    
-    search_input.addEventListener("input", proxy_search)
-    search_input.addEventListener("focus", proxy_search)
-    search_input.addEventListener("blur", proxy_blur)
-    dropdown.addEventListener("click", proxy_select)
 
 
 def handle_history_filter_change(event):
