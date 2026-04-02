@@ -221,10 +221,7 @@ async def run_single_sim(event):
         # Render Groups
         groups_html = ""
 
-        # Fun single-sim narrative text
-        if js.document.getElementById("visual-champion-fun"):
-            fun_text = f"In this run, {champion.upper()} emerges as the surprise powerhouse. Are you ready for the next simulation?"
-            js.document.getElementById("visual-champion-fun").innerText = fun_text
+
         group_names = [] # List to track groups for binding clicks later
 
         for grp_name, team_list in groups_data.items():
@@ -457,7 +454,7 @@ async def run_bulk_sim(event):
         html += "<br><h2 style='color:#2c3e50; border-bottom:2px solid #ddd; padding-bottom:10px; margin-top:30px;'>🏆 TOURNAMENT FAVORITES</h2>"
         html += "<p style='color:var(--text-light); font-size:0.9em; margin-bottom:15px;'><span style='cursor:help;'>💡 Hover over percentages to see 95% confidence intervals</span></p>"
         html += """
-        <table style="width:100%; border-collapse:collapse; background:white; border-radius:8px; overflow:hidden; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
+        <table class="favorites-table">
             <tr style="background:#2c3e50; color:white; text-align:left;">
                 <th style="padding:12px;">Team</th>
                 <th style="padding:12px; text-align:right; background:#34495e;">R16 %</th>
@@ -649,14 +646,14 @@ async def run_matchup_analysis(event):
         for i, (score, count) in enumerate(sorted_scores):
             pct = (count/sim_count)*100
             html += f"""
-            <div style="display:flex; align-items:center; background:#f8fafc; padding:10px 15px; border-radius:8px; border-left:4px solid {colors[i]};">
-                <div style="font-size:1.5em; font-weight:900; letter-spacing:2px; width:80px;">{score}</div>
+            <div class="scoreline-row" style="border-left:4px solid {colors[i]};">
+                <div class="scoreline-label">{score}</div>
                 <div style="flex-grow:1;">
                     <div style="height:8px; background:#e2e8f0; border-radius:4px; width:100%;">
                         <div style="height:100%; width:{pct * 3}%; background:{colors[i]}; border-radius:4px; max-width:100%;"></div>
                     </div>
                 </div>
-                <div style="font-weight:700; margin-left:15px; color:var(--text-main);">{pct:.1f}%</div>
+                <div class="scoreline-pct">{pct:.1f}%</div>
             </div>
             """
             

@@ -73,8 +73,15 @@
         /* --- 2. LAYOUT & SIDEBAR --- */
         .app-layout {
             display: grid;
-            grid-template-columns: 280px 1fr;
+            grid-template-columns: 240px 1fr;
             height: 100vh;
+            transition: grid-template-columns 0.2s ease;
+        }
+
+        @media (max-width: 1200px) {
+            .app-layout {
+                grid-template-columns: 220px 1fr;
+            }
         }
 
         .sidebar-panel {
@@ -363,12 +370,22 @@
         /* --- 6. BRACKET STYLING --- */
         #bracket-container {
             display: flex;
+            align-items: flex-start;
             overflow-x: auto;
             padding: 20px 5px;
-            gap: 30px;
+            gap: 20px;
             background: var(--card-bg);
             border-radius: 12px;
             border: 1px solid #e2e8f0;
+        }
+
+        .bracket-round {
+            min-width: 220px;
+            max-width: 260px;
+        }
+
+        .matchup {
+            margin: 8px 0;
         }
 
         .bracket-round {
@@ -694,6 +711,101 @@
             background-color: var(--accent-red);
         }
 
+        /* Favorites table in bulk prob mode */
+        .favorites-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            color: var(--text-main);
+        }
+
+        .favorites-table th,
+        .favorites-table td {
+            padding: 10px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .favorites-table tr:nth-child(odd) {
+            background: #f8fafc;
+        }
+
+        .favorites-table th {
+            background: #2c3e50;
+            color: #ffffff;
+        }
+
+        .favorites-table td {
+            color: #34495e;
+        }
+
+        :root.dark-mode .favorites-table {
+            background: #1e293b;
+            color: #e2e8f0;
+            border-color: #334155;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+        }
+
+        :root.dark-mode .favorites-table th {
+            background: #0f172a;
+            color: #cbd5e1;
+        }
+
+        :root.dark-mode .favorites-table td {
+            color: #e2e8f0;
+        }
+
+        :root.dark-mode .favorites-table tr:nth-child(odd) {
+            background: #0f172a;
+        }
+
+        :root.dark-mode .favorites-table tr:nth-child(odd) {
+            background: #0f172a;
+        }
+
+        :root.dark-mode .favorites-table th,
+        :root.dark-mode .favorites-table td {
+            border-bottom: 1px solid #334155;
+            color: #e2e8f0;
+        }
+
+        /* Most likely scoreline cards */
+        .scoreline-row {
+            display:flex;
+            align-items:center;
+            background: #f8fafc;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border-left: 4px solid #f59e0b;
+            gap: 8px;
+            color: var(--text-main);
+        }
+
+        .scoreline-row .scoreline-label {
+            font-size:1.5em;
+            font-weight:900;
+            letter-spacing:2px;
+            width:80px;
+        }
+
+        .scoreline-row .scoreline-pct {
+            margin-left: 15px;
+            font-weight:700;
+            color: var(--text-main);
+        }
+
+        :root.dark-mode .scoreline-row {
+            background: #0f172a;
+            border-left: 4px solid #f59e0b;
+            color: #e2e8f0;
+        }
+
+        :root.dark-mode .scoreline-row .scoreline-pct {
+            color: #e2e8f0;
+        }
+
         .stat-pill {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
@@ -824,7 +936,6 @@
                         <div id="visual-champion-name"
                             style="font-size: 4.5em; font-weight: 800; text-transform: uppercase; text-shadow: 0 4px 10px rgba(0,0,0,0.1);">
                             ---</div>
-                        <p id="visual-champion-fun" style="margin-top: 18px; font-size: 1.1em; opacity: 0.9;">Let the tournament magic begin!</p>
                     </div>
 
                     <h3 style="margin: 30px 0 15px; font-size: 1.2em; color: var(--text-main);">Knockout Bracket</h3>
