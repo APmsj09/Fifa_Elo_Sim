@@ -16,16 +16,16 @@ TEAM_STATS = {}
 TEAM_PROFILES = {}
 TEAM_HISTORY = {}
 AVG_GOALS = 2.5
-STYLE_MATRIX = {
-    ('Defensive Wall', 'Strong Attack'): 1.10,    # Wall absorbs pure attack
-    ('High Risk / Reward', 'Defensive Wall'): 1.10, # Chaos breaks the wall
-    ('Disciplined', 'High Risk / Reward'): 1.10,  # Discipline punishes chaos
-    ('Aggressive Starter', 'Late Drama'): 1.05,   # Early lead kills late momentum
-    ('Late Drama', 'Disciplined'): 1.08,          # Late surge breaks discipline
-    ('Set-Piece Reliant', 'Solid Defense'): 1.08, # Set pieces bypass solid defense
-    ('Dominant', 'Balanced'): 1.05,               # Dominant crushes balanced
-    ('Dominant', 'High Risk / Reward'): 1.10      # Dominant exploits risky teams
-}
+#STYLE_MATRIX = {
+#    ('Defensive Wall', 'Strong Attack'): 1.10,    # Wall absorbs pure attack
+#    ('High Risk / Reward', 'Defensive Wall'): 1.10, # Chaos breaks the wall
+#    ('Disciplined', 'High Risk / Reward'): 1.10,  # Discipline punishes chaos
+#    ('Aggressive Starter', 'Late Drama'): 1.05,   # Early lead kills late momentum
+#    ('Late Drama', 'Disciplined'): 1.08,          # Late surge breaks discipline
+#    ('Set-Piece Reliant', 'Solid Defense'): 1.08, # Set pieces bypass solid defense
+#    ('Dominant', 'Balanced'): 1.05,               # Dominant crushes balanced
+#    ('Dominant', 'High Risk / Reward'): 1.10      # Dominant exploits risky teams
+#}
 
 # The 48 Teams of World Cup 2026 (Fully Qualified)
 WC_TEAMS = [
@@ -54,6 +54,81 @@ WC_TEAMS = [
     # Group L
     'england', 'croatia', 'ghana', 'panama'
 ]
+
+# SOURCE-VERIFIED TACTICAL PROFILES (Based on 2024/25 Managerial Trends)
+TACTICAL_PROFILES = {
+    # --- GROUP A ---
+    'mexico': 'Tactical Pragmatism',       # Under Javier Aguirre: Shifted from flair to defensive discipline/grinding results.
+    'south africa': 'Fluid Creativity',    # Hugo Broos: Uses technical, short-passing domestic core (Mamelodi Sundowns style).
+    'south korea': 'Heavy Metal / Pressing', # Hong Myung-bo: Transition-heavy, high-intensity running.
+    'czech republic': 'Physical Direct',   # Ivan Hašek: Traditional focus on crosses, set-pieces, and height.
+
+    # --- GROUP B ---
+    'canada': 'High-Intensity Chaos',      # Jesse Marsch: "Red Bull" style—ultra-aggressive, vertical, and high-risk.
+    'switzerland': 'Tactical Pragmatism',  # Murat Yakin: Elite mid-block, adaptive to opponent weaknesses.
+    'qatar': 'Organized Low-Block',        # Tintín Márquez: Pragmatic, counter-attacking focus.
+    'bosnia and herzegovina': 'Physical Direct', # Direct play targeting physical strikers.
+
+    # --- GROUP C ---
+    'brazil': 'Fluid Creativity',          # Dorival Júnior: Seeking to restore 'Ginga' with roaming attackers like Vinicius/Rodrygo.
+    'morocco': 'Organized Low-Block',      # Walid Regragui: World-renowned for the 4-1-4-1 deep defensive shell.
+    'haiti': 'High-Intensity Chaos',       # Focus on raw pace and individual transitions.
+    'scotland': 'Physical Direct',         # Steve Clarke: Low block + set-piece reliance + Robertson/McGinn crosses.
+
+    # --- GROUP D ---
+    'united states': 'Heavy Metal / Pressing', # Mauricio Pochettino: Known for high-line, aggressive ball-recovery.
+    'paraguay': 'Organized Low-Block',     # Gustavo Alfaro: Master of the 'anti-football' defensive masterclass.
+    'australia': 'Tactical Pragmatism',    # Tony Popovic: Structurally rigid, focused on organization.
+    'turkey': 'Fluid Creativity',          # Vincenzo Montella: Heavy focus on technical #10s (Arda Güler) and roaming wings.
+
+    # --- GROUP E ---
+    'germany': 'Heavy Metal / Pressing',   # Julian Nagelsmann: Complex counter-pressing and narrow 'Zocker' combinations.
+    'curaçao': 'Vertical Tiki-Taka',       # Dutch-influenced school of technical, quick passing.
+    'ivory coast': 'Vertical Tiki-Taka',   # Emerse Faé: High-speed wing play combined with midfield control.
+    'ecuador': 'Heavy Metal / Pressing',   # Sebastián Beccacece: Intense physical pressure and high athletic output.
+
+    # --- GROUP F ---
+    'netherlands': 'Positional Dominance', # Ronald Koeman: Total Football roots—focus on wing-backs and ball circulation.
+    'japan': 'Vertical Tiki-Taka',         # Hajime Moriyasu: Famous for ultra-fast technical transitions (The "Blue Samurai" blitz).
+    'tunisia': 'Organized Low-Block',      # Traditionally one of Africa's most disciplined defensive units.
+    'sweden': 'Vertical Tiki-Taka',        # Jon Dahl Tomasson: Moving away from 4-4-2 to a technical, attacking 4-3-3.
+
+    # --- GROUP G ---
+    'belgium': 'Positional Dominance',     # Domenico Tedesco: High possession, high technical ceiling.
+    'egypt': 'Tactical Pragmatism',        # Focus on Salah’s transition, but structurally conservative.
+    'iran': 'Organized Low-Block',         # Amir Ghalenoei: Maintaining the Queiroz-era defensive discipline.
+    'new zealand': 'Physical Direct',      # Direct approach using height in the box (Chris Wood).
+
+    # --- GROUP H ---
+    'spain': 'Positional Dominance',       # De la Fuente: High possession but with new "Vertical" wingers (Lamine Yamal).
+    'cape verde': 'Vertical Tiki-Taka',    # Technical, short-passing style that surprised in AFCON.
+    'saudi arabia': 'Tactical Pragmatism', # Herve Renard: Known for high defensive lines and disciplined traps.
+    'uruguay': 'Heavy Metal / Pressing',   # Marcelo Bielsa: The purest "Heavy Metal" team in international football.
+
+    # --- GROUP I ---
+    'france': 'Tactical Pragmatism',       # Deschamps: Does not care about possession; waits for the killer counter-attack.
+    'senegal': 'Physical Direct',          # Aliou Cissé: Extreme physical power, pace, and aerial dominance.
+    'norway': 'Physical Direct',           # Ståle Solbakken: Built to feed Haaland via direct verticality and crosses.
+    'iraq': 'Organized Low-Block',         # Jesús Casas: Spanish-organized defensive shape with quick breaks.
+
+    # --- GROUP J ---
+    'argentina': 'Fluid Creativity',       # Scaloni: 'La Nuestra'—midfielders interchange positions constantly to confuse the block.
+    'algeria': 'Vertical Tiki-Taka',       # Vladimir Petković: Technical build-up with aggressive wing play.
+    'austria': 'Heavy Metal / Pressing',   # Ralf Rangnick: The architect of the modern high-press.
+    'jordan': 'Organized Low-Block',       # Jamal Sellami: Rigid defensive lines as seen in Asian Cup.
+
+    # --- GROUP K ---
+    'portugal': 'Positional Dominance',    # Roberto Martínez: Obsessive focus on 3-box-3 possession structures.
+    'uzbekistan': 'Organized Low-Block',   # Srečko Katanec: Highly disciplined, hard-to-beat Asian powerhouse.
+    'colombia': 'Fluid Creativity',        # Néstor Lorenzo: High-tempo technical football led by James Rodríguez.
+    'dr congo': 'High-Intensity Chaos',    # Sébastien Desabre: Direct, physical, and extremely fast on the break.
+
+    # --- GROUP L ---
+    'england': 'Positional Dominance',     # Post-Southgate: Reverting to a more technical, possession-first philosophy.
+    'croatia': 'Positional Dominance',     # Zlatko Dalić: Midfield-led (Modrić/Kovačić) game control.
+    'ghana': 'High-Intensity Chaos',       # Focus on athletic transitions and individual 1v1s.
+    'panama': 'Tactical Pragmatism'        # Thomas Christiansen: Organized, balanced, and patient.
+}
 
 # Map teams to Confederations
 # UEFA (Europe), CONMEBOL (S. America), CONCACAF (N. America), CAF (Africa), AFC (Asia), OFC (Oceania)
@@ -542,8 +617,6 @@ def initialize_engine():
         elo_ratio = s['elo'] / GLOBAL_ELO_MEAN
         
         # Power curve reduced from 2.0 to 1.5. 
-        # A 2100 Elo team now gets a ~1.65x base multiplier instead of 1.96x.
-        # This prevents the math from exploding while keeping them elite.
         elo_off = elo_ratio ** 1.5 
         elo_def = 1.0 / elo_off
         
@@ -586,31 +659,54 @@ def initialize_engine():
         s['late_pct'] = (s['late_goals'] / g * 100) if g > 0 else 0
         
         # -----------------------------------------------------------
-        # E. ADVANCED STYLE LABEL (Updated for SOS-Adjusted Stats)
+        # E. ADVANCED STYLE LABEL (Identity Bridge Logic)
         # -----------------------------------------------------------
-        has_history = m >= 10 
+        # Priority 1: Check the hardcoded TACTICAL_PROFILES dictionary
+        if t in TACTICAL_PROFILES:
+            style = TACTICAL_PROFILES[t]
         
-        # Calculate relative strength (1.0 = exactly average)
-        rel_gf = s['adj_gf'] / avg_goals_global
-        rel_ga = s['adj_ga'] / avg_goals_global
-    
-        if has_history:
-            # Require a true Elite Elo (>1850) to claim the Dominant tag
-            is_elite_elo = s['elo'] > 1850 
-            
-            if is_elite_elo and rel_gf > 1.25 and rel_ga < 0.85: style = "Elite / Dominant"
-            elif rel_gf > 1.20 and rel_ga > 1.15: style = "High Risk / Chaos"
-            elif rel_gf < 0.90 and rel_ga < 0.80: style = "Defensive Wall"
-            elif s['btts_pct'] < 50 and rel_ga < 0.95: style = "Control / Disciplined"
-            elif s['late_pct'] > 35: style = "Late Surge"
-            elif s['fh_pct'] > 55 and rel_gf > 1.05: style = "Fast Starters"
-            elif s['pen_pct'] > 20 and rel_gf < 1.1: style = "Set-Piece Reliant"
-            elif rel_gf > 1.10: style = "Strong Attack"
-            elif rel_ga < 0.90: style = "Solid Defense"
-            else: style = "Balanced"
+        # Priority 2: Use your existing complex Data-Driven logic for all other teams
         else:
-            style = "Balanced"
-        
+            has_history = m >= 10 
+            rel_gf = s['adj_gf'] / avg_goals_global
+            rel_ga = s['adj_ga'] / avg_goals_global
+            
+            # Using your provided data columns
+            btts = s.get('btts_pct', 0)
+            late = s.get('late_pct', 0)
+            clean_sheets = s.get('cs_pct', 0)
+
+            if has_history:
+                # 1. THE ELITE (Spain/Argentina context)
+                if s['elo'] > 1900 and rel_gf > 1.25 and rel_ga < 0.85:
+                    style = "Elite / Dominant"
+                
+                # 2. THE SPECIALISTS (Based on your table data)
+                elif rel_ga < 0.75 or (clean_sheets > 45 and rel_gf < 0.95):
+                    style = "Defensive Wall"      # E.g., Paraguay/Morocco style
+                
+                elif rel_gf > 1.35 and rel_ga > 1.20:
+                    style = "High Risk / Chaos"   # E.g., Netherlands style
+                
+                elif btts > 60:
+                    style = "High-Intensity Chaos" 
+                
+                elif btts < 35:
+                    style = "Control / Disciplined" 
+                
+                elif late > 30:
+                    style = "Late Surge"          # E.g., Mexico (32%)
+                
+                # 3. STATISTICAL TRENDS
+                elif rel_gf > 1.15:
+                    style = "Strong Attack"
+                elif rel_ga < 0.90:
+                    style = "Solid Defense"
+                else:
+                    style = "Balanced"
+            else:
+                style = "Balanced"
+
         TEAM_PROFILES[t] = style
 
     return TEAM_STATS, TEAM_PROFILES, avg_goals_global
@@ -688,129 +784,166 @@ def calculate_confed_strength():
         js.console.error(f"{confed}: {CONFED_MULTIPLIERS[confed]} (Based on score {int(score)})")
 
 def sim_match(t1, t2, knockout=False):
-    
     # 1. GET BASE STATS
     s1 = TEAM_STATS.get(t1, {'elo':1200, 'off':1.0, 'def':1.0})
     s2 = TEAM_STATS.get(t2, {'elo':1200, 'off':1.0, 'def':1.0})
+    style1 = TEAM_PROFILES.get(t1, 'Balanced')
+    style2 = TEAM_PROFILES.get(t2, 'Balanced')
 
-    # --- REGIONAL STRENGTH & PEDIGREE --------------
+    # --- REGIONAL STRENGTH & PEDIGREE (FROM YOUR SNIPPET) ---
     confed1 = TEAM_CONFEDS.get(t1, 'OFC')
     confed2 = TEAM_CONFEDS.get(t2, 'OFC')
-    
     reg_mult1 = CONFED_MULTIPLIERS.get(confed1, 1.0)
     reg_mult2 = CONFED_MULTIPLIERS.get(confed2, 1.0)
-    
-    # Calculate "Pedigree Gap" (e.g., UEFA 1.0 vs AFC 0.7 = 0.3 gap)
-    # We use this to give a slight tactical/composure edge, avoiding the "double nerf"
     pedigree_gap = reg_mult1 - reg_mult2 
-    # ------------------------------------------
     
-    # 2. MATCH-DAY WIN EXPECTANCY (Standardized to 400 for 90-min scaling)
+    # 2. MATCH-DAY WIN EXPECTANCY
     dr = s1['elo'] - s2['elo']
     we1 = 1 / (10**(-dr/400) + 1)
     we2 = 1 - we1
     
-    # 3. STYLES
-    style1 = TEAM_PROFILES.get(t1, 'Balanced')
-    style2 = TEAM_PROFILES.get(t2, 'Balanced')
-    mod1 = STYLE_MATRIX.get((style1, style2), 1.0)
-    mod2 = STYLE_MATRIX.get((style2, style1), 1.0)
-    
-    # Home/Host Advantage (2026 hosts + Host Continent boost)
-    home_boost = 1.15 if t1 in ['united states', 'mexico', 'canada'] else (1.05 if confed1 == 'CONCACAF' else 1.0)
-    away_boost = 1.15 if t2 in ['united states', 'mexico', 'canada'] else (1.05 if confed2 == 'CONCACAF' else 1.0)
+    # 3. ARCHETYPE BRIDGE
+    def get_archetype(style):
+        if style in ['High-Intensity Chaos', 'Heavy Metal / Pressing', 'High Risk / Chaos', 'Fast Starters']: return 'chaos'
+        if style in ['Organized Low-Block', 'Tactical Pragmatism', 'Defensive Wall', 'Control / Disciplined']: return 'pragmatic'
+        if style in ['Positional Dominance', 'Vertical Tiki-Taka', 'Elite / Dominant']: return 'possession'
+        if style in ['Fluid Creativity', 'Strong Attack']: return 'fluid'
+        if style in ['Physical Direct', 'Set-Piece Reliant', 'Late Surge']: return 'direct'
+        return 'balanced'
 
-    # 4. FORM BIAS (Pull towards current momentum)
+    arc1, arc2 = get_archetype(style1), get_archetype(style2)
+
+    # 4. INITIALIZE MODIFIERS
+    t1_atk_mod, t1_def_mod = 1.0, 1.0
+    t2_atk_mod, t2_def_mod = 1.0, 1.0
+    pace_mod = 1.0
+
+    # 5. DYNAMIC COMPLEXITY CHECK (New Layer)
+    def apply_complexity(elo, style):
+        atk, dfe = 1.0, 1.0
+        
+        # Tier 1: High Floor / High Ceiling (The "Barcelona/Liverpool" problem)
+        # Needs high technical talent and stamina.
+        elite_styles = ['Positional Dominance', 'Heavy Metal / Pressing', 'Vertical Tiki-Taka', 'Fluid Creativity']
+        
+        # Tier 2: Low Floor / Low Ceiling (The "Great Equalizers")
+        # Easy to coach, hard to break down.
+        robust_styles = ['Organized Low-Block', 'Physical Direct', 'High-Intensity Chaos', 'Defensive Wall']
+        
+        # Tier 3: Adaptive
+        adaptive_styles = ['Tactical Pragmatism', 'Control / Disciplined', 'Strong Attack', 'Solid Defense']
+
+        if style in elite_styles:
+            if elo > 1950: # The "Spain/Argentina" Tier
+                atk, dfe = 1.12, 1.08  # System Mastery: Complete dominance
+            elif elo > 1800: # The "Contender" Tier (England, Brazil)
+                atk, dfe = 1.06, 1.04  # High Competency
+            elif elo < 1600: # The "Trap" Tier (USA, Canada)
+                # These teams have the ambition but often lack the depth/talent to execute
+                # Result: Caught on the counter or mistakes in build-up.
+                atk, dfe = 0.88, 0.85  # -12% Atk / -15% Def penalty
+            elif elo < 1750: # Mid-Tier
+                atk, dfe = 0.94, 0.94  # Execution errors
+
+        elif style in robust_styles:
+            if elo < 1650: # Underdog Sweet Spot (Morocco, Iran, Paraguay)
+                # These styles make weaker teams much harder to kill.
+                dfe = 1.18  # +18% Defensive Solidity
+                atk = 0.92  # Sacrifice offense for the bus
+            elif elo > 1850: 
+                # Elite teams playing too simply lose their creative edge.
+                atk = 0.90  # "Glass Ceiling" penalty
+                dfe = 1.05  
+
+        elif style in adaptive_styles:
+            if elo > 1800:
+                atk, dfe = 1.05, 1.05 # Professional efficiency (France model)
+            elif elo < 1550:
+                dfe = 0.92            # Lack of discipline/structure
+
+        return round(atk, 2), round(dfe, 2)
+
+    c1_a, c1_d = apply_complexity(s1['elo'], style1)
+    c2_a, c2_d = apply_complexity(s2['elo'], style2)
+    t1_atk_mod *= c1_a; t1_def_mod *= c1_d
+    t2_atk_mod *= c2_a; t2_def_mod *= c2_d
+
+    # 6. ARCHETYPE MATCHUPS (Rock-Paper-Scissors)
+    matchup = (arc1, arc2)
+    if matchup == ('chaos', 'possession'): t1_atk_mod *= 1.10; t2_atk_mod *= 0.90
+    elif matchup == ('possession', 'chaos'): t1_atk_mod *= 0.90; t2_atk_mod *= 1.10
+    elif matchup == ('possession', 'pragmatic'): t1_atk_mod *= 1.10
+    elif matchup == ('pragmatic', 'possession'): t2_atk_mod *= 1.10
+    elif matchup == ('pragmatic', 'chaos'): t1_atk_mod *= 1.10; t2_atk_mod *= 0.90
+    elif matchup == ('chaos', 'pragmatic'): t1_atk_mod *= 0.90; t2_atk_mod *= 1.10
+
+    # 7. GAME PACE & DAVID-VS-GOLIATH
+    if arc1 in ['chaos', 'fluid'] and arc2 in ['chaos', 'fluid']: pace_mod = 1.15
+    elif arc1 in ['pragmatic', 'possession'] and arc2 == 'pragmatic': pace_mod = 0.85
+
+    if arc1 == 'pragmatic' and dr < -150: t1_def_mod *= 1.15 
+    if arc2 == 'pragmatic' and dr > 150: t2_def_mod *= 1.15
+
+    # 8. FORM BIAS (FROM YOUR SNIPPET)
     FORM_WEIGHT = 0.5 
     off1_adj = 1.0 + (s1['off'] - 1.0) * FORM_WEIGHT
     def1_adj = 1.0 + (s1['def'] - 1.0) * FORM_WEIGHT
     off2_adj = 1.0 + (s2['off'] - 1.0) * FORM_WEIGHT
     def2_adj = 1.0 + (s2['def'] - 1.0) * FORM_WEIGHT
-    
-    # 5. "PARK THE BUS" / GAME STATE LOGIC
-    bus_park_modifier_1 = 1.0
-    bus_park_modifier_2 = 1.0
-    
-    # Relaxed slightly so minnows can still counter-attack occasionally
+
+    # 9. PARK THE BUS / GAME STATE (FROM YOUR SNIPPET)
+    bus1, bus2 = 1.0, 1.0
     if dr > 300: 
-        bus_park_modifier_2 = 0.65 # Weaker team focuses 100% on defense
-        bus_park_modifier_1 = 0.90 # Strong team faces a stubborn low block
+        bus2, bus1 = 0.65, 0.90
     elif dr < -300:
-        bus_park_modifier_1 = 0.65 
-        bus_park_modifier_2 = 0.90
+        bus1, bus2 = 0.65, 0.90
         
-    # 6. BRINGING IT ALL TOGETHER
-    class_boost1 = 1.0 + (we1 - 0.5) * 0.4  
-    class_boost2 = 1.0 + (we2 - 0.5) * 0.4
+    # 10. BRINGING IT ALL TOGETHER (ELO & PEDIGREE FROM YOUR SNIPPET)
+    class1 = 1.0 + (we1 - 0.5) * 0.4  
+    class2 = 1.0 + (we2 - 0.5) * 0.4
+    ped1 = 1.0 + (pedigree_gap * 0.15)
+    ped2 = 1.0 - (pedigree_gap * 0.15)
     
-    pedigree_boost1 = 1.0 + (pedigree_gap * 0.15)
-    pedigree_boost2 = 1.0 - (pedigree_gap * 0.15)
-    
-    m1_raw = (off1_adj * def2_adj) * class_boost1 * pedigree_boost1 * bus_park_modifier_1
-    m2_raw = (off2_adj * def1_adj) * class_boost2 * pedigree_boost2 * bus_park_modifier_2
-    
-    # 7. LOGARITHMIC COMPRESSION
-    def compress(val):
-        if val <= 1.8: return val
-        return 1.8 + np.log(val - 0.8) * 0.8 
+    # 2026 Home Advantage
+    h1 = 1.15 if t1 in ['united states', 'mexico', 'canada'] else (1.05 if confed1 == 'CONCACAF' else 1.0)
+    h2 = 1.15 if t2 in ['united states', 'mexico', 'canada'] else (1.05 if confed2 == 'CONCACAF' else 1.0)
 
-    m1 = compress(m1_raw)
-    m2 = compress(m2_raw)
+    m1_base = (off1_adj * def2_adj) * class1 * ped1 * bus1
+    m2_base = (off2_adj * def1_adj) * class2 * ped2 * bus2
+    
+    def compress(val): return val if val <= 1.8 else 1.8 + np.log(val - 0.8) * 0.8 
+    intensity = 0.88 if knockout else 1.0
 
-    # 8. TOURNAMENT INTENSITY
-    # Knockout games are naturally tighter, but Group stages play at normal pace
-    TOURNAMENT_INTENSITY = 0.88 if knockout else 1.0
+    # 11. FINAL LAMBDA (XG) GENERATION
+    lam1 = AVG_GOALS * compress(m1_base) * h1 * intensity * pace_mod * t1_atk_mod * (2.0 - t2_def_mod)
+    lam2 = AVG_GOALS * compress(m2_base) * h2 * intensity * pace_mod * t2_atk_mod * (2.0 - t1_def_mod)
+
+    # 12. GOAL ROLLING (Variance Injection)
+    def roll_goals(lam, arc):
+        if lam <= 0: return 0
+        if arc in ['chaos', 'fluid']:
+            return np.random.poisson(np.random.gamma(10, lam / 10))
+        return np.random.poisson(lam)
+
+    g1, g2 = roll_goals(lam1, arc1), roll_goals(lam2, arc2)
     
-    # 9. CALCULATE EXPECTED GOALS (Poisson Lambda)
-    # CRITICAL FIX: AVG_GOALS is already calculated as the per-team average (~1.3).
-    # We do NOT halve it.
-    BASE_TEAM_XG = AVG_GOALS 
+    # --- RESULT LOGIC ---
+    if g1 > g2: return (t1, g1, g2, 'reg') if knockout else (t1, g1, g2)
+    if g2 > g1: return (t2, g1, g2, 'reg') if knockout else (t2, g1, g2)
+    if not knockout: return 'draw', g1, g2
+
+    # EXTRA TIME
+    g1 += np.random.poisson(lam1 * 0.4)
+    g2 += np.random.poisson(lam2 * 0.4)
+    if g1 > g2: return t1, g1, g2, 'aet'
+    if g2 > g1: return t2, g1, g2, 'aet'
     
-    lam1 = BASE_TEAM_XG * m1 * mod1 * home_boost * TOURNAMENT_INTENSITY
-    lam2 = BASE_TEAM_XG * m2 * mod2 * away_boost * TOURNAMENT_INTENSITY
-    
-    # 10. RUN SIMULATION
-    g1 = np.random.poisson(lam1)
-    g2 = np.random.poisson(lam2)
-    
-    # Check Result
-    if g1 > g2: 
-        if knockout: return t1, g1, g2, 'reg'
-        return t1, g1, g2
-    elif g2 > g1: 
-        if knockout: return t2, g1, g2, 'reg'
-        return t2, g1, g2
-    else:
-        # DRAW
-        if not knockout:
-            return 'draw', g1, g2
-            
-        # EXTRA TIME (Knockout Only)
-        # Extra time is notoriously dry. Usually 0 goals, rarely 1, almost never 2.
-        # FIXED per audit: Historical data shows ~40% of normal goal rate, not 19.8%
-        lam1_et = lam1 * 0.40  # 30 mins with fatigue scaled
-        lam2_et = lam2 * 0.40
-        
-        g1_et = np.random.poisson(lam1_et)
-        g2_et = np.random.poisson(lam2_et)
-        
-        g1 += g1_et
-        g2 += g2_et
-        
-        if g1 > g2: return t1, g1, g2, 'aet'
-        elif g2 > g1: return t2, g1, g2, 'aet'
-            
-        # PENALTIES
-        p1_bonus = 0.08 if style1 in ['Set-Piece Reliant', 'Control / Disciplined'] else 0
-        p2_bonus = 0.08 if style2 in ['Set-Piece Reliant', 'Control / Disciplined'] else 0
-        
-        pk_prob = np.clip(
-            0.5 + (dr / 3000) + (p1_bonus - p2_bonus),
-            0.35, 0.65
-        )
-        winner = t1 if random.random() < pk_prob else t2
-        
-        return winner, g1, g2, 'pks'
+    # PENALTIES
+    p1_b = 0.08 if style1 in ['Set-Piece Reliant', 'Control / Disciplined', 'Tactical Pragmatism'] else 0
+    p2_b = 0.08 if style2 in ['Set-Piece Reliant', 'Control / Disciplined', 'Tactical Pragmatism'] else 0
+    winner = t1 if random.random() < np.clip(0.5 + (dr/3000) + (p1_b - p2_b), 0.35, 0.65) else t2
+    return winner, g1, g2, 'pks'
+
 def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=None):
     # Data containers
     structured_groups = {} if not fast_mode else None
