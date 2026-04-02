@@ -55,79 +55,159 @@ WC_TEAMS = [
     'england', 'croatia', 'ghana', 'panama'
 ]
 
-# SOURCE-VERIFIED TACTICAL PROFILES (Based on 2024/25 Managerial Trends)
-TACTICAL_PROFILES = {
-    # --- GROUP A ---
-    'mexico': 'Tactical Pragmatism',       # Under Javier Aguirre: Shifted from flair to defensive discipline/grinding results.
-    'south africa': 'Fluid Creativity',    # Hugo Broos: Uses technical, short-passing domestic core (Mamelodi Sundowns style).
-    'south korea': 'Heavy Metal / Pressing', # Hong Myung-bo: Transition-heavy, high-intensity running.
-    'czech republic': 'Physical Direct',   # Ivan Hašek: Traditional focus on crosses, set-pieces, and height.
+# =============================================================================
+# --- ADVANCED TACTICAL METRICS & VOLATILITY DATA ---
+# =============================================================================
+ADVANCED_TEAM_DATA = {
+    'france': {'type': 'Vertical Control', 'poss': 0.72, 'press': 0.58, 'dir': 0.52, 'vol': 0.04},
+    'spain': {'type': 'Vertical Control', 'poss': 0.92, 'press': 0.68, 'dir': 0.35, 'vol': 0.03},
+    'argentina': {'type': 'Vertical Control', 'poss': 0.78, 'press': 0.64, 'dir': 0.48, 'vol': 0.05},
+    'england': {'type': 'Vertical Control', 'poss': 0.88, 'press': 0.62, 'dir': 0.38, 'vol': 0.04},
+    'portugal': {'type': 'Vertical Control', 'poss': 0.84, 'press': 0.65, 'dir': 0.44, 'vol': 0.06},
+    'brazil': {'type': 'Vertical Control', 'poss': 0.74, 'press': 0.62, 'dir': 0.55, 'vol': 0.07},
+    'netherlands': {'type': 'Vertical Control', 'poss': 0.71, 'press': 0.64, 'dir': 0.52, 'vol': 0.07},
+    'morocco': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.52, 'dir': 0.84, 'vol': 0.06},
+    'belgium': {'type': 'Vertical Control', 'poss': 0.68, 'press': 0.58, 'dir': 0.58, 'vol': 0.08},
+    'germany': {'type': 'Vertical Control', 'poss': 0.82, 'press': 0.75, 'dir': 0.60, 'vol': 0.11},
+    'croatia': {'type': 'Vertical Control', 'poss': 0.71, 'press': 0.52, 'dir': 0.42, 'vol': 0.05},
+    'italy': {'type': 'Vertical Control', 'poss': 0.70, 'press': 0.65, 'dir': 0.45, 'vol': 0.09},
+    'colombia': {'type': 'Vertical Control', 'poss': 0.64, 'press': 0.71, 'dir': 0.62, 'vol': 0.10},
+    'senegal': {'type': 'Chaos & Intensity', 'poss': 0.52, 'press': 0.78, 'dir': 0.79, 'vol': 0.13},
+    'mexico': {'type': 'Vertical Control', 'poss': 0.62, 'press': 0.65, 'dir': 0.58, 'vol': 0.12},
+    'united states': {'type': 'Chaos & Intensity', 'poss': 0.59, 'press': 0.82, 'dir': 0.68, 'vol': 0.14},
+    'uruguay': {'type': 'Chaos & Intensity', 'poss': 0.55, 'press': 0.94, 'dir': 0.84, 'vol': 0.12},
+    'japan': {'type': 'Vertical Control', 'poss': 0.63, 'press': 0.75, 'dir': 0.68, 'vol': 0.06},
+    'switzerland': {'type': 'Vertical Control', 'poss': 0.64, 'press': 0.55, 'dir': 0.48, 'vol': 0.05},
+    'denmark': {'type': 'Vertical Control', 'poss': 0.65, 'press': 0.70, 'dir': 0.55, 'vol': 0.08},
+    'iran': {'type': 'Compact Block', 'poss': 0.36, 'press': 0.35, 'dir': 0.88, 'vol': 0.04},
+    'turkey': {'type': 'Vertical Control', 'poss': 0.61, 'press': 0.68, 'dir': 0.64, 'vol': 0.11},
+    'ecuador': {'type': 'Direct-Physical', 'poss': 0.46, 'press': 0.68, 'dir': 0.78, 'vol': 0.09},
+    'austria': {'type': 'Chaos & Intensity', 'poss': 0.51, 'press': 0.88, 'dir': 0.76, 'vol': 0.12},
+    'south korea': {'type': 'Chaos & Intensity', 'poss': 0.51, 'press': 0.78, 'dir': 0.82, 'vol': 0.09},
+    'nigeria': {'type': 'Chaos & Intensity', 'poss': 0.50, 'press': 0.80, 'dir': 0.75, 'vol': 0.15},
+    'australia': {'type': 'Direct-Physical', 'poss': 0.48, 'press': 0.62, 'dir': 0.72, 'vol': 0.07},
+    'algeria': {'type': 'Vertical Control', 'poss': 0.58, 'press': 0.62, 'dir': 0.62, 'vol': 0.12},
+    'egypt': {'type': 'Compact Block', 'poss': 0.43, 'press': 0.42, 'dir': 0.82, 'vol': 0.08},
+    'canada': {'type': 'Vertical Control', 'poss': 0.58, 'press': 0.72, 'dir': 0.64, 'vol': 0.13},
+    'norway': {'type': 'Chaos & Intensity', 'poss': 0.58, 'press': 0.72, 'dir': 0.91, 'vol': 0.11},
+    'ukraine': {'type': 'Vertical Control', 'poss': 0.62, 'press': 0.60, 'dir': 0.50, 'vol': 0.09},
+    'panama': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.42, 'dir': 0.75, 'vol': 0.10},
+    'ivory coast': {'type': 'Chaos & Intensity', 'poss': 0.54, 'press': 0.71, 'dir': 0.74, 'vol': 0.14},
+    'poland': {'type': 'Direct-Physical', 'poss': 0.44, 'press': 0.55, 'dir': 0.80, 'vol': 0.11},
+    'russia': {'type': 'Vertical Control', 'poss': 0.55, 'press': 0.58, 'dir': 0.62, 'vol': 0.16},
+    'wales': {'type': 'Direct-Physical', 'poss': 0.42, 'press': 0.65, 'dir': 0.78, 'vol': 0.09},
+    'sweden': {'type': 'Chaos & Intensity', 'poss': 0.52, 'press': 0.72, 'dir': 0.86, 'vol': 0.12},
+    'serbia': {'type': 'Direct-Physical', 'poss': 0.45, 'press': 0.55, 'dir': 0.78, 'vol': 0.14},
+    'paraguay': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.55, 'dir': 0.79, 'vol': 0.09},
+    'czech republic': {'type': 'Chaos & Intensity', 'poss': 0.48, 'press': 0.85, 'dir': 0.75, 'vol': 0.11},
+    'hungary': {'type': 'Compact Block', 'poss': 0.40, 'press': 0.45, 'dir': 0.70, 'vol': 0.07},
+    'scotland': {'type': 'Direct-Physical', 'poss': 0.45, 'press': 0.58, 'dir': 0.76, 'vol': 0.08},
+    'tunisia': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.48, 'dir': 0.71, 'vol': 0.09},
+    'cameroon': {'type': 'Direct-Physical', 'poss': 0.45, 'press': 0.60, 'dir': 0.75, 'vol': 0.17},
+    'dr congo': {'type': 'Direct-Physical', 'poss': 0.42, 'press': 0.52, 'dir': 0.74, 'vol': 0.16},
+    'greece': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.40, 'dir': 0.72, 'vol': 0.06},
+    'slovakia': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.50, 'dir': 0.70, 'vol': 0.08},
+    'venezuela': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.55, 'dir': 0.78, 'vol': 0.12},
+    'uzbekistan': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.44, 'dir': 0.78, 'vol': 0.15},
+    'costa rica': {'type': 'Compact Block', 'poss': 0.35, 'press': 0.48, 'dir': 0.76, 'vol': 0.11},
+    'mali': {'type': 'Direct-Physical', 'poss': 0.46, 'press': 0.62, 'dir': 0.70, 'vol': 0.16},
+    'peru': {'type': 'Vertical Control', 'poss': 0.55, 'press': 0.60, 'dir': 0.60, 'vol': 0.14},
+    'chile': {'type': 'Chaos & Intensity', 'poss': 0.52, 'press': 0.85, 'dir': 0.72, 'vol': 0.15},
+    'qatar': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.31, 'dir': 0.68, 'vol': 0.14},
+    'romania': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.48, 'dir': 0.74, 'vol': 0.10},
+    'iraq': {'type': 'Compact Block', 'poss': 0.31, 'press': 0.38, 'dir': 0.82, 'vol': 0.17},
+    'slovenia': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.45, 'dir': 0.78, 'vol': 0.08},
+    'ireland': {'type': 'Direct-Physical', 'poss': 0.43, 'press': 0.52, 'dir': 0.76, 'vol': 0.09},
+    'south africa': {'type': 'Direct-Physical', 'poss': 0.44, 'press': 0.48, 'dir': 0.72, 'vol': 0.15},
+    'saudi arabia': {'type': 'Vertical Control', 'poss': 0.58, 'press': 0.52, 'dir': 0.54, 'vol': 0.14},
+    'burkina faso': {'type': 'Chaos & Intensity', 'poss': 0.48, 'press': 0.70, 'dir': 0.75, 'vol': 0.18},
+    'jordan': {'type': 'Compact Block', 'poss': 0.33, 'press': 0.31, 'dir': 0.84, 'vol': 0.19},
+    'albania': {'type': 'Compact Block', 'poss': 0.36, 'press': 0.42, 'dir': 0.80, 'vol': 0.10},
+    'bosnia and herzegovina': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.35, 'dir': 0.80, 'vol': 0.14},
+    'honduras': {'type': 'Direct-Physical', 'poss': 0.40, 'press': 0.55, 'dir': 0.74, 'vol': 0.13},
+    'north macedonia': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.44, 'dir': 0.79, 'vol': 0.12},
+    'uae': {'type': 'Vertical Control', 'poss': 0.54, 'press': 0.48, 'dir': 0.58, 'vol': 0.14},
+    'cape verde': {'type': 'Compact Block', 'poss': 0.34, 'press': 0.41, 'dir': 0.76, 'vol': 0.18},
+    'northern ireland': {'type': 'Compact Block', 'poss': 0.32, 'press': 0.50, 'dir': 0.82, 'vol': 0.07},
+    'jamaica': {'type': 'Direct-Physical', 'poss': 0.41, 'press': 0.64, 'dir': 0.78, 'vol': 0.17},
+    'georgia': {'type': 'Compact Block', 'poss': 0.35, 'press': 0.40, 'dir': 0.86, 'vol': 0.15},
+    'finland': {'type': 'Vertical Control', 'poss': 0.51, 'press': 0.45, 'dir': 0.64, 'vol': 0.09},
+    'ghana': {'type': 'Chaos & Intensity', 'poss': 0.48, 'press': 0.68, 'dir': 0.78, 'vol': 0.19},
+    'iceland': {'type': 'Compact Block', 'poss': 0.33, 'press': 0.45, 'dir': 0.85, 'vol': 0.08},
+    'bolivia': {'type': 'Compact Block', 'poss': 0.34, 'press': 0.38, 'dir': 0.79, 'vol': 0.12},
+    'israel': {'type': 'Vertical Control', 'poss': 0.53, 'press': 0.52, 'dir': 0.58, 'vol': 0.13},
+    'kosovo': {'type': 'Chaos & Intensity', 'poss': 0.47, 'press': 0.65, 'dir': 0.74, 'vol': 0.16},
+    'oman': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.35, 'dir': 0.72, 'vol': 0.12},
+    'guinea': {'type': 'Direct-Physical', 'poss': 0.43, 'press': 0.55, 'dir': 0.74, 'vol': 0.15},
+    'montenegro': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.42, 'dir': 0.78, 'vol': 0.10},
+    'curaçao': {'type': 'Compact Block', 'poss': 0.32, 'press': 0.28, 'dir': 0.85, 'vol': 0.19},
+    'haiti': {'type': 'Direct-Physical', 'poss': 0.35, 'press': 0.45, 'dir': 0.78, 'vol': 0.20},
+    'syria': {'type': 'Compact Block', 'poss': 0.34, 'press': 0.32, 'dir': 0.80, 'vol': 0.13},
+    'new zealand': {'type': 'Direct-Physical', 'poss': 0.40, 'press': 0.55, 'dir': 0.81, 'vol': 0.11},
+    'bulgaria': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.38, 'dir': 0.70, 'vol': 0.14},
+    'gabon': {'type': 'Chaos & Intensity', 'poss': 0.46, 'press': 0.62, 'dir': 0.79, 'vol': 0.18},
+    'uganda': {'type': 'Compact Block', 'poss': 0.35, 'press': 0.40, 'dir': 0.76, 'vol': 0.15},
+    'angola': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.42, 'dir': 0.74, 'vol': 0.14},
+    'benin': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.35, 'dir': 0.78, 'vol': 0.14},
+    'bahrain': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.32, 'dir': 0.70, 'vol': 0.13},
+    'zambia': {'type': 'Chaos & Intensity', 'poss': 0.45, 'press': 0.65, 'dir': 0.76, 'vol': 0.19},
+    'thailand': {'type': 'Vertical Control', 'poss': 0.52, 'press': 0.55, 'dir': 0.68, 'vol': 0.13},
+    'el salvador': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.45, 'dir': 0.74, 'vol': 0.14},
+    'luxembourg': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.40, 'dir': 0.68, 'vol': 0.09},
+    'armenia': {'type': 'Compact Block', 'poss': 0.36, 'press': 0.38, 'dir': 0.79, 'vol': 0.14},
+    'palestine': {'type': 'Compact Block', 'poss': 0.31, 'press': 0.35, 'dir': 0.82, 'vol': 0.18},
+    'equatorial guinea': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.48, 'dir': 0.72, 'vol': 0.16},
+    'vietnam': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.45, 'dir': 0.79, 'vol': 0.15},
+    'kazakhstan': {'type': 'Compact Block', 'poss': 0.33, 'press': 0.42, 'dir': 0.84, 'vol': 0.16}
+}
 
-    # --- GROUP B ---
-    'canada': 'High-Intensity Chaos',      # Jesse Marsch: "Red Bull" style—ultra-aggressive, vertical, and high-risk.
-    'switzerland': 'Tactical Pragmatism',  # Murat Yakin: Elite mid-block, adaptive to opponent weaknesses.
-    'qatar': 'Organized Low-Block',        # Tintín Márquez: Pragmatic, counter-attacking focus.
-    'bosnia and herzegovina': 'Physical Direct', # Direct play targeting physical strikers.
+# =============================================================================
+# --- TACTICAL MATCHUP MATRIX (The Rock-Paper-Scissors of Football) ---
+# =============================================================================
+# Format: ('Team 1 Style', 'Team 2 Style'): Attacking Multiplier for Team 1
+# > 1.0 means Team 1 has a tactical advantage and generates more expected goals.
+# < 1.0 means Team 1 is tactically countered and generates fewer expected goals.
 
-    # --- GROUP C ---
-    'brazil': 'Fluid Creativity',          # Dorival Júnior: Seeking to restore 'Ginga' with roaming attackers like Vinicius/Rodrygo.
-    'morocco': 'Organized Low-Block',      # Walid Regragui: World-renowned for the 4-1-4-1 deep defensive shell.
-    'haiti': 'High-Intensity Chaos',       # Focus on raw pace and individual transitions.
-    'scotland': 'Physical Direct',         # Steve Clarke: Low block + set-piece reliance + Robertson/McGinn crosses.
+STYLE_MATCHUPS = {
+    # High Press disrupts teams that try to build from the back
+    ('High Press', 'Ball Control'): 1.08,
+    ('Ball Control', 'High Press'): 0.90,
+    
+    # Direct Play bypasses the High Press completely
+    ('Direct Play', 'High Press'): 1.08,
+    ('High Press', 'Direct Play'): 0.92,
+    
+    # Fast Build-up beats the press by moving the ball before the trap closes
+    ('Fast Build-up', 'High Press'): 1.06,
+    ('High Press', 'Fast Build-up'): 0.94,
 
-    # --- GROUP D ---
-    'united states': 'Heavy Metal / Pressing', # Mauricio Pochettino: Known for high-line, aggressive ball-recovery.
-    'paraguay': 'Organized Low-Block',     # Gustavo Alfaro: Master of the 'anti-football' defensive masterclass.
-    'australia': 'Tactical Pragmatism',    # Tony Popovic: Structurally rigid, focused on organization.
-    'turkey': 'Fluid Creativity',          # Vincenzo Montella: Heavy focus on technical #10s (Arda Güler) and roaming wings.
+    # Counter-Attack exploits high lines and possession teams
+    ('Counter-Attack', 'Ball Control'): 1.08,
+    ('Ball Control', 'Counter-Attack'): 0.92,
+    ('Counter-Attack', 'High Risk'): 1.10,
+    ('High Risk', 'Counter-Attack'): 0.90,
+    
+    # Deep Block starves Counter-Attack and Fast Build-up of running space
+    ('Deep Block', 'Counter-Attack'): 1.05,
+    ('Counter-Attack', 'Deep Block'): 0.85,
+    ('Deep Block', 'Fast Build-up'): 1.05,
+    ('Fast Build-up', 'Deep Block'): 0.90,
 
-    # --- GROUP E ---
-    'germany': 'Heavy Metal / Pressing',   # Julian Nagelsmann: Complex counter-pressing and narrow 'Zocker' combinations.
-    'curaçao': 'Vertical Tiki-Taka',       # Dutch-influenced school of technical, quick passing.
-    'ivory coast': 'Vertical Tiki-Taka',   # Emerse Faé: High-speed wing play combined with midfield control.
-    'ecuador': 'Heavy Metal / Pressing',   # Sebastián Beccacece: Intense physical pressure and high athletic output.
+    # Technical Play (Individual Brilliance) unlocks the Deep Block
+    ('Technical Play', 'Deep Block'): 1.10,
+    ('Deep Block', 'Technical Play'): 0.90,
+    
+    # Disciplined structure neutralizes Technical flair and High Risk chaos
+    ('Disciplined', 'Technical Play'): 1.08,
+    ('Technical Play', 'Disciplined'): 0.92,
+    ('Disciplined', 'High Risk'): 1.08,
+    ('High Risk', 'Disciplined'): 0.92,
 
-    # --- GROUP F ---
-    'netherlands': 'Positional Dominance', # Ronald Koeman: Total Football roots—focus on wing-backs and ball circulation.
-    'japan': 'Vertical Tiki-Taka',         # Hajime Moriyasu: Famous for ultra-fast technical transitions (The "Blue Samurai" blitz).
-    'tunisia': 'Organized Low-Block',      # Traditionally one of Africa's most disciplined defensive units.
-    'sweden': 'Vertical Tiki-Taka',        # Jon Dahl Tomasson: Moving away from 4-4-2 to a technical, attacking 4-3-3.
-
-    # --- GROUP G ---
-    'belgium': 'Positional Dominance',     # Domenico Tedesco: High possession, high technical ceiling.
-    'egypt': 'Tactical Pragmatism',        # Focus on Salah’s transition, but structurally conservative.
-    'iran': 'Organized Low-Block',         # Amir Ghalenoei: Maintaining the Queiroz-era defensive discipline.
-    'new zealand': 'Physical Direct',      # Direct approach using height in the box (Chris Wood).
-
-    # --- GROUP H ---
-    'spain': 'Positional Dominance',       # De la Fuente: High possession but with new "Vertical" wingers (Lamine Yamal).
-    'cape verde': 'Vertical Tiki-Taka',    # Technical, short-passing style that surprised in AFCON.
-    'saudi arabia': 'Tactical Pragmatism', # Herve Renard: Known for high defensive lines and disciplined traps.
-    'uruguay': 'Heavy Metal / Pressing',   # Marcelo Bielsa: The purest "Heavy Metal" team in international football.
-
-    # --- GROUP I ---
-    'france': 'Tactical Pragmatism',       # Deschamps: Does not care about possession; waits for the killer counter-attack.
-    'senegal': 'Physical Direct',          # Aliou Cissé: Extreme physical power, pace, and aerial dominance.
-    'norway': 'Physical Direct',           # Ståle Solbakken: Built to feed Haaland via direct verticality and crosses.
-    'iraq': 'Organized Low-Block',         # Jesús Casas: Spanish-organized defensive shape with quick breaks.
-
-    # --- GROUP J ---
-    'argentina': 'Fluid Creativity',       # Scaloni: 'La Nuestra'—midfielders interchange positions constantly to confuse the block.
-    'algeria': 'Vertical Tiki-Taka',       # Vladimir Petković: Technical build-up with aggressive wing play.
-    'austria': 'Heavy Metal / Pressing',   # Ralf Rangnick: The architect of the modern high-press.
-    'jordan': 'Organized Low-Block',       # Jamal Sellami: Rigid defensive lines as seen in Asian Cup.
-
-    # --- GROUP K ---
-    'portugal': 'Positional Dominance',    # Roberto Martínez: Obsessive focus on 3-box-3 possession structures.
-    'uzbekistan': 'Organized Low-Block',   # Srečko Katanec: Highly disciplined, hard-to-beat Asian powerhouse.
-    'colombia': 'Fluid Creativity',        # Néstor Lorenzo: High-tempo technical football led by James Rodríguez.
-    'dr congo': 'High-Intensity Chaos',    # Sébastien Desabre: Direct, physical, and extremely fast on the break.
-
-    # --- GROUP L ---
-    'england': 'Positional Dominance',     # Post-Southgate: Reverting to a more technical, possession-first philosophy.
-    'croatia': 'Positional Dominance',     # Zlatko Dalić: Midfield-led (Modrić/Kovačić) game control.
-    'ghana': 'High-Intensity Chaos',       # Focus on athletic transitions and individual 1v1s.
-    'panama': 'Tactical Pragmatism'        # Thomas Christiansen: Organized, balanced, and patient.
+    # Ball Control starves Direct Play and grinds down Deep Blocks over 90 mins
+    ('Ball Control', 'Direct Play'): 1.08,
+    ('Direct Play', 'Ball Control'): 0.90,
+    ('Ball Control', 'Deep Block'): 1.05,
+    ('Deep Block', 'Ball Control'): 0.95
 }
 
 # Map teams to Confederations
@@ -659,51 +739,48 @@ def initialize_engine():
         s['late_pct'] = (s['late_goals'] / g * 100) if g > 0 else 0
         
         # -----------------------------------------------------------
-        # E. ADVANCED STYLE LABEL (Identity Bridge Logic)
+        # E. ADVANCED STYLE LABEL (Data-Driven Logic)
         # -----------------------------------------------------------
-        # Priority 1: Check the hardcoded TACTICAL_PROFILES dictionary
-        if t in TACTICAL_PROFILES:
-            style = TACTICAL_PROFILES[t]
-        
-        # Priority 2: Use your existing complex Data-Driven logic for all other teams
+        if t in ADVANCED_TEAM_DATA:
+            d = ADVANCED_TEAM_DATA[t]
+            t_type, poss, press, direct = d['type'], d['poss'], d['press'], d['dir']
+            
+            if t_type == 'Vertical Control':
+                if poss >= 0.70: style = 'Ball Control'
+                elif press >= 0.68: style = 'Fast Build-up'
+                elif direct >= 0.58: style = 'Technical Play'
+                else: style = 'Disciplined'
+                
+            elif t_type == 'Chaos & Intensity':
+                if press >= 0.75: style = 'High Press'
+                else: style = 'High Risk'
+                
+            elif t_type == 'Compact Block':
+                if poss <= 0.38 and direct >= 0.75: style = 'Deep Block'
+                else: style = 'Counter-Attack'
+                
+            elif t_type == 'Direct-Physical':
+                style = 'Direct Play'
+            else:
+                style = 'Balanced'
+                
         else:
+            # --- FALLBACK MODEL (For Unlisted Teams) ---
             has_history = m >= 10 
             rel_gf = s['adj_gf'] / avg_goals_global
             rel_ga = s['adj_ga'] / avg_goals_global
-            
-            # Using your provided data columns
-            btts = s.get('btts_pct', 0)
-            late = s.get('late_pct', 0)
             clean_sheets = s.get('cs_pct', 0)
-
+            late = s.get('late_pct', 0)
+            
             if has_history:
-                # 1. THE ELITE (Spain/Argentina context)
-                if s['elo'] > 1900 and rel_gf > 1.25 and rel_ga < 0.85:
-                    style = "Elite / Dominant"
-                
-                # 2. THE SPECIALISTS (Based on your table data)
-                elif rel_ga < 0.75 or (clean_sheets > 45 and rel_gf < 0.95):
-                    style = "Defensive Wall"      # E.g., Paraguay/Morocco style
-                
-                elif rel_gf > 1.35 and rel_ga > 1.20:
-                    style = "High Risk / Chaos"   # E.g., Netherlands style
-                
-                elif btts > 60:
-                    style = "High-Intensity Chaos" 
-                
-                elif btts < 35:
-                    style = "Control / Disciplined" 
-                
-                elif late > 30:
-                    style = "Late Surge"          # E.g., Mexico (32%)
-                
-                # 3. STATISTICAL TRENDS
-                elif rel_gf > 1.15:
-                    style = "Strong Attack"
-                elif rel_ga < 0.90:
-                    style = "Solid Defense"
-                else:
-                    style = "Balanced"
+                if s['elo'] > 1850 and rel_ga < 0.85: style = "Ball Control"
+                elif rel_gf > 1.30 and s['elo'] > 1750: style = "Technical Play"
+                elif clean_sheets > 45: style = "Deep Block"
+                elif rel_ga < 0.90 and rel_gf < 1.00: style = "Counter-Attack"
+                elif rel_gf > 1.25 and rel_ga > 1.20: style = "High Risk"
+                elif s.get('fh_pct', 0) > 55: style = "High Press"
+                elif rel_ga > 1.10: style = "Direct Play"
+                else: style = "Disciplined"
             else:
                 style = "Balanced"
 
@@ -818,71 +895,92 @@ def sim_match(t1, t2, knockout=False):
     t2_atk_mod, t2_def_mod = 1.0, 1.0
     pace_mod = 1.0
 
-    # 5. DYNAMIC COMPLEXITY CHECK (New Layer)
+    # 5. DYNAMIC COMPLEXITY & ELO SCALING (Continuous Interpolation)
     def apply_complexity(elo, style):
-        atk, dfe = 1.0, 1.0
+        # We scale between the absolute floor (Curaçao at ~1250) and ceiling (Spain at ~2000)
+        # np.interp(elo, [1200, 1900],[multiplier_at_1200, multiplier_at_2000])
         
-        # Tier 1: High Floor / High Ceiling (The "Barcelona/Liverpool" problem)
-        # Needs high technical talent and stamina.
-        elite_styles = ['Positional Dominance', 'Heavy Metal / Pressing', 'Vertical Tiki-Taka', 'Fluid Creativity']
-        
-        # Tier 2: Low Floor / Low Ceiling (The "Great Equalizers")
-        # Easy to coach, hard to break down.
-        robust_styles = ['Organized Low-Block', 'Physical Direct', 'High-Intensity Chaos', 'Defensive Wall']
-        
-        # Tier 3: Adaptive
-        adaptive_styles = ['Tactical Pragmatism', 'Control / Disciplined', 'Strong Attack', 'Solid Defense']
+        if style == 'Ball Control':
+            # High ceiling, low floor. Elite teams dominate; weak teams turn the ball over.
+            atk = np.interp(elo, [1200, 1900],[0.75, 1.15])
+            dfe = np.interp(elo,[1200, 1900], [0.70, 1.10])
+            
+        elif style == 'Technical Play':
+            # Relies heavily on individual creativity. Highest attacking ceiling.
+            atk = np.interp(elo,[1200, 1900], [0.80, 1.20])
+            dfe = np.interp(elo, [1200, 1900],[0.80, 1.00])
+            
+        elif style == 'High Press':
+            # Demands extreme stamina and coordination. Punishes weak defenses.
+            atk = np.interp(elo,[1200, 1900], [0.85, 1.12])
+            dfe = np.interp(elo, [1200, 1900],[0.75, 1.05])
+            
+        elif style == 'Fast Build-up':
+            # Fast, vertical transitions. 
+            atk = np.interp(elo,[1200, 1900], [0.85, 1.10])
+            dfe = np.interp(elo, [1200, 1900],[0.85, 1.02])
 
-        if style in elite_styles:
-            if elo > 1950: # The "Spain/Argentina" Tier
-                atk, dfe = 1.12, 1.08  # System Mastery: Complete dominance
-            elif elo > 1800: # The "Contender" Tier (England, Brazil)
-                atk, dfe = 1.06, 1.04  # High Competency
-            elif elo < 1600: # The "Trap" Tier (USA, Canada)
-                # These teams have the ambition but often lack the depth/talent to execute
-                # Result: Caught on the counter or mistakes in build-up.
-                atk, dfe = 0.88, 0.85  # -12% Atk / -15% Def penalty
-            elif elo < 1750: # Mid-Tier
-                atk, dfe = 0.94, 0.94  # Execution errors
+        elif style == 'Disciplined':
+            # High floor, safe. Boosts defense universally, minimal attacking variance.
+            atk = np.interp(elo, [1200, 1900], [0.95, 1.05])
+            dfe = np.interp(elo,[1200, 1900], [1.02, 1.15])
 
-        elif style in robust_styles:
-            if elo < 1650: # Underdog Sweet Spot (Morocco, Iran, Paraguay)
-                # These styles make weaker teams much harder to kill.
-                dfe = 1.18  # +18% Defensive Solidity
-                atk = 0.92  # Sacrifice offense for the bus
-            elif elo > 1850: 
-                # Elite teams playing too simply lose their creative edge.
-                atk = 0.90  # "Glass Ceiling" penalty
-                dfe = 1.05  
+        elif style == 'Counter-Attack':
+            # THE EQUALIZER (INVERSE SCALING).
+            # Buffs underdog defense wildly (1.20x), but limits elite attacking talent (0.85x).
+            atk = np.interp(elo, [1200, 1900],[0.98, 0.85])
+            dfe = np.interp(elo,[1200, 1900], [1.20, 1.02])
+            
+        elif style == 'Deep Block':
+            # Pure survival mode. Abysmal offense, incredible defense.
+            atk = np.interp(elo, [1200, 1900],[0.85, 0.70])
+            dfe = np.interp(elo,[1200, 1900], [1.30, 1.15])
 
-        elif style in adaptive_styles:
-            if elo > 1800:
-                atk, dfe = 1.05, 1.05 # Professional efficiency (France model)
-            elif elo < 1550:
-                dfe = 0.92            # Lack of discipline/structure
+        elif style == 'Direct Play':
+            # Bypasses technical midfields (INVERSE SCALING). 
+            # Great for athletic underdogs (1.12x atk), too predictable for elites (0.90x atk).
+            atk = np.interp(elo, [1200, 1900],[1.12, 0.90])
+            dfe = np.interp(elo,[1200, 1900], [1.08, 0.95])
 
-        return round(atk, 2), round(dfe, 2)
+        elif style == 'High Risk':
+            # Pure variance and open games. Heavy defensive penalty for weak teams.
+            atk = np.interp(elo, [1200, 1900],[1.05, 1.20])
+            dfe = np.interp(elo,[1200, 1900], [0.70, 0.85])
+
+        else: # 'Balanced'
+            atk, dfe = 1.0, 1.0
+
+        return float(atk), float(dfe)
 
     c1_a, c1_d = apply_complexity(s1['elo'], style1)
     c2_a, c2_d = apply_complexity(s2['elo'], style2)
     t1_atk_mod *= c1_a; t1_def_mod *= c1_d
     t2_atk_mod *= c2_a; t2_def_mod *= c2_d
 
-    # 6. ARCHETYPE MATCHUPS (Rock-Paper-Scissors)
-    matchup = (arc1, arc2)
-    if matchup == ('chaos', 'possession'): t1_atk_mod *= 1.10; t2_atk_mod *= 0.90
-    elif matchup == ('possession', 'chaos'): t1_atk_mod *= 0.90; t2_atk_mod *= 1.10
-    elif matchup == ('possession', 'pragmatic'): t1_atk_mod *= 1.10
-    elif matchup == ('pragmatic', 'possession'): t2_atk_mod *= 1.10
-    elif matchup == ('pragmatic', 'chaos'): t1_atk_mod *= 1.10; t2_atk_mod *= 0.90
-    elif matchup == ('chaos', 'pragmatic'): t1_atk_mod *= 0.90; t2_atk_mod *= 1.10
+    # 6. HISTORICAL TACTICAL MATCHUPS (The Matrix)
+    # Automatically looks up if either team has a structural advantage.
+    # Defaults to 1.0 (neutral) if there is no specific historical counter.
+    
+    t1_tactical_edge = STYLE_MATCHUPS.get((style1, style2), 1.0)
+    t2_tactical_edge = STYLE_MATCHUPS.get((style2, style1), 1.0)
+    
+    t1_atk_mod *= t1_tactical_edge
+    t2_atk_mod *= t2_tactical_edge
 
     # 7. GAME PACE & DAVID-VS-GOLIATH
-    if arc1 in ['chaos', 'fluid'] and arc2 in ['chaos', 'fluid']: pace_mod = 1.15
-    elif arc1 in ['pragmatic', 'possession'] and arc2 == 'pragmatic': pace_mod = 0.85
-
-    if arc1 == 'pragmatic' and dr < -150: t1_def_mod *= 1.15 
-    if arc2 == 'pragmatic' and dr > 150: t2_def_mod *= 1.15
+    # Open games speed up the pace (more chances for both)
+    open_styles =['High Risk', 'High Press', 'Technical Play', 'Fast Build-up']
+    slow_styles =['Deep Block', 'Counter-Attack', 'Disciplined']
+    
+    if style1 in open_styles and style2 in open_styles: 
+        pace_mod = 1.15 # End-to-end shootout
+    elif style1 in slow_styles and style2 in slow_styles: 
+        pace_mod = 0.85 # Boring, grinding match
+        
+    # Underdog "Park the Bus" desperation 
+    # If a defensive team is playing a massive favorite, they bunker even harder.
+    if style1 in slow_styles and dr < -150: t1_def_mod *= 1.10 
+    if style2 in slow_styles and dr > 150: t2_def_mod *= 1.10
 
     # 8. FORM BIAS (FROM YOUR SNIPPET)
     FORM_WEIGHT = 0.5 
@@ -918,14 +1016,27 @@ def sim_match(t1, t2, knockout=False):
     lam1 = AVG_GOALS * compress(m1_base) * h1 * intensity * pace_mod * t1_atk_mod * (2.0 - t2_def_mod)
     lam2 = AVG_GOALS * compress(m2_base) * h2 * intensity * pace_mod * t2_atk_mod * (2.0 - t1_def_mod)
 
-    # 12. GOAL ROLLING (Variance Injection)
-    def roll_goals(lam, arc):
-        if lam <= 0: return 0
-        if arc in ['chaos', 'fluid']:
-            return np.random.poisson(np.random.gamma(10, lam / 10))
-        return np.random.poisson(lam)
+    # --- VOLATILITY INDEX EXTRACTION ---
+    # Fetch team's Vi (Volatility). Default to 0.10 (Global Average) if not in the dataset.
+    vol1 = ADVANCED_TEAM_DATA.get(t1, {}).get('vol', 0.10)
+    vol2 = ADVANCED_TEAM_DATA.get(t2, {}).get('vol', 0.10)
 
-    g1, g2 = roll_goals(lam1, arc1), roll_goals(lam2, arc2)
+    # 12. GOAL ROLLING (Variance Injection via Volatility)
+    def roll_goals(lam, volatility):
+        if lam <= 0: return 0
+        
+        # Inject Volatility: We draw a "Realized xG" from a Normal Distribution 
+        # where the Standard Deviation is strictly defined by the team's Volatility Index.
+        # Haiti (0.20) will swing wildly. Spain (0.03) will be mathematically rigid.
+        realized_lam = np.random.normal(lam, lam * volatility)
+        
+        # Ensure xG doesn't drop below a minimum bound due to negative variance swings
+        realized_lam = max(0.01, realized_lam)
+        
+        # Feed the realized xG into the standard Poisson distribution for the final score
+        return np.random.poisson(realized_lam)
+
+    g1, g2 = roll_goals(lam1, vol1), roll_goals(lam2, vol2)
     
     # --- RESULT LOGIC ---
     if g1 > g2: return (t1, g1, g2, 'reg') if knockout else (t1, g1, g2)
