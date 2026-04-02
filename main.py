@@ -1409,7 +1409,7 @@ def update_dashboard_data(event=None):
     t_poss = adv_data.get('poss', 0.50)
     t_press = adv_data.get('press', 0.50)
     t_dir = adv_data.get('dir', 0.50)
-    t_vol = adv_data.get('vol', 0.10)
+    t_vol = stats.get('volatility', 0.15)
     
     # Scale Volatility to a 0-100% bar (Max observed is ~0.20)
     vol_pct = min(100, (t_vol / 0.20) * 100)

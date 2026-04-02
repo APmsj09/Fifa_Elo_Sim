@@ -5,6 +5,12 @@ import math
 import js
 from pyodide.http import open_url
 
+def calculate_recency_weight(match_date, latest_date):
+    """Calculates a smooth decay weight based on match age."""
+    days_old = (latest_date - match_date).days
+    # Halves the importance of a match every ~2 years (730 days)
+    return math.exp(-0.00095 * max(0, days_old))
+
 # =============================================================================
 # --- PART 1: SETUP & DATA LOADING ---
 # =============================================================================
@@ -450,6 +456,8 @@ def initialize_engine():
                        elo_df['home_score'], elo_df['away_score'], 
                        elo_df['tournament'], elo_df['neutral'], elo_df['date'])
     
+    recent_residuals = {t: [] for t in all_teams_set}
+
     for h, a, hs, as_, tourney, neutral, date in matches_data:
         # A. GET "LIVE" RATINGS (At the time of match)
         rh = team_elo.get(h, INITIAL_RATING)
@@ -541,6 +549,10 @@ def initialize_engine():
         # Apply Update
         k = get_k_factor(tourney, abs(hs - as_), h, a)
         change = k * (W - we)
+
+        if date > RELEVANCE_CUTOFF:
+            recent_residuals[h].append((W - we)**2)
+            recent_residuals[a].append(((1 - W) - (1 - we))**2)
         
         team_elo[h] = rh + change
         team_elo[a] = ra - change
@@ -579,14 +591,7 @@ def initialize_engine():
         a_elo = TEAM_STATS.get(a, {}).get('elo', 1200)
 
         # A. CALCULATE TIME DECAY WEIGHT
-        days_old = (LATEST_DATE - match_date).days
-        years_old = int(max(0, days_old) / 365)
-        
-        if years_old == 0:   weight = 1.0  # Last 12 months
-        elif years_old == 1: weight = 0.9  # 1-2 years ago
-        elif years_old == 2: weight = 0.8  # 2-3 years ago
-        elif years_old == 3: weight = 0.7  # 3-4 years ago
-        else:                weight = 0.5  # Older
+        weight = calculate_recency_weight(match_date, LATEST_DATE)
 
         # B. UPDATE HOME STATS
         if h in TEAM_STATS:
@@ -783,6 +788,15 @@ def initialize_engine():
                 else: style = "Disciplined"
             else:
                 style = "Balanced"
+
+        # 1. Volatility Index (V_i): Mean of surprisals (higher = more erratic)
+        s['volatility'] = float(np.mean(recent_residuals[t])) if recent_residuals[t] else 0.15
+        
+        # 2. Momentum: Elo change over the last 10 games
+        if t in TEAM_HISTORY and len(TEAM_HISTORY[t]['elo']) > 10:
+            s['momentum'] = (TEAM_HISTORY[t]['elo'][-1] - TEAM_HISTORY[t]['elo'][-10]) / 100
+        else:
+            s['momentum'] = 0.0        
 
         TEAM_PROFILES[t] = style
 
@@ -982,58 +996,50 @@ def sim_match(t1, t2, knockout=False):
     if style1 in slow_styles and dr < -150: t1_def_mod *= 1.10 
     if style2 in slow_styles and dr > 150: t2_def_mod *= 1.10
 
-    # 8. FORM BIAS (FROM YOUR SNIPPET)
-    FORM_WEIGHT = 0.5 
-    off1_adj = 1.0 + (s1['off'] - 1.0) * FORM_WEIGHT
-    def1_adj = 1.0 + (s1['def'] - 1.0) * FORM_WEIGHT
-    off2_adj = 1.0 + (s2['off'] - 1.0) * FORM_WEIGHT
-    def2_adj = 1.0 + (s2['def'] - 1.0) * FORM_WEIGHT
+    # 8. MOMENTUM (Replaces old Form Hack)
+    # Scale momentum safely so it doesn't break multipliers
+    mom1_adj = np.clip(1.0 + (s1.get('momentum', 0) * 0.15), 0.85, 1.15)
+    mom2_adj = np.clip(1.0 + (s2.get('momentum', 0) * 0.15), 0.85, 1.15)
 
-    # 9. PARK THE BUS / GAME STATE (FROM YOUR SNIPPET)
+    # 9. PARK THE BUS / GAME STATE
     bus1, bus2 = 1.0, 1.0
     if dr > 300: 
         bus2, bus1 = 0.65, 0.90
     elif dr < -300:
         bus1, bus2 = 0.65, 0.90
         
-    # 10. BRINGING IT ALL TOGETHER (ELO & PEDIGREE FROM YOUR SNIPPET)
+    # 10. BRINGING IT ALL TOGETHER
     class1 = 1.0 + (we1 - 0.5) * 0.4  
     class2 = 1.0 + (we2 - 0.5) * 0.4
     ped1 = 1.0 + (pedigree_gap * 0.15)
     ped2 = 1.0 - (pedigree_gap * 0.15)
     
-    # 2026 Home Advantage
     h1 = 1.15 if t1 in ['united states', 'mexico', 'canada'] else (1.05 if confed1 == 'CONCACAF' else 1.0)
     h2 = 1.15 if t2 in ['united states', 'mexico', 'canada'] else (1.05 if confed2 == 'CONCACAF' else 1.0)
 
-    m1_base = (off1_adj * def2_adj) * class1 * ped1 * bus1
-    m2_base = (off2_adj * def1_adj) * class2 * ped2 * bus2
+    # Use raw s['off']/s['def'] because they ALREADY contain recency bias from Phase 2
+    m1_base = (s1['off'] * s2['def']) * class1 * ped1 * bus1 * mom1_adj
+    m2_base = (s2['off'] * s1['def']) * class2 * ped2 * bus2 * mom2_adj
     
-    def compress(val): return val if val <= 1.8 else 1.8 + np.log(val - 0.8) * 0.8 
+    # 11. ELASTIC LIMITER (Replaces hard 'compress')
+    vol1, vol2 = s1.get('volatility', 0.15), s2.get('volatility', 0.15)
+    total_chaos = (vol1 + vol2)
+
+    def elastic_limit(val, chaos):
+        # Base cap is 1.8x, but expands significantly for high-volatility matchups
+        ceiling = 1.8 + (chaos * 3.5) 
+        return val if val <= ceiling else ceiling + np.log(val - (ceiling - 1)) * (1.0 + chaos)
+
     intensity = 0.88 if knockout else 1.0
 
-    # 11. FINAL LAMBDA (XG) GENERATION
-    lam1 = AVG_GOALS * compress(m1_base) * h1 * intensity * pace_mod * t1_atk_mod * (2.0 - t2_def_mod)
-    lam2 = AVG_GOALS * compress(m2_base) * h2 * intensity * pace_mod * t2_atk_mod * (2.0 - t1_def_mod)
-
-    # --- VOLATILITY INDEX EXTRACTION ---
-    # Fetch team's Vi (Volatility). Default to 0.10 (Global Average) if not in the dataset.
-    vol1 = ADVANCED_TEAM_DATA.get(t1, {}).get('vol', 0.10)
-    vol2 = ADVANCED_TEAM_DATA.get(t2, {}).get('vol', 0.10)
+    lam1 = AVG_GOALS * elastic_limit(m1_base, total_chaos) * h1 * intensity * pace_mod * t1_atk_mod * (2.0 - t2_def_mod)
+    lam2 = AVG_GOALS * elastic_limit(m2_base, total_chaos) * h2 * intensity * pace_mod * t2_atk_mod * (2.0 - t1_def_mod)
 
     # 12. GOAL ROLLING (Variance Injection via Volatility)
-    def roll_goals(lam, volatility):
+    def roll_goals(lam, v):
         if lam <= 0: return 0
-        
-        # Inject Volatility: We draw a "Realized xG" from a Normal Distribution 
-        # where the Standard Deviation is strictly defined by the team's Volatility Index.
-        # Haiti (0.20) will swing wildly. Spain (0.03) will be mathematically rigid.
-        realized_lam = np.random.normal(lam, lam * volatility)
-        
-        # Ensure xG doesn't drop below a minimum bound due to negative variance swings
-        realized_lam = max(0.01, realized_lam)
-        
-        # Feed the realized xG into the standard Poisson distribution for the final score
+        # "Shake" the expected goals based on the team's historical volatility
+        realized_lam = max(0.05, np.random.normal(lam, lam * v))
         return np.random.poisson(realized_lam)
 
     g1, g2 = roll_goals(lam1, vol1), roll_goals(lam2, vol2)
