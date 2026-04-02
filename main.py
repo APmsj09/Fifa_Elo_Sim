@@ -1402,7 +1402,7 @@ def update_dashboard_data(event=None):
 
     form_html = "".join([f"<span class='form-dot {'form-'+c if c in ['W','L','D'] else ''}'>{c if c != '-' else ''}</span>" for c in stats.get('form', '-----')[-5:]])
 
-    # Use the new vs_elite tracking
+    # Use the vs_elite tracking
     s_w, s_d, s_l = stats.get('vs_elite', [0,0,0])
     upset_pct = (s_w / (s_w+s_d+s_l) * 100) if (s_w+s_d+s_l) > 0 else 0
     
@@ -1411,6 +1411,29 @@ def update_dashboard_data(event=None):
     elif global_rank <= 15 and upset_pct > 40: clutch_label, clutch_color = "Big Game Player 🏆", "#8b5cf6"
     elif stats.get('upsets_major_won', 0) > 0: clutch_label, clutch_color = "Upset Threat 🃏", "#8b5cf6"
     else: clutch_label, clutch_color = "Standard ⚖️", "var(--text-light)"
+
+    # --- 2. ADVANCED TACTICAL METRICS ---
+    adv_data = getattr(sim, 'ADVANCED_TEAM_DATA', {}).get(team, {})
+    t_poss = adv_data.get('poss', 0.50)
+    t_press = adv_data.get('press', 0.50)
+    t_dir = adv_data.get('dir', 0.50)
+    t_vol = adv_data.get('vol', 0.10)
+    
+    # Scale Volatility to a 0-100% bar (Max observed is ~0.20)
+    vol_pct = min(100, (t_vol / 0.20) * 100)
+    
+    # --- 3. TACTICAL MATCHUPS (Kryptonite & Prey) ---
+    style = sim.TEAM_PROFILES.get(team, 'Balanced')
+    matchups = getattr(sim, 'STYLE_MATCHUPS', {})
+    
+    strong_against = []
+    weak_against =[]
+    for (s1, s2), mult in matchups.items():
+        if s1 == style and mult > 1.0: strong_against.append(s2)
+        if s2 == style and mult > 1.0: weak_against.append(s1)
+        
+    strong_html = "".join([f"<span style='display:inline-block; background:rgba(16, 185, 129, 0.15); color:#10b981; padding:4px 8px; border-radius:4px; font-size:0.8em; margin:2px;'>{s}</span>" for s in strong_against]) if strong_against else "<span style='color:var(--text-light); font-size:0.8em;'>None specific</span>"
+    weak_html = "".join([f"<span style='display:inline-block; background:rgba(239, 68, 68, 0.15); color:#ef4444; padding:4px 8px; border-radius:4px; font-size:0.8em; margin:2px;'>{s}</span>" for s in weak_against]) if weak_against else "<span style='color:var(--text-light); font-size:0.8em;'>None specific</span>"
 
     # --- 4. RENDER HEADER ---
     header = js.document.getElementById("dashboard-header")
@@ -1434,57 +1457,152 @@ def update_dashboard_data(event=None):
     </div>
     """
 
-    # --- 5. RENDER METRICS ---
+    # --- Helper for Progress Bars ---
+    def make_bar(label, val, color):
+        pct = val * 100
+        return f"""
+        <div style="margin-bottom:8px;">
+            <div style="display:flex; justify-content:space-between; font-size:0.75em; font-weight:700; color:var(--text-light); text-transform:uppercase; margin-bottom:4px;">
+                <span>{label}</span><span>{pct:.0f}%</span>
+            </div>
+            <div style="height:6px; background:var(--sidebar-border); border-radius:3px; overflow:hidden;">
+                <div style="height:100%; width:{pct}%; background:{color};"></div>
+            </div>
+        </div>
+        """
+
+    # --- 5. PULL IN BULK SIMULATION HEAD-TO-HEAD DATA ---
+    sim_h2h_html = ""
+    
+    # Check if a bulk sim has been run and if the team exists in the results
+    if BULK_STATE and 'h2h' in BULK_STATE and team in BULK_STATE['h2h']:
+        h2h_data = BULK_STATE['h2h'][team]
+        min_matches = max(5, BULK_STATE['num'] * 0.01) # Ignore 1-off random matches
+        
+        valid_opps =[]
+        for opp, data in h2h_data.items():
+            if data['m'] >= min_matches:
+                win_pct = (data['w'] / data['m']) * 100
+                valid_opps.append((opp, win_pct, data['m']))
+        
+        valid_opps.sort(key=lambda x: x[1], reverse=True)
+        
+        def render_h2h_row(x):
+            return f"""
+            <div style='display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--sidebar-border);'>
+                <span style='font-weight:600; color:var(--text-main);'>{x[0].title()} <span style='font-weight:normal; font-size:0.8em; color:var(--text-light);'>({x[2]} matches)</span></span> 
+                <b style='font-size:1.1em; color:var(--text-main);'>{x[1]:.1f}%</b>
+            </div>"""
+
+        if valid_opps:
+            best_opps = valid_opps[:3]
+            worst_opps = valid_opps[-3:][::-1] # Reverse bottom 3
+            
+            best_html = "".join([render_h2h_row(x) for x in best_opps])
+            worst_html = "".join([render_h2h_row(x) for x in worst_opps])
+            
+            sim_h2h_html = f"""
+            <div class="dashboard-card" style="margin-top:20px; border-top:4px solid #8b5cf6;">
+                <h3 style="margin-top:0; color:#8b5cf6; font-size:1.1em;">🎲 Simulated Head-to-Head (Based on {BULK_STATE['num']:,} Tournaments)</h3>
+                <div style="display:flex; gap:20px; margin-top:15px;">
+                    <div style="flex:1; background:var(--card-bg); padding:15px; border-radius:8px; border-left:3px solid #10b981;">
+                        <h4 style="margin:0 0 10px 0; color:#10b981; font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">🟢 Highest Win Rate</h4>
+                        {best_html}
+                    </div>
+                    <div style="flex:1; background:var(--card-bg); padding:15px; border-radius:8px; border-left:3px solid #ef4444;">
+                        <h4 style="margin:0 0 10px 0; color:#ef4444; font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">🔴 Bogey Teams</h4>
+                        {worst_html}
+                    </div>
+                </div>
+            </div>
+            """
+        else:
+            sim_h2h_html = f"""
+            <div class="dashboard-card" style="margin-top:20px; text-align:center; padding:20px; color:var(--text-light);">
+                <span style="font-size:1.5em;">🎲</span><br>
+                Simulated data available, but {team.title()} didn't play enough knockout matches to establish statistical rivalries.
+            </div>
+            """
+    else:
+        # Prompt the user if they haven't run a simulation yet
+        sim_h2h_html = """
+        <div class="dashboard-card" style="margin-top:20px; text-align:center; padding:25px; background:rgba(139, 92, 246, 0.05); border:1px dashed rgba(139, 92, 246, 0.3);">
+            <span style="font-size:2em; margin-bottom:10px; display:inline-block;">🎲</span><br>
+            <b style="color:var(--text-main); font-size:1.1em;">Unlock Simulated Rivalries</b><br>
+            <span style="font-size:0.9em; color:var(--text-light); display:inline-block; margin-top:5px;">Run a Bulk Simulation (10,000+ matches) to automatically uncover this team's best matchups and worst "Bogey" teams.</span>
+        </div>
+        """
+
+    # --- 6. RENDER THE FINAL HTML GRID ---
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
-    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:20px; margin-bottom:25px;">
-        <div class="stat-pill" title="Expected goals scored per match vs. average team (1.0x = average, 1.5x = 50% more)">
+    <!-- TOP ROW: Power Ratings & Matchups -->
+    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:20px; margin-bottom:20px;">
+        <div class="stat-pill" title="Expected goals scored per match vs. average team">
             <div class="stat-pill-title">Offensive Power 💪</div>
             <div class="stat-pill-value" style="color:var(--accent-blue);">{round(atk_power, 2)}x</div>
             <div style="font-size:0.75em; font-weight:600; color:{atk_color}; margin-top:4px;">{atk_desc}</div>
-            <div style="font-size:0.65em; color:var(--text-light); margin-top:6px;">Expected goals/match: <b style="color:var(--text-main);">{stats.get('adj_gf', 0):.2f}</b></div>
         </div>
-        <div class="stat-pill" title="How well they defend - lower is better (0.7x = good defense, 1.2x = leaky)">
+        <div class="stat-pill" title="How well they defend - lower is better">
             <div class="stat-pill-title">Defensive Solidity 🛡️</div>
             <div class="stat-pill-value" style="color:var(--accent-green);">{round(def_index, 2)}x</div>
             <div style="font-size:0.75em; font-weight:600; color:{def_color}; margin-top:4px;">{def_desc}</div>
-            <div style="font-size:0.65em; color:var(--text-light); margin-top:6px;">Concedes/match: <b style="color:var(--text-main);">{stats.get('adj_ga', 0):.2f}</b></div>
         </div>
         <div class="stat-pill">
-            <div class="stat-pill-title">Big Game Record</div>
-            <div class="stat-pill-value">{s_w}W - {s_d}D - {s_l}L</div>
-            <div style="font-size:0.7em; color:var(--text-light); margin-top:4px;">Record vs. Top Tier Opponents</div>
-            <div style="font-size:0.65em; color:var(--text-light); margin-top:6px;">Upset Wins: <b style="color:var(--text-main);">{stats.get('upsets_major_won', 0)}</b></div>
+            <div class="stat-pill-title">Historical Matchups ⚔️</div>
+            <div style="margin-top:5px;">
+                <div style="font-size:0.7em; font-weight:bold; color:var(--text-light); margin-bottom:2px;">COUNTERS:</div>
+                <div>{strong_html}</div>
+                <div style="font-size:0.7em; font-weight:bold; color:var(--text-light); margin-top:6px; margin-bottom:2px;">WEAK TO:</div>
+                <div>{weak_html}</div>
+            </div>
         </div>
     </div>
 
-    <div class="dashboard-card" style="background:rgba(59, 130, 246, 0.05); border-left:4px solid var(--accent-blue); padding:20px; margin-bottom:0;">
-        <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">🔭 AI Scout Report</h4>
-        <div style="font-size:1em; line-height:1.6; color:var(--text-main); font-weight:500;">
-            {generate_dynamic_report(team, atk_power, def_power, upset_pct, stats)}
+    <!-- MIDDLE ROW: Advanced DNA & AI Report -->
+    <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:20px; margin-bottom:20px;">
+        <!-- Left: Stat Bars -->
+        <div class="dashboard-card" style="margin:0; padding:20px;">
+            <h4 style="margin:0 0 15px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">Advanced Tactical DNA</h4>
+            {make_bar("Possession Bias", t_poss, "#3b82f6")}
+            {make_bar("Pressing Intensity", t_press, "#ef4444")}
+            {make_bar("Vertical Directness", t_dir, "#10b981")}
+            {make_bar("Volatility (Chaos)", vol_pct / 100, "#f59e0b")} 
+        </div>
+        
+        <!-- Right: AI Report -->
+        <div class="dashboard-card" style="margin:0; padding:20px; background:rgba(59, 130, 246, 0.05); border-left:4px solid var(--accent-blue);">
+            <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">🔭 AI Scout Report</h4>
+            <div style="font-size:0.95em; line-height:1.6; color:var(--text-main); font-weight:500;">
+                {generate_dynamic_report(team, atk_power, def_power, upset_pct, stats, adv_data)}
+            </div>
         </div>
     </div>
 
-    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:15px; margin-top:20px;">
+    <!-- BOTTOM ROW: Standard Quirk Stats -->
+    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:15px;">
         <div class="stat-pill" style="padding:10px;">
-            <div class="stat-pill-title" style="font-size:0.6em;">Clean Sheets</div>
+            <div class="stat-pill-title" style="font-size:0.65em;">Clean Sheets</div>
             <div style="font-weight:800; font-size:1.1em; color:var(--text-main);">{int(stats.get('cs_pct',0))}%</div>
         </div>
         <div class="stat-pill" style="padding:10px;">
-            <div class="stat-pill-title" style="font-size:0.6em;">Both Teams Score</div>
+            <div class="stat-pill-title" style="font-size:0.65em;">Both Teams Score</div>
             <div style="font-weight:800; font-size:1.1em; color:var(--text-main);">{int(stats.get('btts_pct',0))}%</div>
         </div>
         <div class="stat-pill" style="padding:10px;">
-            <div class="stat-pill-title" style="font-size:0.6em;">Late Gls (75'+)</div>
+            <div class="stat-pill-title" style="font-size:0.65em;">Late Gls (75'+)</div>
             <div style="font-weight:800; font-size:1.1em; color:var(--accent-gold);">{int(stats.get('late_pct',0))}%</div>
         </div>
         <div class="stat-pill" style="padding:10px;">
-            <div class="stat-pill-title" style="font-size:0.6em;">Penalty Rely</div>
+            <div class="stat-pill-title" style="font-size:0.65em;">Penalty Rely</div>
             <div style="font-weight:800; font-size:1.1em; color:var(--text-main);">{int(stats.get('pen_pct',0))}%</div>
         </div>
     </div>
-    """
 
-    # --- 6. RE-RENDER CHARTS ---
+    <!-- NEW ROW: SIMULATED HEAD-TO-HEAD INJECTION -->
+    {sim_h2h_html}
+    """
+    
+    # --- 7. RE-RENDER CHARTS ---
     render_elo_chart(history, team)
     render_power_chart(atk_index, def_index, team)
 
@@ -1566,12 +1684,14 @@ def _generate_notable_results_html(team, notable_results):
     
     return html
 
-def generate_dynamic_report(team, atk, dfe, upset, stats):
+def generate_dynamic_report(team, atk, dfe, upset, stats, adv_data=None):
+    if adv_data is None: adv_data = {}
     import random
-    report_paragraphs = []
+    report_paragraphs =[]
     
-    confed = sim.TEAM_CONFEDS.get(team, 'Unknown')
-    style = sim.TEAM_PROFILES.get(team, 'Balanced')
+    # --- 1. Base Info ---
+    confed = getattr(sim, 'TEAM_CONFEDS', {}).get(team, 'Unknown')
+    style = getattr(sim, 'TEAM_PROFILES', {}).get(team, 'Balanced')
     
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
     rank = next((i+1 for i, t in enumerate(sorted_teams) if t[0] == team), 0)
@@ -1581,68 +1701,51 @@ def generate_dynamic_report(team, atk, dfe, upset, stats):
     elif rank <= 60: tier_text = "a highly competitive dark horse"
     else: tier_text = "an emerging underdog"
     
-    report_paragraphs.append(f"<b>Overview:</b> Ranked #{rank} globally, {team.title()} is {tier_text} out of {confed}. They are characterized by a <b>{style}</b> style of play.")
+    report_paragraphs.append(f"<b>Overview:</b> Ranked #{rank} globally, {team.title()} is {tier_text} out of {confed}. They utilize a <b>{style}</b> structural system.")
     
-    tactical = []
-    # Attack Text Pool
-    if atk > 1.45:
-        tactical.append(random.choice([
-            "Offensively, they are elite, generating high-quality chances with ease.",
-            "They possess a world-class attacking unit capable of dismantling any defense.",
-            "Their forward line is terrifying, consistently overwhelming opponents in the final third."
-        ]))
-    elif atk > 1.10:
-        tactical.append(random.choice([
-            "They possess a reliable attack that can break down standard defenses.",
-            "Offensively, they are highly capable and dangerous when given space.",
-            "They have a structured offensive system that consistently finds the back of the net."
-        ]))
-    else:
-        tactical.append("Goal-scoring can be a struggle, often relying on counter-attacks or opportunism.")
-        
-    # Defense Text Pool (Much stricter bounds now)
-    if dfe < 0.65:
-        tactical.append(random.choice([
-            "At the back, they boast an 'iron wall', excelling at suffocating opponent attacks.",
-            "Defensively, they are incredibly disciplined, making them notoriously difficult to break down.",
-            "They execute a masterclass defensive setup that rarely concedes high-danger chances."
-        ]))
-    elif dfe < 0.95:
-        tactical.append(random.choice([
-            "Their defensive unit is solid and organized, though occasionally vulnerable to elite forwards.",
-            "They defend reasonably well as a collective, keeping clean sheets against average opposition.",
-            "At the back, they are dependable and rarely make unforced errors."
-        ]))
-    else:
-        tactical.append("Defensively, they are quite leaky, forcing them to frequently outscore their opponents in shootouts.")
-        
+    # --- 2. Advanced Tactical Data Injection ---
+    tactical =[]
+    poss = adv_data.get('poss', 0.5)
+    vol = adv_data.get('vol', 0.10)
+    
+    if poss > 0.65: 
+        tactical.append(f"They heavily dominate the ball, maintaining an aggressive {int(poss*100)}% possession bias.")
+    elif poss < 0.40: 
+        tactical.append(f"They are entirely comfortable operating without the ball, seeing only {int(poss*100)}% possession on average.")
+    
+    if atk > 1.10: 
+        tactical.append("Offensively, they generate high-quality chances with consistency and ruthless efficiency.")
+    elif atk < 0.90: 
+        tactical.append("Goal-scoring can be a severe struggle, especially against organized defensive lines.")
+    
+    if dfe < 0.85: 
+        tactical.append("Defensively, they are incredibly disciplined and notoriously difficult to break down.")
+    elif dfe > 1.10: 
+        tactical.append("Their backline is prone to leaks, often forcing them into high-scoring shootouts to secure results.")
+    
     report_paragraphs.append("<b>Tactical DNA:</b> " + " ".join(tactical))
     
-    quirks = []
-    if stats.get('fh_pct', 0) > 55: quirks.append("They are notoriously fast starters, looking to blitz opponents early in the first half.")
-    if stats.get('late_pct', 0) > 30: quirks.append("Fitness is a key strength; they frequently score decisive goals after the 75th minute.")
-    if stats.get('pen_pct', 0) > 20: quirks.append("A significant portion of their goals come from the penalty spot.")
+    # --- 3. Volatility & Quirks ---
+    quirks =[]
     
-    btts = stats.get('btts_pct', 0)
-    if btts > 60: quirks.append("Their matches are highly entertaining, with both teams finding the net in over 60% of their fixtures.")
-    elif btts < 35: quirks.append("They prefer tight, low-event football, locking games down securely once they take the lead.")
-
-    if quirks: report_paragraphs.append("<b>Statistical Quirks:</b> " + " ".join(quirks))
+    # Volatility Check
+    if vol >= 0.15: 
+        quirks.append("⚠️ <b>High Volatility:</b> Their matches are wildly unpredictable. They are prone to suffering heavy defeats but are equally capable of pulling off massive tournament-altering upsets on any given day.")
+    elif vol <= 0.05:
+        quirks.append("🔒 <b>Highly Consistent:</b> They perform exactly to their mathematical expectations with almost zero variance. They reliably dispatch weaker teams but rarely upset heavy favorites.")
         
-    # Big Game Factor (Using the new vs_elite stats)
-    s_w, s_d, s_l = stats.get('vs_elite', [0,0,0])
-    strong_games = s_w + s_d + s_l
-    win_pct_strong = (s_w / strong_games * 100) if strong_games > 0 else 0
+    # Standard Quirks
+    if stats.get('fh_pct', 0) > 55: 
+        quirks.append("They are fast starters, looking to blitz opponents early in the first half.")
+    if stats.get('late_pct', 0) > 30: 
+        quirks.append("Fitness is a key strength; they frequently score decisive goals after the 75th minute.")
+    if stats.get('pen_pct', 0) > 20: 
+        quirks.append("A significant portion of their goals come from drawing fouls and converting penalties.")
     
-    if rank > 15 and win_pct_strong > 30:
-        report_paragraphs.append(f"<b>X-Factor:</b> {team.title()} is a certified 'giant killer' with an impressive track record of upsetting heavyweights.")
-    elif rank <= 15 and win_pct_strong > 40:
-        report_paragraphs.append(f"<b>X-Factor:</b> They are true 'Big Game Players', elevating their performance and dominating other top-tier nations.")
-    elif strong_games > 5 and win_pct_strong < 15:
-        report_paragraphs.append(f"<b>X-Factor:</b> They consistently fall short when stepping up in class against elite opposition.")
-    else:
-        report_paragraphs.append(f"<b>X-Factor:</b> They are highly consistent, comfortably beating the teams they should beat and grinding out predictable results.")
+    if quirks: 
+        report_paragraphs.append("<b>Key Traits & Variance:</b> " + " ".join(quirks))
 
+    # Wrap paragraphs in clean HTML divs
     return "".join([f"<div style='margin-bottom:12px;'>{p}</div>" for p in report_paragraphs])
 
 async def refresh_team_analysis(event=None):
