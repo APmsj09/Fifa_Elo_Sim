@@ -15,6 +15,8 @@ LAST_SIM_RESULTS = {}
 # This list prevents the browser-to-python bridges from being deleted
 EVENT_HANDLERS = []
 
+BULK_STATE = {} # Stores bulk data so we can toggle odds without re-running
+
 # =============================================================================
 # --- UTILITY FUNCTIONS ---
 # =============================================================================
@@ -179,6 +181,9 @@ def setup_interactions():
     EVENT_HANDLERS.append(proxy_refresh)
     js.window.refresh_team_analysis = proxy_refresh
 
+    js.window.change_odds_format = create_proxy(render_favorites_table)
+    js.window.show_team_path = create_proxy(open_team_path_modal)
+
     # ============================================================
     # --- NEW: EVENT DELEGATION FOR GROUPS ---
     # ============================================================
@@ -338,27 +343,36 @@ def open_group_modal(grp_name):
 # =============================================================================
 
 async def run_bulk_sim(event):
+    global BULK_STATE
     num_el = js.document.getElementById("bulk-count")
     out_div = js.document.getElementById("bulk-results")
     if not num_el or not out_div: return
     num = int(num_el.value)
     
-    # Initialize structures
+    # Initialize Tracking Structures
     team_stats = {}   
     group_mapping = {} 
+    goals_tracker = {}
+    matchups = {}
+    chaos_events = 0 # Track wins by teams outside the Top 5
+    
+    # Identify the Top 5 teams by Elo to calculate "Chaos"
+    sorted_elos = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
+    top_5_teams = [t[0] for t in sorted_elos[:5]]
     
     def init_team(t):
         if t not in team_stats:
-            # We add 'apps' to track how many times a playoff team actually made the WC
             team_stats[t] = {'apps': 0, 'grp_1st': 0, 'r32': 0, 'r16':0, 'qf':0, 'sf': 0, 'final': 0, 'win': 0}
+            goals_tracker[t] = 0
+            matchups[t] = {'Round of 16': {}, 'Quarter-finals': {}, 'Semi-finals': {}, 'Final': {}}
 
     out_div.innerHTML = f"""
     <div style='text-align:center; padding:40px;'>
-        <h2 style='color:var(--text-main); margin-bottom:15px;'>🎲 Simulating {num} Tournaments...</h2>
-        <div style='width:100%; max-width:400px; background:#e2e8f0; border-radius:10px; height:12px; margin: 0 auto; overflow:hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);'>
-            <div id='bulk-progress-bar' style='width:0%; height:100%; background:linear-gradient(90deg, #3b82f6, #2563eb); transition:width 0.1s ease-out; border-radius:10px;'></div>
+        <h2 style='color:var(--text-main); margin-bottom:15px;'>🎲 Simulating {num:,} Tournaments...</h2>
+        <div style='width:100%; max-width:400px; background:var(--sidebar-border); border-radius:10px; height:12px; margin: 0 auto; overflow:hidden;'>
+            <div id='bulk-progress-bar' style='width:0%; height:100%; background:var(--accent-blue); transition:width 0.1s ease-out; border-radius:10px;'></div>
         </div>
-        <div id='bulk-progress-text' style='margin-top:12px; font-size:1em; font-weight:700; color:#3b82f6;'>0% Complete</div>
+        <div id='bulk-progress-text' style='margin-top:12px; font-size:1em; font-weight:700; color:var(--accent-blue);'>0% Complete</div>
     </div>
     """
     await asyncio.sleep(0.05)
@@ -367,46 +381,62 @@ async def run_bulk_sim(event):
         for i in range(num):
             res = sim.run_simulation(fast_mode=False, quiet=True)
             
-            # --- A. GROUP & APPEARANCE ANALYSIS ---
+            # --- A. GROUP TRACKING ---
             for grp, table in res['groups_data'].items():
-                if grp not in group_mapping: group_mapping[grp] = {}
+                if grp not in group_mapping: group_mapping[grp] = {'teams': {}, 'total_elo': 0}
                 
-                # Track Group Winner
+                # First place
                 first_team = table[0]['team']
                 init_team(first_team)
                 team_stats[first_team]['grp_1st'] += 1
                 
-                # Track Appearance (Crucial for Playoff teams)
+                # Track Apps & Goals
                 for row in table:
                     t = row['team']
                     init_team(t)
                     team_stats[t]['apps'] += 1
-                    group_mapping[grp][t] = True 
-                    # REMOVED: r32 increment here to prevent double counting
+                    group_mapping[grp]['teams'][t] = True
+                    goals_tracker[t] += row['gf']
+                    if i == 0: group_mapping[grp]['total_elo'] += sim.TEAM_STATS.get(t, {}).get('elo', 1200)
 
-            # --- B. KNOCKOUT ANALYSIS ---
-            # Using the helper to ensure each team is counted once per round reached
+            # --- B. KNOCKOUT & MATCHUP TRACKING ---
             bracket = res['bracket_data']
             if bracket:
-                def process_round_by_name(round_name, stat_key):
-                    for r in bracket:
-                        if r['round'] == round_name:
-                            for m in r['matches']:
-                                init_team(m['t1']); team_stats[m['t1']][stat_key] += 1
-                                init_team(m['t2']); team_stats[m['t2']][stat_key] += 1
+                for r in bracket:
+                    r_name = r['round']
+                    for m in r['matches']:
+                        t1, t2 = m['t1'], m['t2']
+                        init_team(t1); init_team(t2)
+                        
+                        # Stats
+                        if r_name == 'Round of 32':
+                            team_stats[t1]['r32'] += 1; team_stats[t2]['r32'] += 1
+                        elif r_name == 'Round of 16':
+                            team_stats[t1]['r16'] += 1; team_stats[t2]['r16'] += 1
+                        elif r_name == 'Quarter-finals':
+                            team_stats[t1]['qf'] += 1; team_stats[t2]['qf'] += 1
+                        elif r_name == 'Semi-finals':
+                            team_stats[t1]['sf'] += 1; team_stats[t2]['sf'] += 1
+                        elif r_name == 'Final':
+                            team_stats[t1]['final'] += 1; team_stats[t2]['final'] += 1
+                            
+                        # Goals
+                        goals_tracker[t1] += m['g1']
+                        goals_tracker[t2] += m['g2']
+                        
+                        # Matchups (Who played who)
+                        if r_name in matchups[t1]:
+                            matchups[t1][r_name][t2] = matchups[t1][r_name].get(t2, 0) + 1
+                            matchups[t2][r_name][t1] = matchups[t2][r_name].get(t1, 0) + 1
 
-                process_round_by_name('Round of 32', 'r32')
-                process_round_by_name('Round of 16', 'r16')
-                process_round_by_name('Quarter-finals', 'qf')
-                process_round_by_name('Semi-finals', 'sf')
-                process_round_by_name('Final', 'final')
-
-            # Track Winner
+            # Track Winner & Chaos
             champ = res['champion']
             init_team(champ)
             team_stats[champ]['win'] += 1
+            if champ not in top_5_teams:
+                chaos_events += 1
             
-            # CRITICAL FIX: Properly yield to Pyodide event loop to draw progress
+            # Progress Update
             if i % max(1, num // 20) == 0:
                 pct = int((i / num) * 100)
                 pbar = js.document.getElementById("bulk-progress-bar")
@@ -414,99 +444,214 @@ async def run_bulk_sim(event):
                 if pbar: pbar.style.width = f"{pct}%"
                 if ptext: ptext.innerHTML = f"{pct}% Complete"
                 await asyncio.sleep(0.01)
-            
-        # --- 7. GENERATE OUTPUT ---
-        html = "<h2 style='color:#2c3e50;'>📋 PROJECTED GROUP STANDINGS</h2>"
-        html += "<p style='color:var(--text-light); font-size:0.9em; margin-bottom:20px;'><span style='cursor:help;'>💡 Hover over percentages to see 95% confidence intervals</span></p>"
-        html += "<div style='display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px;'>"
-        
-        for grp in sorted(group_mapping.keys()):
-            html += f"""<div class='dashboard-card'>
-                <h3 style='color:var(--accent-blue);'>🔹 Group {grp}</h3>
-                <table style='width:100%; font-size:0.85em;'>
-                    <tr style='text-align:left; color:var(--text-light);'>
-                        <th>Team</th>
-                        <th style='text-align:right;'>Win Group</th>
-                        <th style='text-align:right;'>Advance</th>
-                    </tr>"""
-            
-            # Sort teams in this group by their overall advancement probability
-            group_teams = list(group_mapping[grp].keys())
-            group_teams.sort(key=lambda t: team_stats[t]['r32'], reverse=True)
 
-            for t in group_teams:
-                s = team_stats[t]
-                # Probability of reaching R32 relative to the WHOLE tournament
-                adv_pct = (s['r32'] / num) * 100
-                win_grp_pct = (s['grp_1st'] / num) * 100
-                
-                # Calculate confidence intervals
-                adv_ci = calculate_ci(s['r32'], num)
-                win_grp_ci = calculate_ci(s['grp_1st'], num)
-                
-                # If a team only appears in 10% of sims (playoffs), we fade their name
-                opacity = "1.0" if (s['apps']/num) > 0.5 else "0.5"
-                
-                html += f"""<tr style='opacity:{opacity};'>
-                    <td style='font-weight:600;'>{t.title()}</td>
-                    <td style='text-align:right;'><span class='ci-value' data-ci='95% CI: ±{win_grp_ci:.1f}%'>{win_grp_pct:.1f}%</span></td>
-                    <td style='text-align:right; font-weight:bold;'><span class='ci-value' data-ci='95% CI: ±{adv_ci:.1f}%'>{adv_pct:.1f}%</span></td>
-                </tr>"""
-            html += "</table></div>"
-        
-        html += "</div>"
+        # --- SAVE STATE GLOBALLY ---
+        BULK_STATE = {
+            'num': num, 'stats': team_stats, 'matchups': matchups, 
+            'goals': goals_tracker, 'groups': group_mapping, 'chaos': chaos_events
+        }
 
-        # SECTION 2: TOURNAMENT FAVORITES
-        html += "<br><h2 style='color:var(--text-main); border-bottom:2px solid #ddd; padding-bottom:10px; margin-top:30px;'>🏆 TOURNAMENT FAVORITES</h2>"
-        html += "<p style='color:var(--text-light); font-size:0.9em; margin-bottom:15px;'><span style='cursor:help;'>💡 Hover over percentages to see 95% confidence intervals</span></p>"
-        html += """
-        <table class="favorites-table">
-            <tr style="background:#2c3e50; color:white; text-align:left;">
-                <th style="padding:12px;">Team</th>
-                <th style="padding:12px; text-align:right; background:#34495e;">R16 %</th>
-                <th style="padding:12px; text-align:right; background:#34495e;">QF %</th>
-                <th style="padding:12px; text-align:right;">Semis %</th>
-                <th style="padding:12px; text-align:right;">Finals %</th>
-                <th style="padding:12px; text-align:right; background:#f1c40f; color:#2c3e50;">Win %</th>
-            </tr>
-        """
-        
-        all_teams_sorted = sorted(team_stats.items(), key=lambda x: x[1]['win'], reverse=True)
-        
-        for team, s in all_teams_sorted:
-            win_pct = (s['win'] / num) * 100
-            final_pct = (s['final'] / num) * 100
-            semi_pct = (s['sf'] / num) * 100
-            qf_pct = (s['qf'] / num) * 100
-            r16_pct = (s['r16'] / num) * 100
-            
-            # Calculate confidence intervals
-            win_ci = calculate_ci(s['win'], num)
-            final_ci = calculate_ci(s['final'], num)
-            semi_ci = calculate_ci(s['sf'], num)
-            qf_ci = calculate_ci(s['qf'], num)
-            r16_ci = calculate_ci(s['r16'], num)
-            
-            # Threshold to hide unlikely teams (Adjusted slightly to show more depth)
-            if r16_pct < 1.0 and win_pct < 0.1: continue
-            
-            html += f"""
-            <tr style="border-bottom:1px solid #eee;">
-                <td style="padding:10px; font-weight:bold;">{team.title()}</td>
-                <td style="padding:10px; text-align:right;"><span class='ci-value' data-ci='95% CI: ±{r16_ci:.1f}%'>{r16_pct:.1f}%</span></td>
-                <td style="padding:10px; text-align:right;"><span class='ci-value' data-ci='95% CI: ±{qf_ci:.1f}%'>{qf_pct:.1f}%</span></td>
-                <td style="padding:10px; text-align:right;"><span class='ci-value' data-ci='95% CI: ±{semi_ci:.1f}%'>{semi_pct:.1f}%</span></td>
-                <td style="padding:10px; text-align:right;"><span class='ci-value' data-ci='95% CI: ±{final_ci:.1f}%'>{final_pct:.1f}%</span></td>
-                <td style="padding:10px; text-align:right; font-weight:bold;"><span class='ci-value' data-ci='95% CI: ±{win_ci:.1f}%'>{win_pct:.1f}%</span></td>
-            </tr>
-            """
-            
-        html += "</table>"
-        out_div.innerHTML = html
+        # --- BUILD INITIAL UI ---
+        build_bulk_dashboard()
 
     except Exception as e:
         out_div.innerHTML = f"<div style='color:red; padding:20px; font-weight:bold;'>Error: {e}</div>"
         js.console.error(f"BULK SIM ERROR: {e}")
+
+def build_bulk_dashboard():
+    """Generates the main structure for the Bulk Tab."""
+    state = BULK_STATE
+    num = state['num']
+    out_div = js.document.getElementById("bulk-results")
+    
+    # 1. Calculate Summary Metrics
+    # A. Chaos Level
+    chaos_pct = (state['chaos'] / num) * 100
+    if chaos_pct > 40: chaos_desc, chaos_col = "High 🌋", "var(--accent-red)"
+    elif chaos_pct > 20: chaos_desc, chaos_col = "Medium 🌪️", "var(--accent-gold)"
+    else: chaos_desc, chaos_col = "Low (Chalk) 🧊", "var(--accent-blue)"
+    
+    # B. Cinderella / Dark Horse
+    # Criteria: Rank > 15, highest chance to reach Quarter-finals
+    sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
+    eligible_underdogs = [t[0] for i, t in enumerate(sorted_teams) if i > 14 and t[0] in state['stats']]
+    cinderella = "None"
+    if eligible_underdogs:
+        cinderella = max(eligible_underdogs, key=lambda t: state['stats'][t]['qf'])
+    cind_pct = (state['stats'][cinderella]['qf'] / num * 100) if cinderella != "None" else 0
+    
+    # C. Golden Boot Team
+    avg_goals = {t: (g / num) for t, g in state['goals'].items()}
+    top_scorer = max(avg_goals, key=avg_goals.get) if avg_goals else "None"
+    
+    # D. Group of Death
+    group_elos = {g: data['total_elo'] for g, data in state['groups'].items()}
+    group_of_death = max(group_elos, key=group_elos.get) if group_elos else "A"
+
+    # 2. Build HTML
+    html = f"""
+    <!-- SUMMARY DASHBOARD -->
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:30px;">
+        <div class="dashboard-card" style="margin:0; border-left:4px solid {chaos_col};">
+            <div style="font-size:0.75em; text-transform:uppercase; color:var(--text-light); font-weight:700;">Chaos Index</div>
+            <div style="font-size:1.6em; font-weight:900; color:var(--text-main); margin:5px 0;">{chaos_desc}</div>
+            <div style="font-size:0.8em; color:var(--text-light);">Underdog Win Prob: {chaos_pct:.1f}%</div>
+        </div>
+        <div class="dashboard-card" style="margin:0; border-left:4px solid var(--accent-gold);">
+            <div style="font-size:0.75em; text-transform:uppercase; color:var(--text-light); font-weight:700;">Top Dark Horse</div>
+            <div style="font-size:1.6em; font-weight:900; color:var(--accent-gold); margin:5px 0;">{cinderella.title()}</div>
+            <div style="font-size:0.8em; color:var(--text-light);">{cind_pct:.1f}% chance to reach QF</div>
+        </div>
+        <div class="dashboard-card" style="margin:0; border-left:4px solid var(--accent-green);">
+            <div style="font-size:0.75em; text-transform:uppercase; color:var(--text-light); font-weight:700;">Highest Scoring Team</div>
+            <div style="font-size:1.6em; font-weight:900; color:var(--accent-green); margin:5px 0;">{top_scorer.title()}</div>
+            <div style="font-size:0.8em; color:var(--text-light);">{avg_goals[top_scorer]:.1f} projected tournament goals</div>
+        </div>
+    </div>
+
+    <!-- GROUPS GRID -->
+    <h3 style='color:var(--text-main); border-bottom:2px solid var(--sidebar-border); padding-bottom:10px;'>📋 Projected Group Standings</h3>
+    <div style='display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:15px; margin-bottom:40px;'>
+    """
+    
+    # Render Groups
+    for grp in sorted(state['groups'].keys()):
+        is_god = "💀" if grp == group_of_death else ""
+        html += f"""<div class='dashboard-card' style='margin:0; padding:15px;'>
+            <h4 style='margin:0 0 10px 0; color:var(--accent-blue);'>Group {grp} <span style="float:right;" title="Group of Death">{is_god}</span></h4>
+            <table style='width:100%; font-size:0.85em; border-collapse:collapse;'>"""
+        
+        group_teams = list(state['groups'][grp]['teams'].keys())
+        group_teams.sort(key=lambda t: state['stats'][t]['r32'], reverse=True)
+
+        for t in group_teams:
+            s = state['stats'][t]
+            adv_pct = (s['r32'] / num) * 100
+            opacity = "1.0" if (s['apps']/num) > 0.5 else "0.5"
+            
+            html += f"""<tr style='opacity:{opacity}; border-bottom:1px solid var(--sidebar-border);'>
+                <td style='padding:6px 0; font-weight:600;'>{t.title()}</td>
+                <td style='padding:6px 0; text-align:right; font-weight:bold; color:var(--accent-green);'>{adv_pct:.1f}%</td>
+            </tr>"""
+        html += "</table></div>"
+    
+    html += "</div>"
+
+    # FAVORITES HEADER & CONTROLS
+    html += """
+    <div style='display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid var(--sidebar-border); padding-bottom:10px; margin-bottom:15px;'>
+        <div>
+            <h3 style='color:var(--text-main); margin:0;'>🏆 Tournament Favorites</h3>
+            <p style='color:var(--text-light); font-size:0.8em; margin:5px 0 0 0;'>Click a team name to view their likely path.</p>
+        </div>
+        <select id="odds-format-selector" onchange="window.change_odds_format()" style="padding:6px 12px; border-radius:6px; border:1px solid var(--sidebar-border); background:var(--card-bg); color:var(--text-main); font-size:0.85em; cursor:pointer;">
+            <option value="pct">Probabilities (%)</option>
+            <option value="dec">Decimal Odds (2.50)</option>
+            <option value="amer">American Odds (+150)</option>
+        </select>
+    </div>
+    
+    <div id="favorites-table-container"></div>
+    
+    <!-- MODAL INJECTION AREA -->
+    <div id="path-modal-container"></div>
+    """
+    
+    out_div.innerHTML = html
+    render_favorites_table() # Renders the actual table into the container
+
+def render_favorites_table(event=None):
+    """Renders the favorites table based on the selected odds format."""
+    state = BULK_STATE
+    if not state: return
+    
+    num = state['num']
+    team_stats = state['stats']
+    
+    # Safely get format (default to pct)
+    format_el = js.document.getElementById("odds-format-selector")
+    fmt = format_el.value if format_el else "pct"
+    
+    def format_odds(count, total):
+        if count == 0: return "-"
+        p = count / total
+        if fmt == "pct": return f"{p*100:.1f}%"
+        if fmt == "dec": return f"{1/p:.2f}"
+        if fmt == "amer":
+            if p >= 0.5: return f"{int(-(p / (1 - p)) * 100)}"
+            else: return f"+{int(((1 - p) / p) * 100)}"
+    
+    html = """<table class="favorites-table">
+        <tr style="text-align:left;">
+            <th>Team</th><th>R16</th><th>QF</th><th>Semis</th><th>Finals</th><th style="color:var(--accent-gold);">Win</th>
+        </tr>"""
+    
+    all_teams_sorted = sorted(team_stats.items(), key=lambda x: x[1]['win'], reverse=True)
+    
+    for team, s in all_teams_sorted:
+        if (s['r16'] / num) < 0.01 and (s['win'] / num) < 0.001: continue
+        
+        html += f"""
+        <tr>
+            <td><button onclick="window.show_team_path('{team}')" style="background:transparent; border:none; color:var(--accent-blue); font-weight:bold; cursor:pointer; font-size:1em; padding:0; text-align:left;">{team.title()} 🔍</button></td>
+            <td style="text-align:right;">{format_odds(s['r16'], num)}</td>
+            <td style="text-align:right;">{format_odds(s['qf'], num)}</td>
+            <td style="text-align:right;">{format_odds(s['sf'], num)}</td>
+            <td style="text-align:right;">{format_odds(s['final'], num)}</td>
+            <td style="text-align:right; font-weight:bold;">{format_odds(s['win'], num)}</td>
+        </tr>
+        """
+    html += "</table>"
+    js.document.getElementById("favorites-table-container").innerHTML = html
+
+def open_team_path_modal(team):
+    """Generates a popup showing the most likely opponents for a specific team."""
+    state = BULK_STATE
+    matchups = state['matchups'].get(team)
+    if not matchups: return
+    
+    def get_top_opponents(round_name, limit=3):
+        opps = matchups.get(round_name, {})
+        total_games = sum(opps.values())
+        if total_games == 0: return "<div style='color:var(--text-light); font-size:0.85em;'>Did not reach this round enough.</div>"
+        
+        sorted_opps = sorted(opps.items(), key=lambda x: x[1], reverse=True)[:limit]
+        out = ""
+        for opp, count in sorted_opps:
+            pct = (count / total_games) * 100
+            out += f"""
+            <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:0.9em; border-bottom:1px solid var(--sidebar-border); padding-bottom:3px;">
+                <span style="color:var(--text-main); font-weight:500;">{opp.title()}</span>
+                <span style="color:var(--accent-blue); font-weight:bold;">{pct:.1f}%</span>
+            </div>"""
+        return out
+
+    html = f"""
+    <div id="path-modal-overlay" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center; backdrop-filter:blur(3px);" onclick="document.getElementById('path-modal-overlay').remove()">
+        <div style="background:var(--card-bg); width:90%; max-width:500px; border-radius:12px; padding:25px; box-shadow:var(--shadow-lg);" onclick="event.stopPropagation()">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid var(--sidebar-border); padding-bottom:10px;">
+                <h2 style="margin:0; color:var(--text-main);">🔮 The Path: {team.title()}</h2>
+                <button onclick="document.getElementById('path-modal-overlay').remove()" style="background:transparent; border:none; font-size:1.5em; cursor:pointer; color:var(--text-light);">&times;</button>
+            </div>
+            
+            <p style="font-size:0.85em; color:var(--text-light); margin-bottom:20px;">If they reach these rounds, here are their most mathematically likely opponents based on the bracket structure:</p>
+            
+            <div style="margin-bottom:20px;">
+                <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.8em; text-transform:uppercase;">Round of 16 Matchups</h4>
+                {get_top_opponents('Round of 16')}
+            </div>
+            <div style="margin-bottom:20px;">
+                <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.8em; text-transform:uppercase;">Quarter-Final Matchups</h4>
+                {get_top_opponents('Quarter-finals')}
+            </div>
+            <div style="margin-bottom:20px;">
+                <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.8em; text-transform:uppercase;">Semi-Final Matchups</h4>
+                {get_top_opponents('Semi-finals')}
+            </div>
+        </div>
+    </div>
+    """
+    js.document.getElementById("path-modal-container").innerHTML = html
 
 async def run_matchup_analysis(event):
     team_a = js.document.getElementById("matchup-team-a").value
@@ -1108,48 +1253,6 @@ def populate_team_dropdown(target_id="team-select-dashboard", wc_only=False):
     search_input.addEventListener("blur", proxy_blur)
     dropdown.addEventListener("click", proxy_select)
 
-def populate_team_dropdown(target_id="team-select-dashboard", wc_only=False):
-
-    """
-    Robustly populates the team dropdown. 
-    Can target either the dashboard select or a specific ID.
-    """
-    select = js.document.getElementById(target_id)
-    
-    # If the specific target doesn't exist, try the sidebar fallback
-    if not select:
-        select = js.document.getElementById("team-select")
-        
-    if not select:
-        return # Exit if neither exists
-
-    current_val = select.value
-    select.innerHTML = "" # Clear existing options
-
-    # Sort teams by ELO
-    sorted_teams = sorted(
-        sim.TEAM_STATS.items(),
-        key=lambda x: x[1]['elo'],
-        reverse=True
-    )
-
-    # Create Options
-    for team, stats in sorted_teams:
-        if wc_only and team not in sim.WC_TEAMS:
-            continue
-
-        opt = js.document.createElement("option")
-        opt.value = team
-        opt.text = team.title()
-        select.appendChild(opt)
-
-    # Restore selection or default to first option
-    if current_val:
-        select.value = current_val
-    
-    if not select.value and select.options.length > 0:
-        select.selectedIndex = 0
-        select.value = select.options[0].value
 
 def handle_history_filter_change(event):
     is_checked = js.document.getElementById("hist-filter-wc").checked
