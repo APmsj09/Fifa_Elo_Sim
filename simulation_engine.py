@@ -871,7 +871,7 @@ def calculate_confed_strength():
         
         # Safety Valve: Don't let the multiplier drop below 0.60
         # Even the weakest region shouldn't be "half as good" in a 90-minute sim
-        CONFED_MULTIPLIERS[confed] = round(max(0.60, ratio), 3)
+        CONFED_MULTIPLIERS[confed] = round(max(0.55, ratio**2.2), 3)
         js.console.error(f"{confed}: {CONFED_MULTIPLIERS[confed]} (Based on score {int(score)})")
 
 def sim_match(t1, t2, knockout=False):
@@ -1014,8 +1014,12 @@ def sim_match(t1, t2, knockout=False):
     ped1 = 1.0 + (pedigree_gap * 0.15)
     ped2 = 1.0 - (pedigree_gap * 0.15)
     
-    h1 = 1.15 if t1 in ['united states', 'mexico', 'canada'] else (1.05 if confed1 == 'CONCACAF' else 1.0)
-    h2 = 1.15 if t2 in ['united states', 'mexico', 'canada'] else (1.05 if confed2 == 'CONCACAF' else 1.0)
+    h1 = 1.25 if t1 in ['united states', 'mexico', 'canada'] else (1.08 if confed1 == 'CONCACAF' else 1.0)
+    h2 = 1.25 if t2 in ['united states', 'mexico', 'canada'] else (1.08 if confed2 == 'CONCACAF' else 1.0)
+
+    # Then, also give hosts a "Defensive Grit" boost:
+    if t1 in ['united states', 'mexico', 'canada']: t1_def_mod *= 1.15
+    if t2 in ['united states', 'mexico', 'canada']: t2_def_mod *= 1.15
 
     # Use raw s['off']/s['def'] because they ALREADY contain recency bias from Phase 2
     m1_base = (s1['off'] * s2['def']) * class1 * ped1 * bus1 * mom1_adj
@@ -1038,8 +1042,14 @@ def sim_match(t1, t2, knockout=False):
     # 12. GOAL ROLLING (Variance Injection via Volatility)
     def roll_goals(lam, v):
         if lam <= 0: return 0
-        # "Shake" the expected goals based on the team's historical volatility
-        realized_lam = max(0.05, np.random.normal(lam, lam * v))
+    
+        # NEW: Desperation Variance
+        # If a team's expected goals (lam) is > 2.5, we slightly increase 
+        # the volatility (v) of the match. This represents the 'heavy favorite' 
+        # struggling to finish against a low-block, creating chance for an upset.
+        effective_v = v * (1.2 if lam > 2.5 else 1.0)
+    
+        realized_lam = max(0.05, np.random.normal(lam, lam * effective_v))
         return np.random.poisson(realized_lam)
 
     g1, g2 = roll_goals(lam1, vol1), roll_goals(lam2, vol2)
