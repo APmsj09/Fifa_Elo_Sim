@@ -363,8 +363,16 @@ async def run_bulk_sim(event):
         if t not in team_stats:
             team_stats[t] = {'apps': 0, 'grp_1st': 0, 'r32': 0, 'r16':0, 'qf':0, 'sf': 0, 'final': 0, 'win': 0}
             goals_tracker[t] = 0
-            matchups[t] = {'Round of 32': {}, 'Round of 16': {}, 'Quarter-finals': {}, 'Semi-finals': {}, 'Final': {}}
-            h2h_tracker[t] = {} # Initialize H2H dict
+            # ADD 'Third Place Play-off' HERE:
+            matchups[t] = {
+                'Round of 32': {}, 
+                'Round of 16': {}, 
+                'Quarter-finals': {}, 
+                'Semi-finals': {}, 
+                'Third Place Play-off': {}, # <--- Add this line
+                'Final': {}
+            }
+            h2h_tracker[t] = {}
             
     def update_h2h(t1, t2, winner):
         if t2 not in h2h_tracker[t1]: h2h_tracker[t1][t2] = {'m': 0, 'w': 0, 'l': 0, 'd': 0}
@@ -500,7 +508,7 @@ def build_bulk_dashboard():
     # --- CALCULATE TOURNAMENT TRIVIA ---
     ko_counts = {}
     giant_killer = ("None", "None", 0, 0) # team, victim, wins, total
-    
+
     for t1, opps in state['h2h'].items():
         elo1 = sim.TEAM_STATS.get(t1, {}).get('elo', 1200)
         for t2, data in opps.items():
@@ -712,6 +720,10 @@ def open_team_path_modal(team):
             <div style="margin-bottom:15px;">
                 <h4 style="margin:0 0 8px 0; color:var(--text-main); font-size:0.75em; text-transform:uppercase; letter-spacing:1px;">Semi-Finals</h4>
                 {get_top_opponents('Semi-finals')}
+            </div>
+            <div style="margin-bottom:15px;">
+                <h4 style="margin:0 0 8px 0; color:#94a3b8; font-size:0.75em; text-transform:uppercase; letter-spacing:1px;">Third Place Play-off</h4>
+                {get_top_opponents('Third Place Play-off')}
             </div>
             
             <!-- NEW: BEST & WORST MATCHUPS -->
