@@ -42,8 +42,11 @@ def toggle_dark_mode(event):
         if btn: btn.innerText = "☀️"
         
     # Re-render active charts if in history tab to update text colors
-    if js.document.getElementById("tab-history").style.display == "block":
-        update_dashboard_data()
+    try:
+        if js.document.getElementById("tab-history").style.display == "block":
+            update_dashboard_data()
+    except:
+        pass
 
 def apply_saved_theme():
     """Apply saved theme preference from localStorage on page load."""
@@ -803,6 +806,10 @@ async def run_matchup_analysis(event):
 # =============================================================================
 
 def build_dashboard_shell():
+    """
+    Injects the dashboard layout safely, preserving the containers 
+    needed for both History and Style Map modes.
+    """
     container = js.document.getElementById("tab-history")
     
     container.innerHTML = """
@@ -1150,66 +1157,6 @@ def handle_history_filter_change(event):
     populate_team_dropdown(wc_only=is_checked)
     load_data_view(None)
 
-def build_dashboard_shell():
-    """
-    Injects the dashboard layout safely, preserving the containers 
-    needed for both History and Style Map modes.
-    """
-    container = js.document.getElementById("tab-history")
-    
-    container.innerHTML = """
-    <div style="background:white; padding:15px; border-radius:8px; display:flex; gap:10px; align-items:center; margin-bottom:20px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-        <label style="font-weight:bold; color:#2c3e50;">Select Team:</label>
-        <select id="team-select-dashboard" onchange="window.refresh_team_analysis()" style="padding:8px; border-radius:4px; border:1px solid #bdc3c7; flex-grow:1;"></select>
-        
-        <div style="width:1px; height:30px; background:#eee; margin:0 10px;"></div>
-        
-        <button id="btn-show-dashboard" class="nav-btn" style="width:auto; background:#34495e; padding:8px 15px;">📊 Profile</button>
-        <button id="btn-show-style" class="nav-btn" style="width:auto; background:#8e44ad; padding:8px 15px;">🗺️ Style Map</button>
-    </div>
-
-    <div id="view-profile">
-        <div id="dashboard-header"></div>
-        <div id="dashboard-metrics"></div>
-
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:20px;">
-            <div style="background:white; padding:20px; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-                <h4 style="margin-top:0; color:#7f8c8d;">Performance History</h4>
-                <div id="dashboard_chart_elo"></div>
-            </div>
-            <div style="background:white; padding:20px; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-                <h4 style="margin-top:0; color:#7f8c8d;">Strategic DNA</h4>
-                <div id="dashboard_chart_radar"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="view-style-map" style="display:none;">
-        <div style="background:white; padding:20px; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-             <div id="main-chart-container" style="min-height:500px;"></div>
-        </div>
-    </div>
-    """
-
-    # Re-bind the internal buttons since we just created them
-    # We use a helper function here or manual binding
-    def toggle_view(mode):
-        p = js.document.getElementById("view-profile")
-        s = js.document.getElementById("view-style-map")
-        if mode == 'profile':
-            p.style.display = "block"
-            s.style.display = "none"
-            update_dashboard_data()
-        else:
-            p.style.display = "none"
-            s.style.display = "block"
-            # Trigger the style map plot logic
-            asyncio.ensure_future(plot_style_map(None))
-
-    # Bind the toggle buttons
-    js.document.getElementById("btn-show-dashboard").onclick = create_proxy(lambda e: toggle_view('profile'))
-    js.document.getElementById("btn-show-style").onclick = create_proxy(lambda e: toggle_view('style'))
-
 async def view_team_history(event=None):
     global DASHBOARD_BUILT
 
@@ -1228,7 +1175,7 @@ async def view_team_history(event=None):
     update_dashboard_data()
 
 
-def update_dashboard_data():
+def update_dashboard_data(event=None):
     select = js.document.getElementById("team-select-dashboard")
     if not select or not select.value:
         populate_team_dropdown(target_id="team-select-dashboard") 
@@ -1238,6 +1185,8 @@ def update_dashboard_data():
 
     team = select.value
     stats = sim.TEAM_STATS.get(team)
+    if not stats: return
+
     history = sim.TEAM_HISTORY.get(team)
     confed = sim.TEAM_CONFEDS.get(team.lower(), 'OFC')
     
@@ -1254,7 +1203,7 @@ def update_dashboard_data():
     
     # Final adjusted power for display
     atk_power = atk_index * reg_mult
-    def_power = def_index # Defense is already relative to opponent in your engine
+    def_power = def_index
     
     # Percentile Logic (Casual Friendly)
     if atk_power > 1.45: atk_desc, atk_color = "Elite 🔥", "var(--accent-green)"
@@ -1350,70 +1299,7 @@ def update_dashboard_data():
     </div>
     """
 
-    <!-- EXPANDED: Notable Results & Achievements -->
-    <div class="dashboard-card" style="background:linear-gradient(135deg, #fef3c7 0%, #fef9e7 100%); border-left:4px solid #f59e0b; margin-top:20px;">
-        <h4 style="margin:0 0 12px 0; color:#92400e; font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">⭐ Notable Achievements & Playing Style</h4>
-        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px;">
-            <div>
-                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">Upset Wins</div>
-                <div style="font-size:2em; font-weight:900; color:#f59e0b;">{stats.get('upsets_major_won', 0)}</div>
-                <div style="font-size:0.75em; color:var(--text-light);">Wins vs stronger teams</div>
-            </div>
-            <div>
-                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">vs Elite Win %</div>
-                <div style="font-size:2em; font-weight:900; color:#f59e0b;">{upset_pct:.0f}%</div>
-                <div style="font-size:0.75em; color:var(--text-light);">vs top tier teams</div>
-            </div>
-            <div>
-                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">Clean Sheets</div>
-                <div style="font-size:2em; font-weight:900; color:#f59e0b;">{int(stats.get('cs_pct',0))}%</div>
-                <div style="font-size:0.75em; color:var(--text-light);">Shutout rate</div>
-            </div>
-        </div>
-        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; margin-top:15px; padding-top:15px; border-top:1px solid rgba(245, 158, 11, 0.2);">
-            <div>
-                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">Both Teams Score</div>
-                <div style="font-size:1.5em; font-weight:900; color:#f59e0b;">{int(stats.get('btts_pct',0))}%</div>
-                <div style="font-size:0.75em; color:var(--text-light);">High-scoring games</div>
-            </div>
-            <div>
-                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">Late Goals (75'+)</div>
-                <div style="font-size:1.5em; font-weight:900; color:#f59e0b;">{int(stats.get('late_pct',0))}%</div>
-                <div style="font-size:0.75em; color:var(--text-light);">Clutch finishers</div>
-            </div>
-            <div>
-                <div style="font-weight:bold; font-size:0.9em; color:#b45309;">Penalty Conversion</div>
-                <div style="font-size:1.5em; font-weight:900; color:#f59e0b;">{int(stats.get('pen_pct',0))}%</div>
-                <div style="font-size:0.75em; color:var(--text-light);">From the spot</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- EXPANDED: Detailed Performance Metrics -->
-    <div class="dashboard-card" style="border-left:4px solid #3b82f6; margin-top:20px;">
-        <h4 style="margin:0 0 12px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">📊 Detailed Performance</h4>
-        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; font-size:0.9em;">
-            <div style="background:#f0fdf4; padding:12px; border-radius:6px; border-left:3px solid #10b981;">
-                <div style="font-weight:bold; color:#166534; font-size:0.8em; text-transform:uppercase;">Avg Goals For</div>
-                <div style="font-size:1.6em; font-weight:bold; color:#22c55e; margin:4px 0;">{stats.get('adj_gf', 0):.2f}</div>
-                <div style="font-size:0.7em; color:var(--text-light);">per match</div>
-            </div>
-            <div style="background:#fef2f2; padding:12px; border-radius:6px; border-left:3px solid #ef4444;">
-                <div style="font-weight:bold; color:#991b1b; font-size:0.8em; text-transform:uppercase;">Avg Goals Against</div>
-                <div style="font-size:1.6em; font-weight:bold; color:#ef4444; margin:4px 0;">{stats.get('adj_ga', 0):.2f}</div>
-                <div style="font-size:0.7em; color:var(--text-light);">per match</div>
-            </div>
-            <div style="background:#f0f9ff; padding:12px; border-radius:6px; border-left:3px solid #3b82f6;">
-                <div style="font-weight:bold; color:#1e40af; font-size:0.8em; text-transform:uppercase;">Goal Difference</div>
-                <div style="font-size:1.6em; font-weight:bold; color:#3b82f6; margin:4px 0;">{(stats.get('adj_gf', 0) - stats.get('adj_ga', 0)):+.2f}</div>
-                <div style="font-size:0.7em; color:var(--text-light);">per match</div>
-            </div>
-        </div>
-    </div>
-    """
-
     # --- 6. RE-RENDER CHARTS ---
-    # Update Charts with clean styling
     render_elo_chart(history, team)
     render_power_chart(atk_index, def_index, team)
 
