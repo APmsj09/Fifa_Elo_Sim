@@ -6,10 +6,13 @@ import js
 from pyodide.http import open_url
 
 def calculate_recency_weight(match_date, latest_date):
-    """Calculates a smooth decay weight based on match age."""
+    """
+    Halves importance every ~3 years (1,066 days).
+    A match from 4 years ago (1,460 days) is now worth ~39% (approx 2.5x less).
+    """
     days_old = (latest_date - match_date).days
-    # Halves the importance of a match every ~2 years (730 days)
-    return math.exp(-0.00095 * max(0, days_old))
+    # 0.00065 provides a smoother, more 'stable' memory for international teams
+    return math.exp(-0.00065 * max(0, days_old))
 
 # =============================================================================
 # --- PART 1: SETUP & DATA LOADING ---
@@ -430,6 +433,11 @@ def initialize_engine():
     TEAM_HISTORY = {} 
     global TEAM_STATS
     TEAM_STATS = {}
+
+    recent_residuals = {t: [] for t in all_teams_set}
+    
+    # Pre-calculate the latest date in the dataset for the weight function
+    LATEST_DATE = elo_df['date'].max()
     
     # 1. INITIALIZE ALL TEAMS FIRST
     # We create the master dictionary here so every team has empty counters ready.
@@ -462,6 +470,17 @@ def initialize_engine():
         # A. GET "LIVE" RATINGS (At the time of match)
         rh = team_elo.get(h, INITIAL_RATING)
         ra = team_elo.get(a, INITIAL_RATING)
+
+        # Identify "High-Pressure" matches
+        ko_stages = ['Quarter-finals', 'Semi-finals', 'Final']
+        if any(stage in tourney for stage in ko_stages):
+            # Calculate weight for this specific historical match
+            # (Ensure LATEST_DATE is defined or use the current match date)
+            w = calculate_recency_weight(date, pd.to_datetime('2025-01-01')) 
+            
+            # Add the weighted experience
+            TEAM_STATS[h]['ko_exp_weighted'] = TEAM_STATS[h].get('ko_exp_weighted', 0) + w
+            TEAM_STATS[a]['ko_exp_weighted'] = TEAM_STATS[a].get('ko_exp_weighted', 0) + w
         
         # B. DETERMINE RESULT (0=Win, 1=Draw, 2=Loss)
         if hs > as_:   res_h, res_a = 0, 2
@@ -550,9 +569,20 @@ def initialize_engine():
         k = get_k_factor(tourney, abs(hs - as_), h, a)
         change = k * (W - we)
 
+        W_h = 1.0 if hs > as_ else (0.5 if hs == as_ else 0.0)
+
+        # If the match is recent, track the surprisal (volatility)
         if date > RELEVANCE_CUTOFF:
-            recent_residuals[h].append((W - we)**2)
-            recent_residuals[a].append(((1 - W) - (1 - we))**2)
+            # 1. Calculate the Recency Weight (smooth decay)
+            weight = calculate_recency_weight(date, LATEST_DATE)
+            
+            # 2. Home Team Volatility: (Actual - Expected)^2
+            res_h = (W_h - we_h)**2
+            recent_residuals[h].append((weight, res_h))
+            
+            # 3. Away Team Volatility: Surprisal is mirrored
+            res_a = ((1.0 - W_h) - (1.0 - we_h))**2
+            recent_residuals[a].append((weight, res_a))
         
         team_elo[h] = rh + change
         team_elo[a] = ra - change
@@ -789,8 +819,16 @@ def initialize_engine():
             else:
                 style = "Balanced"
 
-        # 1. Volatility Index (V_i): Mean of surprisals (higher = more erratic)
-        s['volatility'] = float(np.mean(recent_residuals[t])) if recent_residuals[t] else 0.15
+        # Calculate the Weighted Mean Volatility
+        if t in recent_residuals and recent_residuals[t]:
+            # sum(weight * residual) / sum(weights)
+            num = sum(w * r for w, r in recent_residuals[t])
+            den = sum(w for w, r in recent_residuals[t])
+            
+            # Final Index: 0.05 (Rigid) to 0.35 (Chaos)
+            s['volatility'] = np.clip(num / den, 0.05, 0.35)
+        else:
+            s['volatility'] = 0.15
         
         # 2. Momentum: Elo change over the last 10 games
         if t in TEAM_HISTORY and len(TEAM_HISTORY[t]['elo']) > 10:
@@ -890,7 +928,7 @@ def sim_match(t1, t2, knockout=False):
     
     # 2. MATCH-DAY WIN EXPECTANCY
     dr = s1['elo'] - s2['elo']
-    we1 = 1 / (10**(-dr/400) + 1)
+    we1 = 1 / (10**(-dr/650) + 1)
     we2 = 1 - we1
     
     # 3. ARCHETYPE BRIDGE
@@ -1040,19 +1078,22 @@ def sim_match(t1, t2, knockout=False):
     lam2 = AVG_GOALS * elastic_limit(m2_base, total_chaos) * h2 * intensity * pace_mod * t2_atk_mod * (2.0 - t1_def_mod)
 
     # 12. GOAL ROLLING (Variance Injection via Volatility)
-    def roll_goals(lam, v):
-        if lam <= 0: return 0
-    
-        # NEW: Desperation Variance
-        # If a team's expected goals (lam) is > 2.5, we slightly increase 
-        # the volatility (v) of the match. This represents the 'heavy favorite' 
-        # struggling to finish against a low-block, creating chance for an upset.
-        effective_v = v * (1.2 if lam > 2.5 else 1.0)
-    
-        realized_lam = max(0.05, np.random.normal(lam, lam * effective_v))
-        return np.random.poisson(realized_lam)
+    def roll_goals(lam, v, ko_exp_weighted):
+        # Composure is now based on weighted (decayed) experience
+        # Max composure (0.7) reached at ~5 units of weighted experience
+        composure = np.clip(1.0 - (ko_exp_weighted * 0.06), 0.7, 1.0)
+        
+        # Shake the lambda
+        # High experience = less 'shaking' (more predictable elite performance)
+        # Low experience + High Volatility = Total Chaos (Upset potential)
+        realized_lam = np.random.normal(lam, lam * (v * composure))
+        return np.random.poisson(max(0.05, realized_lam))
 
-    g1, g2 = roll_goals(lam1, vol1), roll_goals(lam2, vol2)
+    # Apply it
+    ko1 = s1.get('ko_exp_weighted', 0)
+    ko2 = s2.get('ko_exp_weighted', 0)
+    g1 = roll_goals(lam1 * fatigue1, vol1, ko1)
+    g2 = roll_goals(lam2 * fatigue2, vol2, ko2)
     
     # --- RESULT LOGIC ---
     if g1 > g2: return (t1, g1, g2, 'reg') if knockout else (t1, g1, g2)
