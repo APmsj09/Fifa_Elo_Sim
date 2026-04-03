@@ -926,7 +926,7 @@ def sim_match(t1, t2, knockout=False):
         ceiling = 2.1 + (chaos * 1.5) 
         return val if val <= ceiling else ceiling + np.log(val - (ceiling - 1)) * (1.0 + chaos)
 
-     intensity = 1.15 if knockout else 1.0
+    intensity = 1.15 if knockout else 1.0
 
     lam1 = AVG_GOALS * elastic_limit(m1_base, total_chaos) * h1 * intensity * pace_mod * t1_atk_mod * (2.0 - t2_def_mod)
     lam2 = AVG_GOALS * elastic_limit(m2_base, total_chaos) * h2 * intensity * pace_mod * t2_atk_mod * (2.0 - t1_def_mod)
