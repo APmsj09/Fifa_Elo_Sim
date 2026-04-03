@@ -730,6 +730,52 @@ def initialize_engine():
 # =============================================================================
 # --- PART 3: SIMULATION ---
 # =============================================================================
+def calculate_confed_strength():
+    """
+    Calculates a 'Nerf' multiplier based on a Composite Score:
+    50% Weight = Elite Strength (Top 3 Teams)
+    50% Weight = Depth Strength (Average of the Top 50% of teams)
+    
+    This penalizes 'Top Heavy' regions where a few giants farm points 
+    against weak depth.
+    """
+    global CONFED_MULTIPLIERS
+    
+    buckets = {c: [] for c in set(TEAM_CONFEDS.values())}
+    for team, stats in TEAM_STATS.items():
+        confed = TEAM_CONFEDS.get(team.lower(), 'OFC') 
+        buckets[confed].append(stats['elo'])
+        
+    confed_scores = {}
+    
+    all_elos = sorted([s['elo'] for s in TEAM_STATS.values()], reverse=True)
+    global_elite_avg = sum(all_elos[:10]) / 10
+
+    for confed, elos in buckets.items():
+        if not elos:
+            confed_scores[confed] = 1000
+            continue
+            
+        elos.sort(reverse=True)
+        num_teams = len(elos)
+        # --- DYNAMIC ELITE POOL ---
+        elite_count = max(2, int(math.sqrt(num_teams)))
+        elite_avg = sum(elos[:elite_count]) / elite_count
+        
+        # --- DEPTH SCORE ---
+        depth_count = max(1, int(num_teams * 0.5))
+        depth_avg = sum(elos[:depth_count]) / depth_count
+        
+        # --- DYNAMIC COMPOSITE ---
+        composite = (elite_avg * 0.6) + (depth_avg * 0.4)
+        density_bonus = 1.0 + (1 / num_teams) 
+        confed_scores[confed] = composite * density_bonus
+
+    baseline = max(confed_scores.values())
+    
+    for confed, score in confed_scores.items():
+        ratio = score / baseline
+        CONFED_MULTIPLIERS[confed] = round(max(0.80, ratio**1.5), 3)
 
 # --- PERFORMANCE CACHING & FAST MATH UTILS ---
 OPEN_STYLES = {'High Risk', 'High Press', 'Technical Play', 'Fast Build-up'}
@@ -762,7 +808,6 @@ def _roll_goals(lam, v, ko_exp_weighted):
     if composure < 0.85: composure = 0.85
     elif composure > 1.0: composure = 1.0
     
-    # random.gauss is significantly faster than np.random.normal for scalar numbers
     realized_lam = random.gauss(lam, lam * (v * 0.4 * composure))
     if realized_lam < 0.1: realized_lam = 0.1
     return np.random.poisson(realized_lam)
