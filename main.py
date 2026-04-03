@@ -617,8 +617,11 @@ def render_favorites_table(event=None):
         if fmt == "pct": return f"{p*100:.1f}%"
         if fmt == "dec": return f"{1/p:.2f}"
         if fmt == "amer":
-            if p >= 0.5: return f"{int(-(p / (1 - p)) * 100)}"
-            else: return f"+{int(((1 - p) / p) * 100)}"
+            # Correct American Odds Formula
+            if p > 0.5: 
+                return f"{int((p / (1 - p)) * -100)}"
+            else: 
+                return f"+{int(((1 - p) / p) * 100)}"
     
     # Updated Headers with explicit text-align:right to match the data cells
     html = f"""<table class="favorites-table">

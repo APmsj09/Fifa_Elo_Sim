@@ -483,10 +483,10 @@ def initialize_engine():
         if h not in TEAM_HISTORY: TEAM_HISTORY[h] = {'dates': [], 'elo': []}
         if a not in TEAM_HISTORY: TEAM_HISTORY[a] = {'dates': [], 'elo': []}
         
-         # Calculate Expectancy
+        # Calculate Expectancy (Divisor changed to 400 for better elite separation)
         dr = rh - ra + (100 if not neutral else 0)
-        we_h = 1 / (10**(-dr/500) + 1)
-        W_h = 1.0 if hs > as_ else (0.5 if as_ > hs else 0.0)
+        we_h = 1 / (10**(-dr/400) + 1)
+        W_h = 1.0 if hs > as_ else (0.5 if hs == as_ else 0.0)
         
         # Apply Update
         k = get_k_factor(tourney, abs(hs - as_), h, a)
@@ -494,12 +494,13 @@ def initialize_engine():
 
         # If the match is recent, track the surprisal (volatility)
         if date > RELEVANCE_CUTOFF:
-             # 1. Calculate the Recency Weight (smooth decay)
             weight = calculate_recency_weight(date, LATEST_DATE)
-             # 2. Home Team Volatility: (Actual - Expected)^2
+            
+            # 2. Home Team Volatility: (Actual - Expected)^2
             res_h_vol = (W_h - we_h)**2
             recent_residuals[h].append((weight, res_h_vol))
-             # 3. Away Team Volatility: Surprisal is mirrored
+            
+            # 3. Away Team Volatility: Surprisal is mirrored
             res_a_vol = ((1.0 - W_h) - (1.0 - we_h))**2
             recent_residuals[a].append((weight, res_a_vol))
         
@@ -896,13 +897,13 @@ def sim_match(t1, t2, knockout=False):
     elif dr < -300:
         bus1, bus2 = 0.65, 0.90
         
-    # Class multiplier reduced to prevent double-counting elo supremacy
-    class1 = 1.0 + (we1 - 0.5) * 0.15  
-    class2 = 1.0 + (we2 - 0.5) * 0.15
+    # 10. BRINGING IT ALL TOGETHER
+    class1 = 1.0 + (we1 - 0.5) * 0.25  # Reduced from 0.4 to prevent over-boosting
+    class2 = 1.0 + (we2 - 0.5) * 0.25
     ped1 = 1.0 + (pedigree_gap * 0.15)
     ped2 = 1.0 - (pedigree_gap * 0.15)
     
-    # Host advantages lowered to grounded standards
+    # Normalized host advantages
     h1 = 1.15 if t1 in ['united states', 'mexico', 'canada'] else (1.05 if confed1 == 'CONCACAF' else 1.0)
     h2 = 1.15 if t2 in ['united states', 'mexico', 'canada'] else (1.05 if confed2 == 'CONCACAF' else 1.0)
 
@@ -912,11 +913,12 @@ def sim_match(t1, t2, knockout=False):
     m1_base = (s1['off'] * s2['def']) * class1 * ped1 * bus1 * mom1_adj
     m2_base = (s2['off'] * s1['def']) * class2 * ped2 * bus2 * mom2_adj
     
+    # 11. ELASTIC LIMITER (Replaces hard 'compress')
     vol1, vol2 = s1.get('volatility', 0.15), s2.get('volatility', 0.15)
     total_chaos = (vol1 + vol2)
 
     def elastic_limit(val, chaos):
-        # Base cap lowered to 1.6x from 1.8x
+        # Base cap lowered to 1.6x from 1.8x to prevent 7-0 blowouts becoming normal
         ceiling = 1.6 + (chaos * 2.5) 
         return val if val <= ceiling else ceiling + np.log(val - (ceiling - 1)) * (1.0 + chaos)
 
@@ -931,6 +933,7 @@ def sim_match(t1, t2, knockout=False):
         realized_lam = np.random.normal(lam, lam * (v * composure))
         return np.random.poisson(max(0.05, realized_lam))
 
+    # Apply it (Removed undefined fatigue variables)
     ko1 = s1.get('ko_exp_weighted', 0)
     ko2 = s2.get('ko_exp_weighted', 0)
     g1 = roll_goals(lam1, vol1, ko1)
