@@ -949,88 +949,75 @@ def precompute_match_data():
         }
 
 def sim_match(t1, t2, knockout=False):
-    """
-    100% Data-Driven Sim: Elo Anchor (70%) + Tactical Stats (30%) + Volatility Variance
-    """
     p1 = TEAM_PRECOMPUTE.get(t1)
     p2 = TEAM_PRECOMPUTE.get(t2)
-    
     if not p1 or not p2: return t1, 1, 0, 'reg'
-    
-    # 1. Match Environment Context
+
+    # 1. Boosted Tournament Environment
+    # 2.8 base ensures finalists reach ~12-16 goals. 
+    # intensity = 1.1 (High stakes games usually have more 'events' or desperate attacking)
     pace = (p1['pace'] + p2['pace']) / 2
-    intensity = 0.9 if knockout else 1.0
+    intensity = 1.1 if knockout else 1.0
+    total_match_goals = 2.8 * pace * intensity 
     
-    # =========================================================
-    # 2. LAMBDA CALCULATION (Elo Anchor + Regional Correction)
-    # =========================================================
-    
-    total_match_goals = AVG_GOALS * pace * intensity
-    team_base = total_match_goals / 2.0
-    
-    # --- A. REGIONAL ELO CORRECTION ---
+    # 2. Elo Regional Correction
     adj_elo1 = p1['elo'] * p1['confed_mult']
     adj_elo2 = p2['elo'] * p2['confed_mult']
-    
-    # --- B. THE ELO ANCHOR (70% Weight) ---
     dr = (adj_elo1 - adj_elo2)
-    win_prob = 1 / (10**(-dr/400) + 1)
-    
-    elo_lam1 = total_match_goals * win_prob
-    elo_lam2 = total_match_goals * (1.0 - win_prob)
 
-    # --- C. THE TACTICAL FLAVOR (30% Weight) ---
-    stat_lam1 = team_base * p1['xg_coeff'] * p2['xga_coeff']
-    stat_lam2 = team_base * p2['xg_coeff'] * p1['xga_coeff']
-
-    # --- D. THE FINAL BLEND ---
-    lam1_raw = (elo_lam1 * 0.70) + (stat_lam1 * 0.30)
-    lam2_raw = (elo_lam2 * 0.70) + (stat_lam2 * 0.30)
+    # 3. Elo Anchor (Stronger Separation)
+    # Instead of win_prob, we use a Goal Advantage formula
+    # Every 100 Elo points = ~0.45 goal advantage
+    elo_adv = dr / 220.0
     
-    # --- E. CONSISTENCY BONUS (Clinical Finishing) ---
-    # Rewards teams with low volatility for being "clinical"
-    consistency_bonus1 = max(0, 0.10 - p1['vol'])
-    consistency_bonus2 = max(0, 0.10 - p2['vol'])
-    
-    lam1 = max(0.05, lam1_raw * (1.0 + consistency_bonus1))
-    lam2 = max(0.05, lam2_raw * (1.0 + consistency_bonus2))
+    elo_lam1 = (total_match_goals / 2) + (elo_adv / 2)
+    elo_lam2 = (total_match_goals / 2) - (elo_adv / 2)
 
-    # =========================================================
-    # 3. THE ROLL (Poisson with Volatility & Composure)
-    # =========================================================
-    def roll(lam, vol, composure, is_ko):
-        # If knockout match, apply Composure (The Choke/Shine factor)
+    # 4. Tactical Stat Flavor (SOS Adjusted)
+    stat_lam1 = (total_match_goals / 2) * p1['xg_coeff'] * p2['xga_coeff']
+    stat_lam2 = (total_match_goals / 2) * p2['xg_coeff'] * p1['xga_coeff']
+
+    # 5. The Master Blend (65% Elo / 35% Stats)
+    # This ensures a team's global rank is the primary driver of their scoring
+    lam1 = max(0.1, (elo_lam1 * 0.65) + (stat_lam1 * 0.35))
+    lam2 = max(0.1, (elo_lam2 * 0.65) + (stat_lam2 * 0.35))
+    
+    # 6. Consistency/Clinical Bonus
+    # Low vol teams (machines) get a small efficiency boost in their lambda
+    lam1 *= (1.0 + max(0, 0.12 - p1['vol']))
+    lam2 *= (1.0 + max(0, 0.12 - p2['vol']))
+
+    # 7. THE ROLL (Single Poisson for Stability)
+    # We remove the Normal Jitter and use Volatility to affect the final Poisson spread
+    def roll(l, v, c, is_ko):
         if is_ko:
-            pressure_vol = vol * (1.5 - (composure * 0.5))
+            # Composure (0 to 1) reduces the chaos of Volatility under pressure
+            active_vol = v * (1.4 - (c * 0.6))
         else:
-            pressure_vol = vol
-            
-        jittered_lam = np.random.normal(lam, lam * pressure_vol)
-        return np.random.poisson(max(0.05, jittered_lam))
+            active_vol = v
+        
+        # We use a Gamma-distributed Lambda to create Volatility
+        # This is a 'Negative Binomial' approximation, much more realistic for football
+        if active_vol > 0:
+            l = np.random.gamma(1/active_vol, l * active_vol)
+        return np.random.poisson(max(0.05, l))
 
     g1 = roll(lam1, p1['vol'], p1['composure'], knockout)
     g2 = roll(lam2, p2['vol'], p2['composure'], knockout)
 
-    # =========================================================
-    # 4. MATCH RESOLUTION
-    # =========================================================
+    # Resolution (Rest of the function remains the same)
     if g1 > g2: return (t1, g1, g2, 'reg') if knockout else (t1, g1, g2)
     if g2 > g1: return (t2, g1, g2, 'reg') if knockout else (t2, g1, g2)
     if not knockout: return 'draw', g1, g2
 
-    # Extra Time (Approx 1/3 of a standard match)
-    g1 += roll(lam1 * 0.33, p1['vol'], p1['composure'], knockout)
-    g2 += roll(lam2 * 0.33, p2['vol'], p2['composure'], knockout)
-    
+    # Extra Time (Slightly more than 1/3 of match time)
+    g1 += roll(lam1 * 0.4, p1['vol'], p1['composure'], True)
+    g2 += roll(lam2 * 0.4, p2['vol'], p2['composure'], True)
     if g1 > g2: return t1, g1, g2, 'aet'
     if g2 > g1: return t2, g1, g2, 'aet'
     
-    # Penalties
-    # Adjusted win chance based on Elo Pressure + Historic Penalty Bonus
-    win_chance = 0.5 + (dr / 2000.0) + (p1['p_b'] - p2['p_b'])
-    win_chance = np.clip(win_chance, 0.30, 0.70)
-        
-    winner = t1 if random.random() < win_chance else t2
+    win_chance = 0.5 + (dr / 1800.0) + (p1['p_b'] - p2['p_b'])
+    winner = t1 if random.random() < np.clip(win_chance, 0.25, 0.75) else t2
     return winner, g1, g2, 'pks'
 
 def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=None):
