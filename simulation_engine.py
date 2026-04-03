@@ -950,39 +950,25 @@ def precompute_match_data():
 
 def sim_match(t1, t2, knockout=False):
     """
-    Pure data-driven sim using engineered signatures.
+    100% Data-Driven Sim: Elo Anchor (70%) + Tactical Stats (30%) + Volatility Variance
     """
     p1 = TEAM_PRECOMPUTE.get(t1)
     p2 = TEAM_PRECOMPUTE.get(t2)
     
     if not p1 or not p2: return t1, 1, 0, 'reg'
     
-    # 1. Elo Skill Gap
-    dr = (p1['elo'] - p2['elo'])
-    win_prob = 1 / (10**(-dr/400) + 1)
-    
-    # 2. Data-Driven Power (Engineered xG vs Opponent's historical goals conceded)
-    # This captures "Team 1's finishing efficiency" vs "Team 2's defensive shape"
-    t1_power = p1['xg_coeff'] * (p2['ga_avg'] / 1.25)
-    t2_power = p2['xg_coeff'] * (p1['ga_avg'] / 1.25)
-    
-    # 3. Game Pace & Confederation Weight
+    # 1. Match Environment Context
     pace = (p1['pace'] + p2['pace']) / 2
-    reg_weight = (p1['confed_mult'] + p2['confed_mult']) / 2
     intensity = 0.9 if knockout else 1.0
     
     # =========================================================
-    # 4. LAMBDA CALCULATION (Elo Anchor + Regional Correction)
+    # 2. LAMBDA CALCULATION (Elo Anchor + Regional Correction)
     # =========================================================
     
-    # 1. Match Environment
     total_match_goals = AVG_GOALS * pace * intensity
     team_base = total_match_goals / 2.0
     
     # --- A. REGIONAL ELO CORRECTION ---
-    # We combat "Regional Inflation" by multiplying Elo by the Confed Multiplier.
-    # UEFA (e.g., 1.06) slightly boosts their Elo. 
-    # CONCACAF (e.g., 0.95) slightly deflates their farmed Elo.
     adj_elo1 = p1['elo'] * p1['confed_mult']
     adj_elo2 = p2['elo'] * p2['confed_mult']
     
@@ -998,30 +984,50 @@ def sim_match(t1, t2, knockout=False):
     stat_lam2 = team_base * p2['xg_coeff'] * p1['xga_coeff']
 
     # --- D. THE FINAL BLEND ---
-    lam1 = max(0.05, (elo_lam1 * 0.70) + (stat_lam1 * 0.30))
-    lam2 = max(0.05, (elo_lam2 * 0.70) + (stat_lam2 * 0.30))
+    lam1_raw = (elo_lam1 * 0.70) + (stat_lam1 * 0.30)
+    lam2_raw = (elo_lam2 * 0.70) + (stat_lam2 * 0.30)
+    
+    # --- E. CONSISTENCY BONUS (Clinical Finishing) ---
+    # Rewards teams with low volatility for being "clinical"
+    consistency_bonus1 = max(0, 0.10 - p1['vol'])
+    consistency_bonus2 = max(0, 0.10 - p2['vol'])
+    
+    lam1 = max(0.05, lam1_raw * (1.0 + consistency_bonus1))
+    lam2 = max(0.05, lam2_raw * (1.0 + consistency_bonus2))
 
-    # 5. The Roll (Using Historical Standard Deviation/Volatility)
-    def roll(lam, vol):
-        jittered_lam = np.random.normal(lam, lam * vol)
+    # =========================================================
+    # 3. THE ROLL (Poisson with Volatility & Composure)
+    # =========================================================
+    def roll(lam, vol, composure, is_ko):
+        # If knockout match, apply Composure (The Choke/Shine factor)
+        if is_ko:
+            pressure_vol = vol * (1.5 - (composure * 0.5))
+        else:
+            pressure_vol = vol
+            
+        jittered_lam = np.random.normal(lam, lam * pressure_vol)
         return np.random.poisson(max(0.05, jittered_lam))
 
-    g1 = roll(lam1, p1['vol'])
-    g2 = roll(lam2, p2['vol'])
+    g1 = roll(lam1, p1['vol'], p1['composure'], knockout)
+    g2 = roll(lam2, p2['vol'], p2['composure'], knockout)
 
+    # =========================================================
+    # 4. MATCH RESOLUTION
+    # =========================================================
     if g1 > g2: return (t1, g1, g2, 'reg') if knockout else (t1, g1, g2)
     if g2 > g1: return (t2, g1, g2, 'reg') if knockout else (t2, g1, g2)
     if not knockout: return 'draw', g1, g2
 
-    # Extra Time
-    g1 += roll(lam1 * 0.3, p1['vol'])
-    g2 += roll(lam2 * 0.3, p2['vol'])
+    # Extra Time (Approx 1/3 of a standard match)
+    g1 += roll(lam1 * 0.33, p1['vol'], p1['composure'], knockout)
+    g2 += roll(lam2 * 0.33, p2['vol'], p2['composure'], knockout)
+    
     if g1 > g2: return t1, g1, g2, 'aet'
     if g2 > g1: return t2, g1, g2, 'aet'
     
     # Penalties
-    # Adjusted win chance based on Elo (Pressure) + Engineered Penalty Bonus
-    win_chance = 0.5 + (dr/2000.0) + (p1['p_b'] - p2['p_b'])
+    # Adjusted win chance based on Elo Pressure + Historic Penalty Bonus
+    win_chance = 0.5 + (dr / 2000.0) + (p1['p_b'] - p2['p_b'])
     win_chance = np.clip(win_chance, 0.30, 0.70)
         
     winner = t1 if random.random() < win_chance else t2
