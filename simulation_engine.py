@@ -23,6 +23,7 @@ DATA_DIR = "."
 TEAM_STATS = {}
 TEAM_PROFILES = {}
 TEAM_HISTORY = {}
+ADVANCED_TEAM_DATA = {} 
 AVG_GOALS = 2.5
 calculated_hfa = 0.0
 
