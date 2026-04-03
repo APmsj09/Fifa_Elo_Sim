@@ -24,6 +24,7 @@ TEAM_STATS = {}
 TEAM_PROFILES = {}
 TEAM_HISTORY = {}
 AVG_GOALS = 2.5
+calculated_hfa = 0.0
 
 # The 48 Teams of World Cup 2026 (Fully Qualified)
 WC_TEAMS = [
