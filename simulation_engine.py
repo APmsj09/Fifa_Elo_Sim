@@ -169,7 +169,7 @@ ADVANCED_TEAM_DATA = {
 STYLE_MATCHUPS = {
     # High Press disrupts teams that try to build from the back
     ('High Press', 'Ball Control'): 1.08,
-    ('Ball Control', 'High Press'): 0.90,
+    ('Ball Control', 'High Press'): 0.95,
     
     # Direct Play bypasses the High Press completely
     ('Direct Play', 'High Press'): 1.08,
@@ -181,7 +181,7 @@ STYLE_MATCHUPS = {
 
     # Counter-Attack exploits high lines and possession teams
     ('Counter-Attack', 'Ball Control'): 1.08,
-    ('Ball Control', 'Counter-Attack'): 0.92,
+    ('Ball Control', 'Counter-Attack'): 0.96,
     ('Counter-Attack', 'High Risk'): 1.10,
     ('High Risk', 'Counter-Attack'): 0.90,
     
@@ -203,7 +203,7 @@ STYLE_MATCHUPS = {
 
     # Ball Control starves Direct Play and grinds down Deep Blocks over 90 mins
     ('Ball Control', 'Direct Play'): 1.08,
-    ('Direct Play', 'Ball Control'): 0.90,
+    ('Direct Play', 'Ball Control'): 0.94,
     ('Ball Control', 'Deep Block'): 1.05,
     ('Deep Block', 'Ball Control'): 0.95
 }
@@ -632,8 +632,8 @@ def initialize_engine():
         # -----------------------------------------------------------
         elo_ratio = s['elo'] / GLOBAL_ELO_MEAN
         # Power curve reduced to rein in dominant teams
-        elo_off = elo_ratio ** 1.35 
-        elo_def = 1.0 / elo_off
+        elo_off = elo_ratio ** 1.4 
+        elo_def = 1.0 / (elo_ratio ** 1.2)
         
         elo_off = np.clip(elo_off, 0.4, 2.5)
         elo_def = np.clip(elo_def, 0.4, 2.5)
@@ -785,7 +785,8 @@ def calculate_confed_strength():
     
     for confed, score in confed_scores.items():
         ratio = score / baseline
-        CONFED_MULTIPLIERS[confed] = round(max(0.55, ratio**2.2), 3)
+        # ratio**1.5 instead of 2.2 makes the nerf less aggressive
+        CONFED_MULTIPLIERS[confed] = round(max(0.80, ratio**1.5), 3)
 
 def sim_match(t1, t2, knockout=False):
     s1 = TEAM_STATS.get(t1, {'elo':1200, 'off':1.0, 'def':1.0})
@@ -824,11 +825,13 @@ def sim_match(t1, t2, knockout=False):
         # We scale between the absolute floor (Curaçao at ~1250) and ceiling (Spain at ~2000)
         # np.interp(elo, [1200, 1900],[multiplier_at_1200, multiplier_at_2000])
         if style == 'Ball Control':
-            atk = np.interp(elo, [1200, 1900], [0.80, 1.10])
-            dfe = np.interp(elo, [1200, 1900], [0.75, 1.08])
+            # Buffed: Elites now reach 1.20x atk instead of 1.10x
+            atk = np.interp(elo, [1200, 2000], [0.90, 1.20])
+            dfe = np.interp(elo, [1200, 2000], [0.85, 1.15])
         elif style == 'Technical Play':
-            atk = np.interp(elo, [1200, 1900], [0.85, 1.15])
-            dfe = np.interp(elo, [1200, 1900], [0.85, 1.00])
+            # Buffed: Ceiling raised for individual brilliance
+            atk = np.interp(elo, [1200, 2000], [0.95, 1.25])
+            dfe = np.interp(elo, [1200, 2000], [0.90, 1.10])
         elif style == 'High Press':
             atk = np.interp(elo, [1200, 1900], [0.85, 1.10])
             dfe = np.interp(elo, [1200, 1900], [0.80, 1.05])
@@ -842,8 +845,9 @@ def sim_match(t1, t2, knockout=False):
             atk = np.interp(elo, [1200, 1900], [0.95, 0.88])
             dfe = np.interp(elo, [1200, 1900], [1.15, 1.02])
         elif style == 'Deep Block':
-            atk = np.interp(elo, [1200, 1900], [0.88, 0.75])
-            dfe = np.interp(elo, [1200, 1900], [1.20, 1.12])
+            # Def lowered from 1.20 to 1.10. It's an advantage, but not a cheat code.
+            atk = np.interp(elo, [1200, 1900], [0.90, 0.80])
+            dfe = np.interp(elo, [1200, 1900], [1.10, 1.05])
         elif style == 'Direct Play':
             atk = np.interp(elo, [1200, 1900], [1.08, 0.92])
             dfe = np.interp(elo, [1200, 1900], [1.05, 0.96])
@@ -898,8 +902,8 @@ def sim_match(t1, t2, knockout=False):
         bus1, bus2 = 0.65, 0.90
         
     # 10. BRINGING IT ALL TOGETHER
-    class1 = 1.0 + (we1 - 0.5) * 0.25  # Reduced from 0.4 to prevent over-boosting
-    class2 = 1.0 + (we2 - 0.5) * 0.25
+    class1 = 1.0 + (we1 - 0.5) * 0.12 
+    class2 = 1.0 + (we2 - 0.5) * 0.12
     ped1 = 1.0 + (pedigree_gap * 0.15)
     ped2 = 1.0 - (pedigree_gap * 0.15)
     
@@ -918,20 +922,22 @@ def sim_match(t1, t2, knockout=False):
     total_chaos = (vol1 + vol2)
 
     def elastic_limit(val, chaos):
-        # Base cap lowered to 1.6x from 1.8x to prevent 7-0 blowouts becoming normal
-        ceiling = 1.6 + (chaos * 2.5) 
+        # Raised ceiling to 2.1x: Favorites are allowed to be dominant again.
+        ceiling = 2.1 + (chaos * 1.5) 
         return val if val <= ceiling else ceiling + np.log(val - (ceiling - 1)) * (1.0 + chaos)
 
-    intensity = 0.88 if knockout else 1.0
+     intensity = 1.15 if knockout else 1.0
 
     lam1 = AVG_GOALS * elastic_limit(m1_base, total_chaos) * h1 * intensity * pace_mod * t1_atk_mod * (2.0 - t2_def_mod)
     lam2 = AVG_GOALS * elastic_limit(m2_base, total_chaos) * h2 * intensity * pace_mod * t2_atk_mod * (2.0 - t1_def_mod)
 
     # 12. GOAL ROLLING (Variance Injection via Volatility)
     def roll_goals(lam, v, ko_exp_weighted):
-        composure = np.clip(1.0 - (ko_exp_weighted * 0.05), 0.8, 1.0)
-        realized_lam = np.random.normal(lam, lam * (v * composure))
-        return np.random.poisson(max(0.05, realized_lam))
+        # Reduced variance: Multiplying volatility (v) by 0.4 
+        # This prevents the "Lambda" from swinging wildly into upset territory.
+        composure = np.clip(1.0 - (ko_exp_weighted * 0.05), 0.85, 1.0)
+        realized_lam = np.random.normal(lam, lam * (v * 0.4 * composure))
+        return np.random.poisson(max(0.1, realized_lam))
 
     # Apply it (Removed undefined fatigue variables)
     ko1 = s1.get('ko_exp_weighted', 0)
@@ -950,7 +956,8 @@ def sim_match(t1, t2, knockout=False):
     
     p1_b = 0.08 if style1 in ['Set-Piece Reliant', 'Control / Disciplined', 'Tactical Pragmatism'] else 0
     p2_b = 0.08 if style2 in ['Set-Piece Reliant', 'Control / Disciplined', 'Tactical Pragmatism'] else 0
-    winner = t1 if random.random() < np.clip(0.5 + (dr/4000) + (p1_b - p2_b), 0.40, 0.60) else t2
+    win_chance = np.clip(0.5 + (dr/2000) + (p1_b - p2_b), 0.30, 0.70)
+    winner = t1 if random.random() < win_chance else t2
     return winner, g1, g2, 'pks'
 
 def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=None):
