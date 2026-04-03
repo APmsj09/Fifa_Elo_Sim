@@ -935,20 +935,17 @@ def precompute_match_data():
         style = TEAM_PROFILES.get(t, 'Balanced')
         confed = TEAM_CONFEDS.get(t, 'OFC')
         
-        is_host = t in ['united states', 'mexico', 'canada']
-        h_mod = 1.15 if is_host else 1.0 
-        
         p_b = 0.05 if s.get('pen_pct', 0) > 15 else 0
         
         TEAM_PRECOMPUTE[t] = {
             'elo': s.get('elo', 1200),
-            'xg_coeff': s.get('engineered_xg', 1.0),
+            'xg_coeff': s.get('off', 1.0),   
+            'xga_coeff': s.get('def', 1.0),  
             'pace': s.get('pace_factor', 1.0),
             'vol': s.get('volatility', 0.15),
-            'confed_mult': CONFED_MULTIPLIERS.get(confed, 1.0),
-            'p_b': p_b,
-            'gf_avg': s.get('gf_avg', 1.25),  # <--- ADD THIS LINE
-            'ga_avg': s.get('ga_avg', 1.25)
+            'composure': s.get('ko_exp_weighted', 0) / 15.0, 
+            'confed_mult': CONFED_MULTIPLIERS.get(confed, 1.0), # <--- BROUGHT BACK
+            'p_b': p_b
         }
 
 def sim_match(t1, t2, knockout=False):
@@ -975,30 +972,34 @@ def sim_match(t1, t2, knockout=False):
     intensity = 0.9 if knockout else 1.0
     
     # =========================================================
-    # 4. LAMBDA CALCULATION (Cleanly Decoupled)
+    # 4. LAMBDA CALCULATION (Elo Anchor + Regional Correction)
     # =========================================================
     
-    # --- A. ELO EXPECTATION (Skill Gap & Tempo) ---
-    # We restore a base 2.5 goals, but scale it entirely by the specific teams' PACE.
-    # This prevents double-counting absolute goals but maintains realistic game environments.
-    match_base_goals = 2.5 * pace * intensity * reg_weight
+    # 1. Match Environment
+    total_match_goals = AVG_GOALS * pace * intensity
+    team_base = total_match_goals / 2.0
     
-    dr = (p1['elo'] - p2['elo'])
+    # --- A. REGIONAL ELO CORRECTION ---
+    # We combat "Regional Inflation" by multiplying Elo by the Confed Multiplier.
+    # UEFA (e.g., 1.06) slightly boosts their Elo. 
+    # CONCACAF (e.g., 0.95) slightly deflates their farmed Elo.
+    adj_elo1 = p1['elo'] * p1['confed_mult']
+    adj_elo2 = p2['elo'] * p2['confed_mult']
+    
+    # --- B. THE ELO ANCHOR (70% Weight) ---
+    dr = (adj_elo1 - adj_elo2)
     win_prob = 1 / (10**(-dr/400) + 1)
     
-    elo_lam1 = match_base_goals * win_prob
-    elo_lam2 = match_base_goals * (1.0 - win_prob)
+    elo_lam1 = total_match_goals * win_prob
+    elo_lam2 = total_match_goals * (1.0 - win_prob)
 
-    # --- B. STATISTICAL EXPECTATION (Tactical Identity) ---
-    # Pure data: Team 1's offensive multiplier * Team 2's specific defensive leakage.
-    # We REMOVE pace here because ga_avg already inherently contains the team's defensive tempo.
-    stat_lam1 = p1['xg_coeff'] * p2['ga_avg'] * intensity
-    stat_lam2 = p2['xg_coeff'] * p1['ga_avg'] * intensity
+    # --- C. THE TACTICAL FLAVOR (30% Weight) ---
+    stat_lam1 = team_base * p1['xg_coeff'] * p2['xga_coeff']
+    stat_lam2 = team_base * p2['xg_coeff'] * p1['xga_coeff']
 
-    # --- C. THE BLEND ---
-    # 55% True Stats / 45% Historical Elo
-    lam1 = max(0.1, (stat_lam1 * 0.55) + (elo_lam1 * 0.45))
-    lam2 = max(0.1, (stat_lam2 * 0.55) + (elo_lam2 * 0.45))
+    # --- D. THE FINAL BLEND ---
+    lam1 = max(0.05, (elo_lam1 * 0.70) + (stat_lam1 * 0.30))
+    lam2 = max(0.05, (elo_lam2 * 0.70) + (stat_lam2 * 0.30))
 
     # 5. The Roll (Using Historical Standard Deviation/Volatility)
     def roll(lam, vol):
