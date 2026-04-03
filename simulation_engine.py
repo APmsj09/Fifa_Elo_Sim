@@ -279,6 +279,29 @@ def load_data():
 # =============================================================================
 # --- PART 2: INITIALIZATION (OPTIMIZED) ---
 # =============================================================================
+def get_match_importance(tourney, match_date):
+    t_str = str(tourney).lower()
+    
+    # 1. World Cup Finals (The absolute gold standard of data)
+    if 'world cup' in t_str and 'qualification' not in t_str:
+        return 1.2
+    # 2. Continental Majors (Euros, Copa America)
+    elif any(x in t_str for x in ['copa américa', 'euro', 'african cup', 'asian cup', 'gold cup']) and 'qualification' not in t_str:
+        return 1.1
+    # 3. Qualifiers & Nations League (Highly competitive)
+    elif 'qualification' in t_str or 'nations league' in t_str:
+        return 1.0
+    # 4. Friendlies
+    elif 'friendly' in t_str:
+        # Pre-Tournament Friendlies (Usually played in May/June, or Nov for Qatar 2022)
+        if match_date.month in [5, 6] or (match_date.year == 2022 and match_date.month == 11):
+            return 0.7  # Teams play their starters, good data
+        else:
+            return 0.3  # Standard friendly, heavy rotation, mostly noise
+    # 5. Minor Tournaments
+    else:
+        return 0.6
+
 def get_k_factor(tourney, goal_diff, home_team, away_team):
     t_str = str(tourney)
 
@@ -515,13 +538,14 @@ def initialize_engine():
 
         # If the match is recent, track the surprisal (volatility)
         if date > RELEVANCE_CUTOFF:
-            weight = calculate_recency_weight(date, LATEST_DATE)
+            # COMBINE RECENCY AND IMPORTANCE
+            weight = calculate_recency_weight(date, LATEST_DATE) * get_match_importance(tourney, date)
             
-            # 2. Home Team Volatility: (Actual - Expected)^2
+            # Home Team Volatility: (Actual - Expected)^2
             res_h_vol = (W_h - we_h)**2
             recent_residuals[h].append((weight, res_h_vol))
             
-            # 3. Away Team Volatility: Surprisal is mirrored
+            # Away Team Volatility
             res_a_vol = ((1.0 - W_h) - (1.0 - we_h))**2
             recent_residuals[a].append((weight, res_a_vol))
         
@@ -557,7 +581,7 @@ def initialize_engine():
         h_elo = TEAM_STATS.get(h, {}).get('elo', 1200)
         a_elo = TEAM_STATS.get(a, {}).get('elo', 1200)
 
-        weight = calculate_recency_weight(match_date, LATEST_DATE)
+        weight = calculate_recency_weight(match_date, LATEST_DATE) * get_match_importance(row['tournament'], match_date)
 
         if h in TEAM_STATS:
             TEAM_STATS[h]['matches'] += 1
@@ -598,12 +622,16 @@ def initialize_engine():
         for _, row in modern_scorers.iterrows():
             t = row['team']
             if t in TEAM_STATS:
-                TEAM_STATS[t]['total_goals_recorded'] += 1
-                if row['penalty']: TEAM_STATS[t]['penalties'] += 1
+                # Find the match importance based on the date (Approximation if tourney isn't in scorers_df)
+                weight = calculate_recency_weight(row['date'], LATEST_DATE)
+                # Apply a slight penalty if it's super old, to favor modern tactical setups
+                
+                TEAM_STATS[t]['total_goals_recorded'] += weight
+                if row['penalty']: TEAM_STATS[t]['penalties'] += weight
                 try:
                     minute = float(str(row['minute']).split('+')[0])
-                    if minute <= 45: TEAM_STATS[t]['first_half'] += 1
-                    if minute >= 75: TEAM_STATS[t]['late_goals'] += 1
+                    if minute <= 45: TEAM_STATS[t]['first_half'] += weight
+                    if minute >= 75: TEAM_STATS[t]['late_goals'] += weight
                 except: pass
 
     # --- CALCULATE GLOBAL ELO MEAN (Required for SOS) ---
@@ -942,18 +970,31 @@ def sim_match(t1, t2, knockout=False):
     
     # 2. Data-Driven Power (Engineered xG vs Opponent's historical goals conceded)
     # This captures "Team 1's finishing efficiency" vs "Team 2's defensive shape"
-    t1_power = p1['xg_coeff'] / (p2['ga_avg'] / 1.25)
-    t2_power = p2['xg_coeff'] / (p1['ga_avg'] / 1.25)
+    t1_power = p1['xg_coeff'] * (p2['ga_avg'] / 1.25)
+    t2_power = p2['xg_coeff'] * (p1['ga_avg'] / 1.25)
     
     # 3. Game Pace & Confederation Weight
     pace = (p1['pace'] + p2['pace']) / 2
     reg_weight = (p1['confed_mult'] + p2['confed_mult']) / 2
     intensity = 0.9 if knockout else 1.0
     
-    # 4. Lambda Calculation
+    # 4. Lambda Calculation (Data-Driven Blend)
+    # The baseline of how many goals we expect in this specific match tempo
     base_lam = AVG_GOALS * pace * intensity * reg_weight
-    lam1 = base_lam * (win_prob * 1.5) * t1_power
-    lam2 = base_lam * ((1 - win_prob) * 1.5) * t2_power
+    
+    # A. STATISTICAL EXPECTATION: Based purely on engineered GF vs GA metrics
+    stat_lam1 = base_lam * t1_power
+    stat_lam2 = base_lam * t2_power
+    
+    # B. ELO EXPECTATION: Based on standard Elo goal expectancy curves
+    # A 400 Elo gap historically translates to ~1.2 goals of difference
+    elo_goal_diff = dr / 330.0 
+    elo_lam1 = base_lam + (elo_goal_diff / 2)
+    elo_lam2 = base_lam - (elo_goal_diff / 2)
+    
+    # C. THE BLEND: 60% Stats / 40% Elo (Prevents extreme stat anomalies from breaking the sim)
+    lam1 = max(0.1, (stat_lam1 * 0.6) + (elo_lam1 * 0.4))
+    lam2 = max(0.1, (stat_lam2 * 0.6) + (elo_lam2 * 0.4))
 
     # 5. The Roll (Using Historical Standard Deviation/Volatility)
     def roll(lam, vol):
