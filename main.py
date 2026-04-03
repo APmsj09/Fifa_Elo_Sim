@@ -69,33 +69,29 @@ def apply_saved_theme():
 async def initialize_app():
     try:
         js.console.log("Initializing Engine...")
-        
-        # 0. Apply saved theme preference
         apply_saved_theme()
         
-        # 1. Initialize Backend
         sim.DATA_DIR = "."
         
-        # Run calculations
-        sim.TEAM_STATS, sim.TEAM_PROFILES, sim.AVG_GOALS = sim.initialize_engine()
+        # 1. Initialize Backend (Now returns 4 items including the cleaned results_df)
+        stats, profiles, avg_goals, results_df = sim.initialize_engine()
+        sim.TEAM_STATS = stats
+        sim.TEAM_PROFILES = profiles
+        sim.AVG_GOALS = avg_goals
     
-        # 2. RUN THE ENGINEERING (Add this here!)
-        results_df, _, _ = sim.load_data()
-        sim.engineer_team_signatures(results_df) # This turns data into styles
+        # 2. Run the Engineering using the dataframe returned above
+        sim.engineer_team_signatures(results_df) 
         sim.calculate_confed_strength() 
         
-        # --- NEW: Call the precompute step here to optimize bulk processing ---
+        # 3. Optimize for bulk
         sim.precompute_match_data()
 
-        # 2. Setup UI Tabs & Buttons (This is where we bind clicks)
+        # 4. Setup UI
         setup_interactions()
-        
-        # 3. Populate Initial Dropdowns
         populate_team_dropdown(wc_only=False)
 
-        # 4. Hide Loading Screen
         js.document.getElementById("loading-screen").style.display = "none"
-        js.document.getElementById("main-dashboard").style.display = "grid" # Changed to grid to match CSS
+        js.document.getElementById("main-dashboard").style.display = "grid"
         
         js.console.log("Engine Ready.")
 

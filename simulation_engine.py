@@ -383,9 +383,14 @@ def initialize_engine():
     if results_df is None:
         return {}, {}, 2.5
 
-    # --- 1. CLEAN DATA ---
+    # --- 1. CLEAN DATA (FIX IS HERE) ---
     results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
-    results_df = results_df.dropna(subset=['date', 'home_score', 'away_score', 'neutral']) # Ensure neutral is present
+    results_df = results_df.dropna(subset=['date', 'home_score', 'away_score', 'neutral'])
+    
+    # Ensure team names are cleaned BEFORE any other processing
+    results_df['home_team'] = results_df['home_team'].str.lower().str.strip().replace(NAME_MAP)
+    results_df['away_team'] = results_df['away_team'].str.lower().str.strip().replace(NAME_MAP)
+    
     results_df = results_df.astype({'home_score': int, 'away_score': int})
 
     # --- NEW: CALCULATE DATA-DRIVEN HFA ---
@@ -403,10 +408,6 @@ def initialize_engine():
     
     # Optional: Log it so you can see what your data says
     js.console.log(f"Data-Driven HFA: {calculated_hfa}")
-    
-    # Standardize Names
-    results_df['home_team'] = results_df['home_team'].str.lower().str.strip().replace(NAME_MAP)
-    results_df['away_team'] = results_df['away_team'].str.lower().str.strip().replace(NAME_MAP)
     
     # Sort for Elo (Critical)
     elo_df = results_df.sort_values('date')
@@ -776,7 +777,7 @@ def initialize_engine():
 
         TEAM_PROFILES[t] = style
 
-    return TEAM_STATS, TEAM_PROFILES, avg_goals_global
+    return TEAM_STATS, TEAM_PROFILES, AVG_GOALS, results_df
 
 # =============================================================================
 # --- PART 3: SIMULATION ---
@@ -927,10 +928,6 @@ def engineer_team_signatures(results_df):
         stats['pace_factor'] = avg_pace
 
 TEAM_PRECOMPUTE = {}
-
-# Before Phase 1, ensure all team names in the dataframe are lowercased
-results_df['home_team'] = results_df['home_team'].str.lower().str.strip()
-results_df['away_team'] = results_df['away_team'].str.lower().str.strip()
 
 # Update precompute to handle any remaining case issues
 def precompute_match_data():
