@@ -928,25 +928,24 @@ def engineer_team_signatures(results_df):
 
 TEAM_PRECOMPUTE = {}
 
+# Before Phase 1, ensure all team names in the dataframe are lowercased
+results_df['home_team'] = results_df['home_team'].str.lower().str.strip()
+results_df['away_team'] = results_df['away_team'].str.lower().str.strip()
+
+# Update precompute to handle any remaining case issues
 def precompute_match_data():
     global TEAM_PRECOMPUTE
-    TEAM_PRECOMPUTE.clear()
-    
+    TEAM_PRECOMPUTE = {}
     for t, s in TEAM_STATS.items():
-        style = TEAM_PROFILES.get(t, 'Balanced')
-        confed = TEAM_CONFEDS.get(t, 'OFC')
-        
-        p_b = 0.05 if s.get('pen_pct', 0) > 15 else 0
-        
-        TEAM_PRECOMPUTE[t] = {
+        # Force the key to be lowercase
+        clean_name = str(t).lower().strip()
+        TEAM_PRECOMPUTE[clean_name] = {
             'elo': s.get('elo', 1200),
             'xg_coeff': s.get('off', 1.0),   
             'xga_coeff': s.get('def', 1.0),  
             'pace': s.get('pace_factor', 1.0),
             'vol': s.get('volatility', 0.15),
-            'composure': s.get('ko_exp_weighted', 0) / 15.0, 
-            'confed_mult': CONFED_MULTIPLIERS.get(confed, 1.0), # <--- BROUGHT BACK
-            'p_b': p_b
+            'composure': np.clip(s.get('ko_exp_weighted', 0) / 10.0, 0, 1.0)
         }
 
 def sim_match(t1, t2, knockout=False):
