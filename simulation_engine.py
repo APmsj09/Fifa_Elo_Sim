@@ -873,9 +873,12 @@ def engineer_team_signatures(results_df):
         t_games = modern_df[(modern_df['home_team'] == team) | (modern_df['away_team'] == team)]
         stats = TEAM_STATS[team]
         
+        # Grab the correct volatility calculated in Phase 4
+        true_vol = stats.get('volatility', 0.15)
+        
         if len(t_games) < 5:
             TEAM_PROFILES[team] = "Balanced"
-            ADVANCED_TEAM_DATA[team] = {'type': 'Balanced', 'poss': 0.5, 'press': 0.5, 'dir': 0.5, 'vol': 0.15}
+            ADVANCED_TEAM_DATA[team] = {'type': 'Balanced', 'poss': 0.5, 'press': 0.5, 'dir': 0.5, 'vol': true_vol}
             continue
 
         # --- A. CALCULATE PERFORMANCE RESIDALS ---
@@ -898,14 +901,12 @@ def engineer_team_signatures(results_df):
             pace_res.append((scored + conceded) / (global_avg * 2))
 
         # --- B. MAP MATH TO UI NAMES ---
-        # We calculate these so your AI Scout Report and Dashboard don't crash
         avg_off = np.mean(off_res)
         avg_def = np.mean(def_res)
         avg_pace = np.mean(pace_res)
-        volatility = np.std(off_res)
 
         # Assign a 'Style Name' based on their data profile
-        if avg_pace > 1.15 and volatility > 0.18: style = "Chaos & Intensity"
+        if avg_pace > 1.15 and true_vol > 0.18: style = "Chaos & Intensity"
         elif avg_pace < 0.90 and avg_def < 0.95: style = "Compact Block"
         elif avg_off > 1.15 and avg_pace > 1.1: style = "Vertical Control"
         elif avg_off > 1.1 and avg_def > 1.1: style = "Direct-Physical"
@@ -919,12 +920,11 @@ def engineer_team_signatures(results_df):
             'poss': np.clip(0.5 + (avg_off - avg_def), 0.3, 0.9), 
             'press': np.clip(avg_pace * 0.5, 0.3, 0.9),           
             'dir': np.clip(avg_off / (avg_pace + 0.1), 0.3, 0.9), 
-            'vol': volatility
+            'vol': true_vol # <-- Passed correctly to UI here
         }
         
         # Store the "Signature" for the Match Engine
         stats['engineered_xg'] = avg_off
-        stats['volatility'] = volatility
         stats['pace_factor'] = avg_pace
 
 TEAM_PRECOMPUTE = {}

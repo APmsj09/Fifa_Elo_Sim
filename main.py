@@ -458,13 +458,15 @@ async def run_bulk_sim(event):
             if champ not in top_5_teams:
                 chaos_events += 1
             
-            if i % max(1, num // 20) == 0:
+            if i % 10 == 0: # Yield every 10 tournaments instead of every 500
                 pct = int((i / num) * 100)
                 pbar = js.document.getElementById("bulk-progress-bar")
                 ptext = js.document.getElementById("bulk-progress-text")
                 if pbar: pbar.style.width = f"{pct}%"
                 if ptext: ptext.innerHTML = f"{pct}% Complete"
-                await asyncio.sleep(0.01)
+    
+                # This is the "magic" line that unfreezes the browser
+                await asyncio.sleep(0)
 
         BULK_STATE = {
             'num': num, 'stats': team_stats, 'matchups': matchups, 
