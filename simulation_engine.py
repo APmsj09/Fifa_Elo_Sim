@@ -936,13 +936,23 @@ def precompute_match_data():
     for t, s in TEAM_STATS.items():
         # Force the key to be lowercase
         clean_name = str(t).lower().strip()
+        
+        # --- ADD THIS LOGIC ---
+        # Calculate a Penalty Skill Bonus (p_b) 
+        # based on their recorded penalty percentage and knockout experience.
+        pen_skill = s.get('pen_pct', 5) / 100.0  # 5% is the global average
+        experience = np.clip(s.get('ko_exp_weighted', 0) / 20.0, 0, 0.1)
+        p_bonus = pen_skill + experience
+        # ----------------------
+
         TEAM_PRECOMPUTE[clean_name] = {
             'elo': s.get('elo', 1200),
             'xg_coeff': s.get('off', 1.0),   
             'xga_coeff': s.get('def', 1.0),  
             'pace': s.get('pace_factor', 1.0),
             'vol': s.get('volatility', 0.15),
-            'composure': np.clip(s.get('ko_exp_weighted', 0) / 10.0, 0, 1.0)
+            'composure': np.clip(s.get('ko_exp_weighted', 0) / 10.0, 0, 1.0),
+            'p_b': p_bonus # <--- ADD THIS LINE TO THE DICTIONARY
         }
 
 def sim_match(t1, t2, knockout=False):
