@@ -57,108 +57,108 @@ WC_TEAMS = [
 # =============================================================================
 # --- ADVANCED TACTICAL METRICS & VOLATILITY DATA ---
 # =============================================================================
-ADVANCED_TEAM_DATA = {
-    'france': {'type': 'Vertical Control', 'poss': 0.72, 'press': 0.58, 'dir': 0.52, 'vol': 0.04},
-    'spain': {'type': 'Vertical Control', 'poss': 0.92, 'press': 0.68, 'dir': 0.35, 'vol': 0.03},
-    'argentina': {'type': 'Vertical Control', 'poss': 0.78, 'press': 0.64, 'dir': 0.48, 'vol': 0.05},
-    'england': {'type': 'Vertical Control', 'poss': 0.88, 'press': 0.62, 'dir': 0.38, 'vol': 0.04},
-    'portugal': {'type': 'Vertical Control', 'poss': 0.84, 'press': 0.65, 'dir': 0.44, 'vol': 0.06},
-    'brazil': {'type': 'Vertical Control', 'poss': 0.74, 'press': 0.62, 'dir': 0.55, 'vol': 0.07},
-    'netherlands': {'type': 'Vertical Control', 'poss': 0.71, 'press': 0.64, 'dir': 0.52, 'vol': 0.07},
-    'morocco': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.52, 'dir': 0.84, 'vol': 0.06},
-    'belgium': {'type': 'Vertical Control', 'poss': 0.68, 'press': 0.58, 'dir': 0.58, 'vol': 0.08},
-    'germany': {'type': 'Vertical Control', 'poss': 0.82, 'press': 0.75, 'dir': 0.60, 'vol': 0.11},
-    'croatia': {'type': 'Vertical Control', 'poss': 0.71, 'press': 0.52, 'dir': 0.42, 'vol': 0.05},
-    'italy': {'type': 'Vertical Control', 'poss': 0.70, 'press': 0.65, 'dir': 0.45, 'vol': 0.09},
-    'colombia': {'type': 'Vertical Control', 'poss': 0.64, 'press': 0.71, 'dir': 0.62, 'vol': 0.10},
-    'senegal': {'type': 'Chaos & Intensity', 'poss': 0.52, 'press': 0.78, 'dir': 0.79, 'vol': 0.13},
-    'mexico': {'type': 'Vertical Control', 'poss': 0.62, 'press': 0.65, 'dir': 0.58, 'vol': 0.12},
-    'united states': {'type': 'Chaos & Intensity', 'poss': 0.59, 'press': 0.82, 'dir': 0.68, 'vol': 0.14},
-    'uruguay': {'type': 'Chaos & Intensity', 'poss': 0.55, 'press': 0.94, 'dir': 0.84, 'vol': 0.12},
-    'japan': {'type': 'Vertical Control', 'poss': 0.63, 'press': 0.75, 'dir': 0.68, 'vol': 0.06},
-    'switzerland': {'type': 'Vertical Control', 'poss': 0.64, 'press': 0.55, 'dir': 0.48, 'vol': 0.05},
-    'denmark': {'type': 'Vertical Control', 'poss': 0.65, 'press': 0.70, 'dir': 0.55, 'vol': 0.08},
-    'iran': {'type': 'Compact Block', 'poss': 0.36, 'press': 0.35, 'dir': 0.88, 'vol': 0.04},
-    'turkey': {'type': 'Vertical Control', 'poss': 0.61, 'press': 0.68, 'dir': 0.64, 'vol': 0.11},
-    'ecuador': {'type': 'Direct-Physical', 'poss': 0.46, 'press': 0.68, 'dir': 0.78, 'vol': 0.09},
-    'austria': {'type': 'Chaos & Intensity', 'poss': 0.51, 'press': 0.88, 'dir': 0.76, 'vol': 0.12},
-    'south korea': {'type': 'Chaos & Intensity', 'poss': 0.51, 'press': 0.78, 'dir': 0.82, 'vol': 0.09},
-    'nigeria': {'type': 'Chaos & Intensity', 'poss': 0.50, 'press': 0.80, 'dir': 0.75, 'vol': 0.15},
-    'australia': {'type': 'Direct-Physical', 'poss': 0.48, 'press': 0.62, 'dir': 0.72, 'vol': 0.07},
-    'algeria': {'type': 'Vertical Control', 'poss': 0.58, 'press': 0.62, 'dir': 0.62, 'vol': 0.12},
-    'egypt': {'type': 'Compact Block', 'poss': 0.43, 'press': 0.42, 'dir': 0.82, 'vol': 0.08},
-    'canada': {'type': 'Vertical Control', 'poss': 0.58, 'press': 0.72, 'dir': 0.64, 'vol': 0.13},
-    'norway': {'type': 'Chaos & Intensity', 'poss': 0.58, 'press': 0.72, 'dir': 0.91, 'vol': 0.11},
-    'ukraine': {'type': 'Vertical Control', 'poss': 0.62, 'press': 0.60, 'dir': 0.50, 'vol': 0.09},
-    'panama': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.42, 'dir': 0.75, 'vol': 0.10},
-    'ivory coast': {'type': 'Chaos & Intensity', 'poss': 0.54, 'press': 0.71, 'dir': 0.74, 'vol': 0.14},
-    'poland': {'type': 'Direct-Physical', 'poss': 0.44, 'press': 0.55, 'dir': 0.80, 'vol': 0.11},
-    'russia': {'type': 'Vertical Control', 'poss': 0.55, 'press': 0.58, 'dir': 0.62, 'vol': 0.16},
-    'wales': {'type': 'Direct-Physical', 'poss': 0.42, 'press': 0.65, 'dir': 0.78, 'vol': 0.09},
-    'sweden': {'type': 'Chaos & Intensity', 'poss': 0.52, 'press': 0.72, 'dir': 0.86, 'vol': 0.12},
-    'serbia': {'type': 'Direct-Physical', 'poss': 0.45, 'press': 0.55, 'dir': 0.78, 'vol': 0.14},
-    'paraguay': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.55, 'dir': 0.79, 'vol': 0.09},
-    'czech republic': {'type': 'Chaos & Intensity', 'poss': 0.48, 'press': 0.85, 'dir': 0.75, 'vol': 0.11},
-    'hungary': {'type': 'Compact Block', 'poss': 0.40, 'press': 0.45, 'dir': 0.70, 'vol': 0.07},
-    'scotland': {'type': 'Direct-Physical', 'poss': 0.45, 'press': 0.58, 'dir': 0.76, 'vol': 0.08},
-    'tunisia': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.48, 'dir': 0.71, 'vol': 0.09},
-    'cameroon': {'type': 'Direct-Physical', 'poss': 0.45, 'press': 0.60, 'dir': 0.75, 'vol': 0.17},
-    'dr congo': {'type': 'Direct-Physical', 'poss': 0.42, 'press': 0.52, 'dir': 0.74, 'vol': 0.16},
-    'greece': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.40, 'dir': 0.72, 'vol': 0.06},
-    'slovakia': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.50, 'dir': 0.70, 'vol': 0.08},
-    'venezuela': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.55, 'dir': 0.78, 'vol': 0.12},
-    'uzbekistan': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.44, 'dir': 0.78, 'vol': 0.15},
-    'costa rica': {'type': 'Compact Block', 'poss': 0.35, 'press': 0.48, 'dir': 0.76, 'vol': 0.11},
-    'mali': {'type': 'Direct-Physical', 'poss': 0.46, 'press': 0.62, 'dir': 0.70, 'vol': 0.16},
-    'peru': {'type': 'Vertical Control', 'poss': 0.55, 'press': 0.60, 'dir': 0.60, 'vol': 0.14},
-    'chile': {'type': 'Chaos & Intensity', 'poss': 0.52, 'press': 0.85, 'dir': 0.72, 'vol': 0.15},
-    'qatar': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.31, 'dir': 0.68, 'vol': 0.14},
-    'romania': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.48, 'dir': 0.74, 'vol': 0.10},
-    'iraq': {'type': 'Compact Block', 'poss': 0.31, 'press': 0.38, 'dir': 0.82, 'vol': 0.17},
-    'slovenia': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.45, 'dir': 0.78, 'vol': 0.08},
-    'ireland': {'type': 'Direct-Physical', 'poss': 0.43, 'press': 0.52, 'dir': 0.76, 'vol': 0.09},
-    'south africa': {'type': 'Direct-Physical', 'poss': 0.44, 'press': 0.48, 'dir': 0.72, 'vol': 0.15},
-    'saudi arabia': {'type': 'Vertical Control', 'poss': 0.58, 'press': 0.52, 'dir': 0.54, 'vol': 0.14},
-    'burkina faso': {'type': 'Chaos & Intensity', 'poss': 0.48, 'press': 0.70, 'dir': 0.75, 'vol': 0.18},
-    'jordan': {'type': 'Compact Block', 'poss': 0.33, 'press': 0.31, 'dir': 0.84, 'vol': 0.19},
-    'albania': {'type': 'Compact Block', 'poss': 0.36, 'press': 0.42, 'dir': 0.80, 'vol': 0.10},
-    'bosnia and herzegovina': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.35, 'dir': 0.80, 'vol': 0.14},
-    'honduras': {'type': 'Direct-Physical', 'poss': 0.40, 'press': 0.55, 'dir': 0.74, 'vol': 0.13},
-    'north macedonia': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.44, 'dir': 0.79, 'vol': 0.12},
-    'uae': {'type': 'Vertical Control', 'poss': 0.54, 'press': 0.48, 'dir': 0.58, 'vol': 0.14},
-    'cape verde': {'type': 'Compact Block', 'poss': 0.34, 'press': 0.41, 'dir': 0.76, 'vol': 0.18},
-    'northern ireland': {'type': 'Compact Block', 'poss': 0.32, 'press': 0.50, 'dir': 0.82, 'vol': 0.07},
-    'jamaica': {'type': 'Direct-Physical', 'poss': 0.41, 'press': 0.64, 'dir': 0.78, 'vol': 0.17},
-    'georgia': {'type': 'Compact Block', 'poss': 0.35, 'press': 0.40, 'dir': 0.86, 'vol': 0.15},
-    'finland': {'type': 'Vertical Control', 'poss': 0.51, 'press': 0.45, 'dir': 0.64, 'vol': 0.09},
-    'ghana': {'type': 'Chaos & Intensity', 'poss': 0.48, 'press': 0.68, 'dir': 0.78, 'vol': 0.19},
-    'iceland': {'type': 'Compact Block', 'poss': 0.33, 'press': 0.45, 'dir': 0.85, 'vol': 0.08},
-    'bolivia': {'type': 'Compact Block', 'poss': 0.34, 'press': 0.38, 'dir': 0.79, 'vol': 0.12},
-    'israel': {'type': 'Vertical Control', 'poss': 0.53, 'press': 0.52, 'dir': 0.58, 'vol': 0.13},
-    'kosovo': {'type': 'Chaos & Intensity', 'poss': 0.47, 'press': 0.65, 'dir': 0.74, 'vol': 0.16},
-    'oman': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.35, 'dir': 0.72, 'vol': 0.12},
-    'guinea': {'type': 'Direct-Physical', 'poss': 0.43, 'press': 0.55, 'dir': 0.74, 'vol': 0.15},
-    'montenegro': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.42, 'dir': 0.78, 'vol': 0.10},
-    'curaçao': {'type': 'Compact Block', 'poss': 0.32, 'press': 0.28, 'dir': 0.85, 'vol': 0.19},
-    'haiti': {'type': 'Direct-Physical', 'poss': 0.35, 'press': 0.45, 'dir': 0.78, 'vol': 0.20},
-    'syria': {'type': 'Compact Block', 'poss': 0.34, 'press': 0.32, 'dir': 0.80, 'vol': 0.13},
-    'new zealand': {'type': 'Direct-Physical', 'poss': 0.40, 'press': 0.55, 'dir': 0.81, 'vol': 0.11},
-    'bulgaria': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.38, 'dir': 0.70, 'vol': 0.14},
-    'gabon': {'type': 'Chaos & Intensity', 'poss': 0.46, 'press': 0.62, 'dir': 0.79, 'vol': 0.18},
-    'uganda': {'type': 'Compact Block', 'poss': 0.35, 'press': 0.40, 'dir': 0.76, 'vol': 0.15},
-    'angola': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.42, 'dir': 0.74, 'vol': 0.14},
-    'benin': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.35, 'dir': 0.78, 'vol': 0.14},
-    'bahrain': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.32, 'dir': 0.70, 'vol': 0.13},
-    'zambia': {'type': 'Chaos & Intensity', 'poss': 0.45, 'press': 0.65, 'dir': 0.76, 'vol': 0.19},
-    'thailand': {'type': 'Vertical Control', 'poss': 0.52, 'press': 0.55, 'dir': 0.68, 'vol': 0.13},
-    'el salvador': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.45, 'dir': 0.74, 'vol': 0.14},
-    'luxembourg': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.40, 'dir': 0.68, 'vol': 0.09},
-    'armenia': {'type': 'Compact Block', 'poss': 0.36, 'press': 0.38, 'dir': 0.79, 'vol': 0.14},
-    'palestine': {'type': 'Compact Block', 'poss': 0.31, 'press': 0.35, 'dir': 0.82, 'vol': 0.18},
-    'equatorial guinea': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.48, 'dir': 0.72, 'vol': 0.16},
-    'vietnam': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.45, 'dir': 0.79, 'vol': 0.15},
-    'kazakhstan': {'type': 'Compact Block', 'poss': 0.33, 'press': 0.42, 'dir': 0.84, 'vol': 0.16}
-}
+# ADVANCED_TEAM_DATA = {
+#     'france': {'type': 'Vertical Control', 'poss': 0.72, 'press': 0.58, 'dir': 0.52, 'vol': 0.04},
+#     'spain': {'type': 'Vertical Control', 'poss': 0.92, 'press': 0.68, 'dir': 0.35, 'vol': 0.03},
+#     'argentina': {'type': 'Vertical Control', 'poss': 0.78, 'press': 0.64, 'dir': 0.48, 'vol': 0.05},
+#     'england': {'type': 'Vertical Control', 'poss': 0.88, 'press': 0.62, 'dir': 0.38, 'vol': 0.04},
+#     'portugal': {'type': 'Vertical Control', 'poss': 0.84, 'press': 0.65, 'dir': 0.44, 'vol': 0.06},
+#     'brazil': {'type': 'Vertical Control', 'poss': 0.74, 'press': 0.62, 'dir': 0.55, 'vol': 0.07},
+#     'netherlands': {'type': 'Vertical Control', 'poss': 0.71, 'press': 0.64, 'dir': 0.52, 'vol': 0.07},
+#     'morocco': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.52, 'dir': 0.84, 'vol': 0.06},
+#     'belgium': {'type': 'Vertical Control', 'poss': 0.68, 'press': 0.58, 'dir': 0.58, 'vol': 0.08},
+#     'germany': {'type': 'Vertical Control', 'poss': 0.82, 'press': 0.75, 'dir': 0.60, 'vol': 0.11},
+#     'croatia': {'type': 'Vertical Control', 'poss': 0.71, 'press': 0.52, 'dir': 0.42, 'vol': 0.05},
+#     'italy': {'type': 'Vertical Control', 'poss': 0.70, 'press': 0.65, 'dir': 0.45, 'vol': 0.09},
+#     'colombia': {'type': 'Vertical Control', 'poss': 0.64, 'press': 0.71, 'dir': 0.62, 'vol': 0.10},
+#     'senegal': {'type': 'Chaos & Intensity', 'poss': 0.52, 'press': 0.78, 'dir': 0.79, 'vol': 0.13},
+#     'mexico': {'type': 'Vertical Control', 'poss': 0.62, 'press': 0.65, 'dir': 0.58, 'vol': 0.12},
+#     'united states': {'type': 'Chaos & Intensity', 'poss': 0.59, 'press': 0.82, 'dir': 0.68, 'vol': 0.14},
+#     'uruguay': {'type': 'Chaos & Intensity', 'poss': 0.55, 'press': 0.94, 'dir': 0.84, 'vol': 0.12},
+#     'japan': {'type': 'Vertical Control', 'poss': 0.63, 'press': 0.75, 'dir': 0.68, 'vol': 0.06},
+#     'switzerland': {'type': 'Vertical Control', 'poss': 0.64, 'press': 0.55, 'dir': 0.48, 'vol': 0.05},
+#     'denmark': {'type': 'Vertical Control', 'poss': 0.65, 'press': 0.70, 'dir': 0.55, 'vol': 0.08},
+#     'iran': {'type': 'Compact Block', 'poss': 0.36, 'press': 0.35, 'dir': 0.88, 'vol': 0.04},
+#     'turkey': {'type': 'Vertical Control', 'poss': 0.61, 'press': 0.68, 'dir': 0.64, 'vol': 0.11},
+#     'ecuador': {'type': 'Direct-Physical', 'poss': 0.46, 'press': 0.68, 'dir': 0.78, 'vol': 0.09},
+#     'austria': {'type': 'Chaos & Intensity', 'poss': 0.51, 'press': 0.88, 'dir': 0.76, 'vol': 0.12},
+#     'south korea': {'type': 'Chaos & Intensity', 'poss': 0.51, 'press': 0.78, 'dir': 0.82, 'vol': 0.09},
+#     'nigeria': {'type': 'Chaos & Intensity', 'poss': 0.50, 'press': 0.80, 'dir': 0.75, 'vol': 0.15},
+#     'australia': {'type': 'Direct-Physical', 'poss': 0.48, 'press': 0.62, 'dir': 0.72, 'vol': 0.07},
+#     'algeria': {'type': 'Vertical Control', 'poss': 0.58, 'press': 0.62, 'dir': 0.62, 'vol': 0.12},
+#     'egypt': {'type': 'Compact Block', 'poss': 0.43, 'press': 0.42, 'dir': 0.82, 'vol': 0.08},
+#     'canada': {'type': 'Vertical Control', 'poss': 0.58, 'press': 0.72, 'dir': 0.64, 'vol': 0.13},
+#     'norway': {'type': 'Chaos & Intensity', 'poss': 0.58, 'press': 0.72, 'dir': 0.91, 'vol': 0.11},
+#     'ukraine': {'type': 'Vertical Control', 'poss': 0.62, 'press': 0.60, 'dir': 0.50, 'vol': 0.09},
+#     'panama': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.42, 'dir': 0.75, 'vol': 0.10},
+#     'ivory coast': {'type': 'Chaos & Intensity', 'poss': 0.54, 'press': 0.71, 'dir': 0.74, 'vol': 0.14},
+#     'poland': {'type': 'Direct-Physical', 'poss': 0.44, 'press': 0.55, 'dir': 0.80, 'vol': 0.11},
+#     'russia': {'type': 'Vertical Control', 'poss': 0.55, 'press': 0.58, 'dir': 0.62, 'vol': 0.16},
+#     'wales': {'type': 'Direct-Physical', 'poss': 0.42, 'press': 0.65, 'dir': 0.78, 'vol': 0.09},
+#     'sweden': {'type': 'Chaos & Intensity', 'poss': 0.52, 'press': 0.72, 'dir': 0.86, 'vol': 0.12},
+#     'serbia': {'type': 'Direct-Physical', 'poss': 0.45, 'press': 0.55, 'dir': 0.78, 'vol': 0.14},
+#     'paraguay': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.55, 'dir': 0.79, 'vol': 0.09},
+#     'czech republic': {'type': 'Chaos & Intensity', 'poss': 0.48, 'press': 0.85, 'dir': 0.75, 'vol': 0.11},
+#     'hungary': {'type': 'Compact Block', 'poss': 0.40, 'press': 0.45, 'dir': 0.70, 'vol': 0.07},
+#     'scotland': {'type': 'Direct-Physical', 'poss': 0.45, 'press': 0.58, 'dir': 0.76, 'vol': 0.08},
+#     'tunisia': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.48, 'dir': 0.71, 'vol': 0.09},
+#     'cameroon': {'type': 'Direct-Physical', 'poss': 0.45, 'press': 0.60, 'dir': 0.75, 'vol': 0.17},
+#     'dr congo': {'type': 'Direct-Physical', 'poss': 0.42, 'press': 0.52, 'dir': 0.74, 'vol': 0.16},
+#     'greece': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.40, 'dir': 0.72, 'vol': 0.06},
+#     'slovakia': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.50, 'dir': 0.70, 'vol': 0.08},
+#     'venezuela': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.55, 'dir': 0.78, 'vol': 0.12},
+#     'uzbekistan': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.44, 'dir': 0.78, 'vol': 0.15},
+#     'costa rica': {'type': 'Compact Block', 'poss': 0.35, 'press': 0.48, 'dir': 0.76, 'vol': 0.11},
+#     'mali': {'type': 'Direct-Physical', 'poss': 0.46, 'press': 0.62, 'dir': 0.70, 'vol': 0.16},
+#     'peru': {'type': 'Vertical Control', 'poss': 0.55, 'press': 0.60, 'dir': 0.60, 'vol': 0.14},
+#     'chile': {'type': 'Chaos & Intensity', 'poss': 0.52, 'press': 0.85, 'dir': 0.72, 'vol': 0.15},
+#     'qatar': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.31, 'dir': 0.68, 'vol': 0.14},
+#     'romania': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.48, 'dir': 0.74, 'vol': 0.10},
+#     'iraq': {'type': 'Compact Block', 'poss': 0.31, 'press': 0.38, 'dir': 0.82, 'vol': 0.17},
+#     'slovenia': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.45, 'dir': 0.78, 'vol': 0.08},
+#     'ireland': {'type': 'Direct-Physical', 'poss': 0.43, 'press': 0.52, 'dir': 0.76, 'vol': 0.09},
+#     'south africa': {'type': 'Direct-Physical', 'poss': 0.44, 'press': 0.48, 'dir': 0.72, 'vol': 0.15},
+#     'saudi arabia': {'type': 'Vertical Control', 'poss': 0.58, 'press': 0.52, 'dir': 0.54, 'vol': 0.14},
+#     'burkina faso': {'type': 'Chaos & Intensity', 'poss': 0.48, 'press': 0.70, 'dir': 0.75, 'vol': 0.18},
+#     'jordan': {'type': 'Compact Block', 'poss': 0.33, 'press': 0.31, 'dir': 0.84, 'vol': 0.19},
+#     'albania': {'type': 'Compact Block', 'poss': 0.36, 'press': 0.42, 'dir': 0.80, 'vol': 0.10},
+#     'bosnia and herzegovina': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.35, 'dir': 0.80, 'vol': 0.14},
+#     'honduras': {'type': 'Direct-Physical', 'poss': 0.40, 'press': 0.55, 'dir': 0.74, 'vol': 0.13},
+#     'north macedonia': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.44, 'dir': 0.79, 'vol': 0.12},
+#     'uae': {'type': 'Vertical Control', 'poss': 0.54, 'press': 0.48, 'dir': 0.58, 'vol': 0.14},
+#     'cape verde': {'type': 'Compact Block', 'poss': 0.34, 'press': 0.41, 'dir': 0.76, 'vol': 0.18},
+#     'northern ireland': {'type': 'Compact Block', 'poss': 0.32, 'press': 0.50, 'dir': 0.82, 'vol': 0.07},
+#     'jamaica': {'type': 'Direct-Physical', 'poss': 0.41, 'press': 0.64, 'dir': 0.78, 'vol': 0.17},
+#     'georgia': {'type': 'Compact Block', 'poss': 0.35, 'press': 0.40, 'dir': 0.86, 'vol': 0.15},
+#     'finland': {'type': 'Vertical Control', 'poss': 0.51, 'press': 0.45, 'dir': 0.64, 'vol': 0.09},
+#     'ghana': {'type': 'Chaos & Intensity', 'poss': 0.48, 'press': 0.68, 'dir': 0.78, 'vol': 0.19},
+#     'iceland': {'type': 'Compact Block', 'poss': 0.33, 'press': 0.45, 'dir': 0.85, 'vol': 0.08},
+#     'bolivia': {'type': 'Compact Block', 'poss': 0.34, 'press': 0.38, 'dir': 0.79, 'vol': 0.12},
+#     'israel': {'type': 'Vertical Control', 'poss': 0.53, 'press': 0.52, 'dir': 0.58, 'vol': 0.13},
+#     'kosovo': {'type': 'Chaos & Intensity', 'poss': 0.47, 'press': 0.65, 'dir': 0.74, 'vol': 0.16},
+#     'oman': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.35, 'dir': 0.72, 'vol': 0.12},
+#     'guinea': {'type': 'Direct-Physical', 'poss': 0.43, 'press': 0.55, 'dir': 0.74, 'vol': 0.15},
+#     'montenegro': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.42, 'dir': 0.78, 'vol': 0.10},
+#     'curaçao': {'type': 'Compact Block', 'poss': 0.32, 'press': 0.28, 'dir': 0.85, 'vol': 0.19},
+#     'haiti': {'type': 'Direct-Physical', 'poss': 0.35, 'press': 0.45, 'dir': 0.78, 'vol': 0.20},
+#     'syria': {'type': 'Compact Block', 'poss': 0.34, 'press': 0.32, 'dir': 0.80, 'vol': 0.13},
+#     'new zealand': {'type': 'Direct-Physical', 'poss': 0.40, 'press': 0.55, 'dir': 0.81, 'vol': 0.11},
+#     'bulgaria': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.38, 'dir': 0.70, 'vol': 0.14},
+#     'gabon': {'type': 'Chaos & Intensity', 'poss': 0.46, 'press': 0.62, 'dir': 0.79, 'vol': 0.18},
+#     'uganda': {'type': 'Compact Block', 'poss': 0.35, 'press': 0.40, 'dir': 0.76, 'vol': 0.15},
+#     'angola': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.42, 'dir': 0.74, 'vol': 0.14},
+#     'benin': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.35, 'dir': 0.78, 'vol': 0.14},
+#     'bahrain': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.32, 'dir': 0.70, 'vol': 0.13},
+#     'zambia': {'type': 'Chaos & Intensity', 'poss': 0.45, 'press': 0.65, 'dir': 0.76, 'vol': 0.19},
+#     'thailand': {'type': 'Vertical Control', 'poss': 0.52, 'press': 0.55, 'dir': 0.68, 'vol': 0.13},
+#     'el salvador': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.45, 'dir': 0.74, 'vol': 0.14},
+#     'luxembourg': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.40, 'dir': 0.68, 'vol': 0.09},
+#     'armenia': {'type': 'Compact Block', 'poss': 0.36, 'press': 0.38, 'dir': 0.79, 'vol': 0.14},
+#     'palestine': {'type': 'Compact Block', 'poss': 0.31, 'press': 0.35, 'dir': 0.82, 'vol': 0.18},
+#     'equatorial guinea': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.48, 'dir': 0.72, 'vol': 0.16},
+#     'vietnam': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.45, 'dir': 0.79, 'vol': 0.15},
+#     'kazakhstan': {'type': 'Compact Block', 'poss': 0.33, 'press': 0.42, 'dir': 0.84, 'vol': 0.16}
+# }
 
 # =============================================================================
 # --- TACTICAL MATCHUP MATRIX (The Rock-Paper-Scissors of Football) ---
@@ -167,47 +167,47 @@ ADVANCED_TEAM_DATA = {
 # > 1.0 means Team 1 has a tactical advantage and generates more expected goals.
 # < 1.0 means Team 1 is tactically countered and generates fewer expected goals.
 
-STYLE_MATCHUPS = {
-    # High Press disrupts teams that try to build from the back
-    ('High Press', 'Ball Control'): 1.08,
-    ('Ball Control', 'High Press'): 0.95,
+# STYLE_MATCHUPS = {
+#     # High Press disrupts teams that try to build from the back
+#     ('High Press', 'Ball Control'): 1.08,
+#     ('Ball Control', 'High Press'): 0.95,
     
-    # Direct Play bypasses the High Press completely
-    ('Direct Play', 'High Press'): 1.08,
-    ('High Press', 'Direct Play'): 0.92,
+#     # Direct Play bypasses the High Press completely
+#     ('Direct Play', 'High Press'): 1.08,
+#     ('High Press', 'Direct Play'): 0.92,
     
-    # Fast Build-up beats the press by moving the ball before the trap closes
-    ('Fast Build-up', 'High Press'): 1.06,
-    ('High Press', 'Fast Build-up'): 0.94,
+#     # Fast Build-up beats the press by moving the ball before the trap closes
+#     ('Fast Build-up', 'High Press'): 1.06,
+#     ('High Press', 'Fast Build-up'): 0.94,
 
-    # Counter-Attack exploits high lines and possession teams
-    ('Counter-Attack', 'Ball Control'): 1.08,
-    ('Ball Control', 'Counter-Attack'): 0.96,
-    ('Counter-Attack', 'High Risk'): 1.10,
-    ('High Risk', 'Counter-Attack'): 0.90,
+#     # Counter-Attack exploits high lines and possession teams
+#     ('Counter-Attack', 'Ball Control'): 1.08,
+#     ('Ball Control', 'Counter-Attack'): 0.96,
+#     ('Counter-Attack', 'High Risk'): 1.10,
+#     ('High Risk', 'Counter-Attack'): 0.90,
     
-    # Deep Block starves Counter-Attack and Fast Build-up of running space
-    ('Deep Block', 'Counter-Attack'): 1.05,
-    ('Counter-Attack', 'Deep Block'): 0.85,
-    ('Deep Block', 'Fast Build-up'): 1.05,
-    ('Fast Build-up', 'Deep Block'): 0.90,
+#     # Deep Block starves Counter-Attack and Fast Build-up of running space
+#     ('Deep Block', 'Counter-Attack'): 1.05,
+#     ('Counter-Attack', 'Deep Block'): 0.85,
+#     ('Deep Block', 'Fast Build-up'): 1.05,
+#     ('Fast Build-up', 'Deep Block'): 0.90,
 
-    # Technical Play (Individual Brilliance) unlocks the Deep Block
-    ('Technical Play', 'Deep Block'): 1.10,
-    ('Deep Block', 'Technical Play'): 0.90,
+#     # Technical Play (Individual Brilliance) unlocks the Deep Block
+#     ('Technical Play', 'Deep Block'): 1.10,
+#     ('Deep Block', 'Technical Play'): 0.90,
     
-    # Disciplined structure neutralizes Technical flair and High Risk chaos
-    ('Disciplined', 'Technical Play'): 1.08,
-    ('Technical Play', 'Disciplined'): 0.92,
-    ('Disciplined', 'High Risk'): 1.08,
-    ('High Risk', 'Disciplined'): 0.92,
+#     # Disciplined structure neutralizes Technical flair and High Risk chaos
+#     ('Disciplined', 'Technical Play'): 1.08,
+#     ('Technical Play', 'Disciplined'): 0.92,
+#     ('Disciplined', 'High Risk'): 1.08,
+#     ('High Risk', 'Disciplined'): 0.92,
 
-    # Ball Control starves Direct Play and grinds down Deep Blocks over 90 mins
-    ('Ball Control', 'Direct Play'): 1.08,
-    ('Direct Play', 'Ball Control'): 0.94,
-    ('Ball Control', 'Deep Block'): 1.05,
-    ('Deep Block', 'Ball Control'): 0.95
-}
+#     # Ball Control starves Direct Play and grinds down Deep Blocks over 90 mins
+#     ('Ball Control', 'Direct Play'): 1.08,
+#     ('Direct Play', 'Ball Control'): 0.94,
+#     ('Ball Control', 'Deep Block'): 1.05,
+#     ('Deep Block', 'Ball Control'): 0.95
+# }
 
 # Map teams to Confederations
 # UEFA (Europe), CONMEBOL (S. America), CONCACAF (N. America), CAF (Africa), AFC (Asia), OFC (Oceania)
@@ -792,144 +792,190 @@ def calculate_confed_strength():
 OPEN_STYLES = {'High Risk', 'High Press', 'Technical Play', 'Fast Build-up'}
 SLOW_STYLES = {'Deep Block', 'Counter-Attack', 'Disciplined'}
 
-def _fast_interp(val, x0, x1, y0, y1):
-    if val <= x0: return y0
-    if val >= x1: return y1
-    return y0 + (y1 - y0) * ((val - x0) / (x1 - x0))
+# def _fast_interp(val, x0, x1, y0, y1):
+#     if val <= x0: return y0
+#     if val >= x1: return y1
+#     return y0 + (y1 - y0) * ((val - x0) / (x1 - x0))
 
-def _apply_complexity(elo, style):
-    if style == 'Ball Control': return _fast_interp(elo, 1200, 2000, 0.90, 1.20), _fast_interp(elo, 1200, 2000, 0.85, 1.15)
-    if style == 'Technical Play': return _fast_interp(elo, 1200, 2000, 0.95, 1.25), _fast_interp(elo, 1200, 2000, 0.90, 1.10)
-    if style == 'High Press': return _fast_interp(elo, 1200, 1900, 0.85, 1.10), _fast_interp(elo, 1200, 1900, 0.80, 1.05)
-    if style == 'Fast Build-up': return _fast_interp(elo, 1200, 1900, 0.85, 1.08), _fast_interp(elo, 1200, 1900, 0.85, 1.02)
-    if style == 'Disciplined': return _fast_interp(elo, 1200, 1900, 0.95, 1.05), _fast_interp(elo, 1200, 1900, 1.02, 1.12)
-    if style == 'Counter-Attack': return _fast_interp(elo, 1200, 1900, 0.95, 0.88), _fast_interp(elo, 1200, 1900, 1.15, 1.02)
-    if style == 'Deep Block': return _fast_interp(elo, 1200, 1900, 0.90, 0.80), _fast_interp(elo, 1200, 1900, 1.10, 1.05)
-    if style == 'Direct Play': return _fast_interp(elo, 1200, 1900, 1.08, 0.92), _fast_interp(elo, 1200, 1900, 1.05, 0.96)
-    if style == 'High Risk': return _fast_interp(elo, 1200, 1900, 1.05, 1.15), _fast_interp(elo, 1200, 1900, 0.75, 0.88)
-    return 1.0, 1.0
+# def _apply_complexity(elo, style):
+#     if style == 'Ball Control': return _fast_interp(elo, 1200, 2000, 0.90, 1.20), _fast_interp(elo, 1200, 2000, 0.85, 1.15)
+#     if style == 'Technical Play': return _fast_interp(elo, 1200, 2000, 0.95, 1.25), _fast_interp(elo, 1200, 2000, 0.90, 1.10)
+#     if style == 'High Press': return _fast_interp(elo, 1200, 1900, 0.85, 1.10), _fast_interp(elo, 1200, 1900, 0.80, 1.05)
+#     if style == 'Fast Build-up': return _fast_interp(elo, 1200, 1900, 0.85, 1.08), _fast_interp(elo, 1200, 1900, 0.85, 1.02)
+#     if style == 'Disciplined': return _fast_interp(elo, 1200, 1900, 0.95, 1.05), _fast_interp(elo, 1200, 1900, 1.02, 1.12)
+#     if style == 'Counter-Attack': return _fast_interp(elo, 1200, 1900, 0.95, 0.88), _fast_interp(elo, 1200, 1900, 1.15, 1.02)
+#     if style == 'Deep Block': return _fast_interp(elo, 1200, 1900, 0.90, 0.80), _fast_interp(elo, 1200, 1900, 1.10, 1.05)
+#     if style == 'Direct Play': return _fast_interp(elo, 1200, 1900, 1.08, 0.92), _fast_interp(elo, 1200, 1900, 1.05, 0.96)
+#     if style == 'High Risk': return _fast_interp(elo, 1200, 1900, 1.05, 1.15), _fast_interp(elo, 1200, 1900, 0.75, 0.88)
+#     return 1.0, 1.0
 
-def _elastic_limit(val, chaos):
-    ceiling = 2.1 + (chaos * 1.5) 
-    if val <= ceiling: return val
-    return ceiling + math.log(val - ceiling + 1.0) * (1.0 + chaos)
+# def _elastic_limit(val, chaos):
+#     ceiling = 2.1 + (chaos * 1.5) 
+#     if val <= ceiling: return val
+#     return ceiling + math.log(val - ceiling + 1.0) * (1.0 + chaos)
 
-def _roll_goals(lam, v, ko_exp_weighted):
-    composure = 1.0 - (ko_exp_weighted * 0.05)
-    if composure < 0.85: composure = 0.85
-    elif composure > 1.0: composure = 1.0
+# def _roll_goals(lam, v, ko_exp_weighted):
+#     composure = 1.0 - (ko_exp_weighted * 0.05)
+#     if composure < 0.85: composure = 0.85
+#     elif composure > 1.0: composure = 1.0
     
-    realized_lam = random.gauss(lam, lam * (v * 0.4 * composure))
-    if realized_lam < 0.1: realized_lam = 0.1
-    return np.random.poisson(realized_lam)
+#     realized_lam = random.gauss(lam, lam * (v * 0.4 * composure))
+#     if realized_lam < 0.1: realized_lam = 0.1
+#     return np.random.poisson(realized_lam)
+def engineer_team_signatures(results_df):
+    """
+    Analyzes historical data to create unique statistical signatures.
+    Replaces 'Vibes' with math while keeping the names the same for the UI.
+    """
+    global TEAM_PROFILES, ADVANCED_TEAM_DATA
+    
+    # Reset these to be filled by data
+    TEAM_PROFILES = {}
+    ADVANCED_TEAM_DATA = {} 
+    
+    # Use modern data for tactical relevance
+    modern_df = results_df[results_df['date'] > '2012-01-01'].copy()
+    global_avg = (modern_df['home_score'].mean() + modern_df['away_score'].mean()) / 2
+
+    for team in TEAM_STATS.keys():
+        t_games = modern_df[(modern_df['home_team'] == team) | (modern_df['away_team'] == team)]
+        stats = TEAM_STATS[team]
+        
+        if len(t_games) < 5:
+            TEAM_PROFILES[team] = "Balanced"
+            ADVANCED_TEAM_DATA[team] = {'type': 'Balanced', 'poss': 0.5, 'press': 0.5, 'dir': 0.5, 'vol': 0.15}
+            continue
+
+        # --- A. CALCULATE PERFORMANCE RESIDALS ---
+        off_res = []
+        def_res = []
+        pace_res = [] 
+        
+        for _, row in t_games.iterrows():
+            is_home = row['home_team'] == team
+            opp = row['away_team'] if is_home else row['home_team']
+            scored = row['home_score'] if is_home else row['away_score']
+            conceded = row['away_score'] if is_home else row['home_score']
+            
+            opp_ga = TEAM_STATS.get(opp, {}).get('ga_avg', global_avg)
+            opp_gf = TEAM_STATS.get(opp, {}).get('gf_avg', global_avg)
+            
+            # How many goals did they score/concede vs what that opponent usually allows?
+            off_res.append(scored / (opp_ga + 0.5))
+            def_res.append(conceded / (opp_gf + 0.5))
+            pace_res.append((scored + conceded) / (global_avg * 2))
+
+        # --- B. MAP MATH TO UI NAMES ---
+        # We calculate these so your AI Scout Report and Dashboard don't crash
+        avg_off = np.mean(off_res)
+        avg_def = np.mean(def_res)
+        avg_pace = np.mean(pace_res)
+        volatility = np.std(off_res)
+
+        # Assign a 'Style Name' based on their data profile
+        if avg_pace > 1.15 and volatility > 0.18: style = "Chaos & Intensity"
+        elif avg_pace < 0.90 and avg_def < 0.95: style = "Compact Block"
+        elif avg_off > 1.15 and avg_pace > 1.1: style = "Vertical Control"
+        elif avg_off > 1.1 and avg_def > 1.1: style = "Direct-Physical"
+        else: style = "Balanced"
+
+        TEAM_PROFILES[team] = style
+        
+        # We "fake" the poss/press/dir metrics using math so the 5D map still works
+        ADVANCED_TEAM_DATA[team] = {
+            'type': style,
+            'poss': np.clip(0.5 + (avg_off - avg_def), 0.3, 0.9), 
+            'press': np.clip(avg_pace * 0.5, 0.3, 0.9),           
+            'dir': np.clip(avg_off / (avg_pace + 0.1), 0.3, 0.9), 
+            'vol': volatility
+        }
+        
+        # Store the "Signature" for the Match Engine
+        stats['engineered_xg'] = avg_off
+        stats['volatility'] = volatility
+        stats['pace_factor'] = avg_pace
 
 TEAM_PRECOMPUTE = {}
 
 def precompute_match_data():
-    """Caches team data globally so we skip expensive dictionary lookups inside the match loop."""
+    """
+    Caches the ENGINEERED data so the simulation loop 
+    doesn't have to look up dictionaries thousands of times.
+    """
     global TEAM_PRECOMPUTE
     TEAM_PRECOMPUTE.clear()
+    
     for t, s in TEAM_STATS.items():
         style = TEAM_PROFILES.get(t, 'Balanced')
         confed = TEAM_CONFEDS.get(t, 'OFC')
-        c_a, c_d = _apply_complexity(s['elo'], style)
         
+        # HFA Logic: Derived from the Data-Driven HFA calculated in init
         is_host = t in ['united states', 'mexico', 'canada']
-        hfa_goal_mult = 10**(calculated_hfa / 650) # Derived from Elo-to-Goal probability
-        h_mod = hfa_goal_mult if is_host else 1.0 
-        def_mod_host = 1.08 if is_host else 1.0
+        h_mod = 1.15 if is_host else 1.0 
         
-        mom_adj = 1.0 + (s.get('momentum', 0) * 0.10)
-        if mom_adj < 0.90: mom_adj = 0.90
-        elif mom_adj > 1.10: mom_adj = 1.10
-        
-        p_b = 0.08 if style in ['Set-Piece Reliant', 'Control / Disciplined', 'Tactical Pragmatism'] else 0
+        # Penalty Bonus: Data-driven (Teams that draw more pens in history)
+        p_b = 0.05 if s.get('pen_pct', 0) > 15 else 0
         
         TEAM_PRECOMPUTE[t] = {
-            'style': style,
-            'c_a': c_a,
-            'c_d': c_d,
-            'h_mod': h_mod,
-            'def_mod_host': def_mod_host,
-            'mom_adj': mom_adj,
-            'p_b': p_b,
-            'vol': s.get('volatility', 0.15),
-            'ko': s.get('ko_exp_weighted', 0),
-            'off': s.get('off', 1.0),
-            'def': s.get('def', 1.0),
             'elo': s.get('elo', 1200),
+            'xg_coeff': s.get('engineered_xg', 1.0),
+            'pace': s.get('pace_factor', 1.0),
+            'vol': s.get('volatility', 0.15),
             'confed_mult': CONFED_MULTIPLIERS.get(confed, 1.0),
-            'is_open': style in OPEN_STYLES,
-            'is_slow': style in SLOW_STYLES
+            'p_b': p_b, # Added to fix the penalty crash
+            'ga_avg': s.get('ga_avg', 1.25)
         }
 
 def sim_match(t1, t2, knockout=False):
+    """
+    Pure data-driven sim using engineered signatures.
+    """
     p1 = TEAM_PRECOMPUTE.get(t1)
     p2 = TEAM_PRECOMPUTE.get(t2)
     
-    # Fallback initialization safety
-    if not p1 or not p2: return t1 if random.random() < 0.5 else t2, 1, 0, 'reg'
+    if not p1 or not p2: return t1, 1, 0, 'reg'
     
-    dr = p1['elo'] - p2['elo']
-    we1 = 1.0 / (10.0**(-dr/500.0) + 1.0)
-    we2 = 1.0 - we1
+    # 1. Elo Skill Gap
+    dr = (p1['elo'] - p2['elo'])
+    win_prob = 1 / (10**(-dr/400) + 1)
     
-    t1_atk_mod = p1['c_a']
-    t1_def_mod = p1['c_d'] * p1['def_mod_host']
-    t2_atk_mod = p2['c_a']
-    t2_def_mod = p2['c_d'] * p2['def_mod_host']
-
-    # Tactical Matchups
-    t1_atk_mod *= STYLE_MATCHUPS.get((p1['style'], p2['style']), 1.0)
-    t2_atk_mod *= STYLE_MATCHUPS.get((p2['style'], p1['style']), 1.0)
-
-    # Game Pace & David-vs-Goliath
-    pace_mod = 1.0
-    if p1['is_open'] and p2['is_open']: pace_mod = 1.15
-    elif p1['is_slow'] and p2['is_slow']: pace_mod = 0.85
+    # 2. Data-Driven Power (Engineered xG vs Opponent's historical goals conceded)
+    # This captures "Team 1's finishing efficiency" vs "Team 2's defensive shape"
+    t1_power = p1['xg_coeff'] / (p2['ga_avg'] / 1.25)
+    t2_power = p2['xg_coeff'] / (p1['ga_avg'] / 1.25)
     
-    if p1['is_slow'] and dr < -150: t1_def_mod *= 1.10
-    if p2['is_slow'] and dr > 150: t2_def_mod *= 1.10
-
-    bus1, bus2 = 1.0, 1.0
-    if dr > 300: 
-        bus2, bus1 = 0.65, 0.90
-    elif dr < -300:
-        bus1, bus2 = 0.65, 0.90
-        
-    class1 = 1.0 + (we1 - 0.5) * 0.12 
-    class2 = 1.0 + (we2 - 0.5) * 0.12
+    # 3. Game Pace & Confederation Weight
+    pace = (p1['pace'] + p2['pace']) / 2
+    reg_weight = (p1['confed_mult'] + p2['confed_mult']) / 2
+    intensity = 0.9 if knockout else 1.0
     
-    pedigree_gap = p1['confed_mult'] - p2['confed_mult']
-    ped1 = 1.0 + (pedigree_gap * 0.15)
-    ped2 = 1.0 - (pedigree_gap * 0.15)
+    # 4. Lambda Calculation
+    base_lam = AVG_GOALS * pace * intensity * reg_weight
+    lam1 = base_lam * (win_prob * 1.5) * t1_power
+    lam2 = base_lam * ((1 - win_prob) * 1.5) * t2_power
 
-    m1_base = (p1['off'] * p2['def']) * class1 * ped1 * bus1 * p1['mom_adj']
-    m2_base = (p2['off'] * p1['def']) * class2 * ped2 * bus2 * p2['mom_adj']
-    
-    total_chaos = p1['vol'] + p2['vol']
-    intensity = 1.15 if knockout else 1.0
+    # 5. The Roll (Using Historical Standard Deviation/Volatility)
+    def roll(lam, vol):
+        jittered_lam = np.random.normal(lam, lam * vol)
+        return np.random.poisson(max(0.05, jittered_lam))
 
-    lam1 = AVG_GOALS * _elastic_limit(m1_base, total_chaos) * p1['h_mod'] * intensity * pace_mod * t1_atk_mod * (2.0 - t2_def_mod)
-    lam2 = AVG_GOALS * _elastic_limit(m2_base, total_chaos) * p2['h_mod'] * intensity * pace_mod * t2_atk_mod * (2.0 - t1_def_mod)
+    g1 = roll(lam1, p1['vol'])
+    g2 = roll(lam2, p2['vol'])
 
-    g1 = _roll_goals(lam1, p1['vol'], p1['ko'])
-    g2 = _roll_goals(lam2, p2['vol'], p2['ko'])
-    
     if g1 > g2: return (t1, g1, g2, 'reg') if knockout else (t1, g1, g2)
     if g2 > g1: return (t2, g1, g2, 'reg') if knockout else (t2, g1, g2)
     if not knockout: return 'draw', g1, g2
 
     # Extra Time
-    g1 += np.random.poisson(lam1 * 0.4)
-    g2 += np.random.poisson(lam2 * 0.4)
+    g1 += roll(lam1 * 0.3, p1['vol'])
+    g2 += roll(lam2 * 0.3, p2['vol'])
     if g1 > g2: return t1, g1, g2, 'aet'
     if g2 > g1: return t2, g1, g2, 'aet'
     
     # Penalties
+    # Adjusted win chance based on Elo (Pressure) + Engineered Penalty Bonus
     win_chance = 0.5 + (dr/2000.0) + (p1['p_b'] - p2['p_b'])
-    if win_chance < 0.30: win_chance = 0.30
-    elif win_chance > 0.70: win_chance = 0.70
+    win_chance = np.clip(win_chance, 0.30, 0.70)
         
     winner = t1 if random.random() < win_chance else t2
     return winner, g1, g2, 'pks'

@@ -78,6 +78,10 @@ async def initialize_app():
         
         # Run calculations
         sim.TEAM_STATS, sim.TEAM_PROFILES, sim.AVG_GOALS = sim.initialize_engine()
+    
+        # 2. RUN THE ENGINEERING (Add this here!)
+        results_df, _, _ = sim.load_data()
+        sim.engineer_team_signatures(results_df) # This turns data into styles
         sim.calculate_confed_strength() 
         
         # --- NEW: Call the precompute step here to optimize bulk processing ---
