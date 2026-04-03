@@ -959,15 +959,9 @@ def sim_match(t1, t2, knockout=False):
     intensity = 1.15 if knockout else 1.0 
     total_match_goals = 2.85 * pace * intensity 
     
-    # 2. REGIONAL ELO CORRECTION (The Parity Fix)
-    # This deflates 'farmed' Elos from weak regions and inflates 'hard-earned' Elos.
-    # UEFA (e.g., 1.06) vs CONCACAF (e.g., 0.95). 
-    # This turns a 1700 vs 1700 'on paper' into a realistic 1802 vs 1615.
-    adj_elo1 = p1['elo'] * p1['confed_mult']
-    adj_elo2 = p2['elo'] * p2['confed_mult']
-    dr = adj_elo1 - adj_elo2
+    dr = p1['elo'] - p2['elo']
     
-    # 3. Elo Anchor (75% Weight - Driven by Skill & Parity)
+    # 3. Elo Probability Distribution
     win_prob = 1 / (10**(-dr/400) + 1)
     
     elo_lam1 = total_match_goals * win_prob
