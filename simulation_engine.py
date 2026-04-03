@@ -336,11 +336,14 @@ def get_k_factor(tourney, goal_diff, home_team, away_team):
     else:
         k = 20
 
-    if goal_diff == 2: k *= 1.15
-    elif goal_diff == 3: k *= 1.30
-    elif goal_diff >= 4: k *= 1.35
-    
-    return k
+    if goal_diff <= 1:
+        gd_factor = 1.0
+    elif goal_diff == 2:
+        gd_factor = 1.5
+    else:
+        gd_factor = (11.0 + goal_diff) / 8.0
+        
+    return k * gd_factor
 
 def initialize_engine():
     try:
@@ -356,8 +359,24 @@ def initialize_engine():
 
     # --- 1. CLEAN DATA ---
     results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
-    results_df = results_df.dropna(subset=['date', 'home_score', 'away_score'])
+    results_df = results_df.dropna(subset=['date', 'home_score', 'away_score', 'neutral']) # Ensure neutral is present
     results_df = results_df.astype({'home_score': int, 'away_score': int})
+
+    # --- NEW: CALCULATE DATA-DRIVEN HFA ---
+    non_neutral = results_df[results_df['neutral'] == False]
+    h_wins = len(non_neutral[non_neutral['home_score'] > non_neutral['away_score']])
+    total_non_neutral = len(non_neutral)
+    
+    if total_non_neutral > 0:
+        h_win_prob = h_wins / total_non_neutral
+        # Clamp probability to avoid math errors if data is weird
+        h_win_prob = max(0.01, min(0.99, h_win_prob))
+        calculated_hfa = round(-400 * math.log10(1/h_win_prob - 1))
+    else:
+        calculated_hfa = 100 # Fallback
+    
+    # Optional: Log it so you can see what your data says
+    js.console.log(f"Data-Driven HFA: {calculated_hfa}")
     
     # Standardize Names
     results_df['home_team'] = results_df['home_team'].str.lower().str.strip().replace(NAME_MAP)
@@ -484,7 +503,7 @@ def initialize_engine():
         if a not in TEAM_HISTORY: TEAM_HISTORY[a] = {'dates': [], 'elo': []}
         
         # Calculate Expectancy (Divisor changed to 400 for better elite separation)
-        dr = rh - ra + (100 if not neutral else 0)
+        dr = rh - ra + (calculated_hfa if not neutral else 0)
         we_h = 1 / (10**(-dr/400) + 1)
         W_h = 1.0 if hs > as_ else (0.5 if hs == as_ else 0.0)
         
@@ -731,51 +750,42 @@ def initialize_engine():
 # --- PART 3: SIMULATION ---
 # =============================================================================
 def calculate_confed_strength():
-    """
-    Calculates a 'Nerf' multiplier based on a Composite Score:
-    50% Weight = Elite Strength (Top 3 Teams)
-    50% Weight = Depth Strength (Average of the Top 50% of teams)
-    
-    This penalizes 'Top Heavy' regions where a few giants farm points 
-    against weak depth.
-    """
     global CONFED_MULTIPLIERS
+    results_df, _, _ = load_data()
     
-    buckets = {c: [] for c in set(TEAM_CONFEDS.values())}
-    for team, stats in TEAM_STATS.items():
-        confed = TEAM_CONFEDS.get(team.lower(), 'OFC') 
-        buckets[confed].append(stats['elo'])
+    # Filter for modern era (last 10 years) to get current confederation parity
+    recent_cutoff = pd.to_datetime('2014-01-01')
+    results_df['date'] = pd.to_datetime(results_df['date'])
+    modern_df = results_df[results_df['date'] > recent_cutoff]
+    
+    # Track cross-confederation performance
+    # We look at how often teams from Confed A beat teams from Confed B
+    confed_performance = {c: {'pts': 0, 'matches': 0} for c in set(TEAM_CONFEDS.values())}
+    
+    for _, row in modern_df.iterrows():
+        h_conf = TEAM_CONFEDS.get(row['home_team'].lower(), 'OFC')
+        a_conf = TEAM_CONFEDS.get(row['away_team'].lower(), 'OFC')
         
-    confed_scores = {}
-    
-    all_elos = sorted([s['elo'] for s in TEAM_STATS.values()], reverse=True)
-    global_elite_avg = sum(all_elos[:10]) / 10
+        if h_conf != a_conf:
+            confed_performance[h_conf]['matches'] += 1
+            confed_performance[a_conf]['matches'] += 1
+            if row['home_score'] > row['away_score']:
+                confed_performance[h_conf]['pts'] += 1
+            elif row['away_score'] > row['home_score']:
+                confed_performance[a_conf]['pts'] += 1
+            else:
+                confed_performance[h_conf]['pts'] += 0.5
+                confed_performance[a_conf]['pts'] += 0.5
 
-    for confed, elos in buckets.items():
-        if not elos:
-            confed_scores[confed] = 1000
-            continue
-            
-        elos.sort(reverse=True)
-        num_teams = len(elos)
-        # --- DYNAMIC ELITE POOL ---
-        elite_count = max(2, int(math.sqrt(num_teams)))
-        elite_avg = sum(elos[:elite_count]) / elite_count
-        
-        # --- DEPTH SCORE ---
-        depth_count = max(1, int(num_teams * 0.5))
-        depth_avg = sum(elos[:depth_count]) / depth_count
-        
-        # --- DYNAMIC COMPOSITE ---
-        composite = (elite_avg * 0.6) + (depth_avg * 0.4)
-        density_bonus = 1.0 + (1 / num_teams) 
-        confed_scores[confed] = composite * density_bonus
-
-    baseline = max(confed_scores.values())
-    
-    for confed, score in confed_scores.items():
-        ratio = score / baseline
-        CONFED_MULTIPLIERS[confed] = round(max(0.80, ratio**1.5), 3)
+    # Calculate multiplier based on win percentage against other regions
+    for confed, data in confed_performance.items():
+        if data['matches'] > 0:
+            win_rate = data['pts'] / data['matches']
+            # Baseline is 0.5 (equal). We scale around that.
+            # This reflects actual historical dominance (UEFA/CONMEBOL usually ~0.65)
+            CONFED_MULTIPLIERS[confed] = round(0.8 + (win_rate * 0.4), 3)
+        else:
+            CONFED_MULTIPLIERS[confed] = 0.85 # Default for isolated regions
 
 # --- PERFORMANCE CACHING & FAST MATH UTILS ---
 OPEN_STYLES = {'High Risk', 'High Press', 'Technical Play', 'Fast Build-up'}
@@ -824,7 +834,8 @@ def precompute_match_data():
         c_a, c_d = _apply_complexity(s['elo'], style)
         
         is_host = t in ['united states', 'mexico', 'canada']
-        h_mod = 1.15 if is_host else (1.05 if confed == 'CONCACAF' else 1.0)
+        hfa_goal_mult = 10**(calculated_hfa / 650) # Derived from Elo-to-Goal probability
+        h_mod = hfa_goal_mult if is_host else 1.0 
         def_mod_host = 1.08 if is_host else 1.0
         
         mom_adj = 1.0 + (s.get('momentum', 0) * 0.10)
