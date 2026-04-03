@@ -730,170 +730,109 @@ def initialize_engine():
 # =============================================================================
 # --- PART 3: SIMULATION ---
 # =============================================================================
-def calculate_confed_strength():
-    """
-    Calculates a 'Nerf' multiplier based on a Composite Score:
-    50% Weight = Elite Strength (Top 3 Teams)
-    50% Weight = Depth Strength (Average of the Top 50% of teams)
-    
-    This penalizes 'Top Heavy' regions where a few giants farm points 
-    against weak depth.
-    """
-    global CONFED_MULTIPLIERS
-    
-    buckets = {c: [] for c in set(TEAM_CONFEDS.values())}
-    for team, stats in TEAM_STATS.items():
-        confed = TEAM_CONFEDS.get(team.lower(), 'OFC') 
-        buckets[confed].append(stats['elo'])
-        
-    confed_scores = {}
-    
-    all_elos = sorted([s['elo'] for s in TEAM_STATS.values()], reverse=True)
-    global_elite_avg = sum(all_elos[:10]) / 10
 
-    for confed, elos in buckets.items():
-        if not elos:
-            confed_scores[confed] = 1000
-            continue
-            
-        elos.sort(reverse=True)
-        num_teams = len(elos)
-        # --- DYNAMIC ELITE POOL ---
-        # We take the square root of the number of teams to find the "Representative Elite"
-        # UEFA (55) -> ~7 teams | CONMEBOL (10) -> ~3 teams | AFC (47) -> ~6 teams
-        elite_count = max(2, int(math.sqrt(num_teams)))
-        elite_avg = sum(elos[:elite_count]) / elite_count
-        
-        # --- DEPTH SCORE ---
-        # How strong is the "Average" team you have to play in qualifying?
-        # We take the top 50% to avoid being dragged down by tiny unranked nations
-        depth_count = max(1, int(num_teams * 0.5))
-        depth_avg = sum(elos[:depth_count]) / depth_count
-        
-        # --- DYNAMIC COMPOSITE ---
-        # We weight the score: 60% Elite Strength, 40% Depth Strength
-        composite = (elite_avg * 0.6) + (depth_avg * 0.4)
-        
-        # Bonus: The "Concentration Factor"
-        # Small regions like CONMEBOL are "High Density" (fewer weak teams to farm)
-        # Large regions like AFC are "Low Density" (many weak teams to farm)
-        density_bonus = 1.0 + (1 / num_teams) # Small regions get a slight boost
-        
-        confed_scores[confed] = composite * density_bonus
+# --- PERFORMANCE CACHING & FAST MATH UTILS ---
+OPEN_STYLES = {'High Risk', 'High Press', 'Technical Play', 'Fast Build-up'}
+SLOW_STYLES = {'Deep Block', 'Counter-Attack', 'Disciplined'}
 
-    baseline = max(confed_scores.values())
+def _fast_interp(val, x0, x1, y0, y1):
+    if val <= x0: return y0
+    if val >= x1: return y1
+    return y0 + (y1 - y0) * ((val - x0) / (x1 - x0))
+
+def _apply_complexity(elo, style):
+    if style == 'Ball Control': return _fast_interp(elo, 1200, 2000, 0.90, 1.20), _fast_interp(elo, 1200, 2000, 0.85, 1.15)
+    if style == 'Technical Play': return _fast_interp(elo, 1200, 2000, 0.95, 1.25), _fast_interp(elo, 1200, 2000, 0.90, 1.10)
+    if style == 'High Press': return _fast_interp(elo, 1200, 1900, 0.85, 1.10), _fast_interp(elo, 1200, 1900, 0.80, 1.05)
+    if style == 'Fast Build-up': return _fast_interp(elo, 1200, 1900, 0.85, 1.08), _fast_interp(elo, 1200, 1900, 0.85, 1.02)
+    if style == 'Disciplined': return _fast_interp(elo, 1200, 1900, 0.95, 1.05), _fast_interp(elo, 1200, 1900, 1.02, 1.12)
+    if style == 'Counter-Attack': return _fast_interp(elo, 1200, 1900, 0.95, 0.88), _fast_interp(elo, 1200, 1900, 1.15, 1.02)
+    if style == 'Deep Block': return _fast_interp(elo, 1200, 1900, 0.90, 0.80), _fast_interp(elo, 1200, 1900, 1.10, 1.05)
+    if style == 'Direct Play': return _fast_interp(elo, 1200, 1900, 1.08, 0.92), _fast_interp(elo, 1200, 1900, 1.05, 0.96)
+    if style == 'High Risk': return _fast_interp(elo, 1200, 1900, 1.05, 1.15), _fast_interp(elo, 1200, 1900, 0.75, 0.88)
+    return 1.0, 1.0
+
+def _elastic_limit(val, chaos):
+    ceiling = 2.1 + (chaos * 1.5) 
+    if val <= ceiling: return val
+    return ceiling + math.log(val - ceiling + 1.0) * (1.0 + chaos)
+
+def _roll_goals(lam, v, ko_exp_weighted):
+    composure = 1.0 - (ko_exp_weighted * 0.05)
+    if composure < 0.85: composure = 0.85
+    elif composure > 1.0: composure = 1.0
     
-    for confed, score in confed_scores.items():
-        ratio = score / baseline
-        # ratio**1.5 instead of 2.2 makes the nerf less aggressive
-        CONFED_MULTIPLIERS[confed] = round(max(0.80, ratio**1.5), 3)
+    # random.gauss is significantly faster than np.random.normal for scalar numbers
+    realized_lam = random.gauss(lam, lam * (v * 0.4 * composure))
+    if realized_lam < 0.1: realized_lam = 0.1
+    return np.random.poisson(realized_lam)
+
+TEAM_PRECOMPUTE = {}
+
+def precompute_match_data():
+    """Caches team data globally so we skip expensive dictionary lookups inside the match loop."""
+    global TEAM_PRECOMPUTE
+    TEAM_PRECOMPUTE.clear()
+    for t, s in TEAM_STATS.items():
+        style = TEAM_PROFILES.get(t, 'Balanced')
+        confed = TEAM_CONFEDS.get(t, 'OFC')
+        c_a, c_d = _apply_complexity(s['elo'], style)
+        
+        is_host = t in ['united states', 'mexico', 'canada']
+        h_mod = 1.15 if is_host else (1.05 if confed == 'CONCACAF' else 1.0)
+        def_mod_host = 1.08 if is_host else 1.0
+        
+        mom_adj = 1.0 + (s.get('momentum', 0) * 0.10)
+        if mom_adj < 0.90: mom_adj = 0.90
+        elif mom_adj > 1.10: mom_adj = 1.10
+        
+        p_b = 0.08 if style in ['Set-Piece Reliant', 'Control / Disciplined', 'Tactical Pragmatism'] else 0
+        
+        TEAM_PRECOMPUTE[t] = {
+            'style': style,
+            'c_a': c_a,
+            'c_d': c_d,
+            'h_mod': h_mod,
+            'def_mod_host': def_mod_host,
+            'mom_adj': mom_adj,
+            'p_b': p_b,
+            'vol': s.get('volatility', 0.15),
+            'ko': s.get('ko_exp_weighted', 0),
+            'off': s.get('off', 1.0),
+            'def': s.get('def', 1.0),
+            'elo': s.get('elo', 1200),
+            'confed_mult': CONFED_MULTIPLIERS.get(confed, 1.0),
+            'is_open': style in OPEN_STYLES,
+            'is_slow': style in SLOW_STYLES
+        }
 
 def sim_match(t1, t2, knockout=False):
-    s1 = TEAM_STATS.get(t1, {'elo':1200, 'off':1.0, 'def':1.0})
-    s2 = TEAM_STATS.get(t2, {'elo':1200, 'off':1.0, 'def':1.0})
-    style1 = TEAM_PROFILES.get(t1, 'Balanced')
-    style2 = TEAM_PROFILES.get(t2, 'Balanced')
-
-    confed1 = TEAM_CONFEDS.get(t1, 'OFC')
-    confed2 = TEAM_CONFEDS.get(t2, 'OFC')
-    reg_mult1 = CONFED_MULTIPLIERS.get(confed1, 1.0)
-    reg_mult2 = CONFED_MULTIPLIERS.get(confed2, 1.0)
-    pedigree_gap = reg_mult1 - reg_mult2 
+    p1 = TEAM_PRECOMPUTE.get(t1)
+    p2 = TEAM_PRECOMPUTE.get(t2)
     
-    dr = s1['elo'] - s2['elo']
-    # Denominator tightened from 650 to 500 so odds don't explode for elites
-    we1 = 1 / (10**(-dr/500) + 1)
-    we2 = 1 - we1
+    # Fallback initialization safety
+    if not p1 or not p2: return t1 if random.random() < 0.5 else t2, 1, 0, 'reg'
     
-    def get_archetype(style):
-        if style in ['High-Intensity Chaos', 'Heavy Metal / Pressing', 'High Risk / Chaos', 'Fast Starters']: return 'chaos'
-        if style in ['Organized Low-Block', 'Tactical Pragmatism', 'Defensive Wall', 'Control / Disciplined']: return 'pragmatic'
-        if style in ['Positional Dominance', 'Vertical Tiki-Taka', 'Elite / Dominant']: return 'possession'
-        if style in ['Fluid Creativity', 'Strong Attack']: return 'fluid'
-        if style in ['Physical Direct', 'Set-Piece Reliant', 'Late Surge']: return 'direct'
-        return 'balanced'
+    dr = p1['elo'] - p2['elo']
+    we1 = 1.0 / (10.0**(-dr/500.0) + 1.0)
+    we2 = 1.0 - we1
+    
+    t1_atk_mod = p1['c_a']
+    t1_def_mod = p1['c_d'] * p1['def_mod_host']
+    t2_atk_mod = p2['c_a']
+    t2_def_mod = p2['c_d'] * p2['def_mod_host']
 
-    arc1, arc2 = get_archetype(style1), get_archetype(style2)
+    # Tactical Matchups
+    t1_atk_mod *= STYLE_MATCHUPS.get((p1['style'], p2['style']), 1.0)
+    t2_atk_mod *= STYLE_MATCHUPS.get((p2['style'], p1['style']), 1.0)
 
-    # 4. INITIALIZE MODIFIERS
-    t1_atk_mod, t1_def_mod = 1.0, 1.0
-    t2_atk_mod, t2_def_mod = 1.0, 1.0
+    # Game Pace & David-vs-Goliath
     pace_mod = 1.0
-
-    # 5. DYNAMIC COMPLEXITY & ELO SCALING (Continuous Interpolation)
-    def apply_complexity(elo, style):
-        # We scale between the absolute floor (Curaçao at ~1250) and ceiling (Spain at ~2000)
-        # np.interp(elo, [1200, 1900],[multiplier_at_1200, multiplier_at_2000])
-        if style == 'Ball Control':
-            # Buffed: Elites now reach 1.20x atk instead of 1.10x
-            atk = np.interp(elo, [1200, 2000], [0.90, 1.20])
-            dfe = np.interp(elo, [1200, 2000], [0.85, 1.15])
-        elif style == 'Technical Play':
-            # Buffed: Ceiling raised for individual brilliance
-            atk = np.interp(elo, [1200, 2000], [0.95, 1.25])
-            dfe = np.interp(elo, [1200, 2000], [0.90, 1.10])
-        elif style == 'High Press':
-            atk = np.interp(elo, [1200, 1900], [0.85, 1.10])
-            dfe = np.interp(elo, [1200, 1900], [0.80, 1.05])
-        elif style == 'Fast Build-up':
-            atk = np.interp(elo, [1200, 1900], [0.85, 1.08])
-            dfe = np.interp(elo, [1200, 1900], [0.85, 1.02])
-        elif style == 'Disciplined':
-            atk = np.interp(elo, [1200, 1900], [0.95, 1.05])
-            dfe = np.interp(elo, [1200, 1900], [1.02, 1.12])
-        elif style == 'Counter-Attack':
-            atk = np.interp(elo, [1200, 1900], [0.95, 0.88])
-            dfe = np.interp(elo, [1200, 1900], [1.15, 1.02])
-        elif style == 'Deep Block':
-            # Def lowered from 1.20 to 1.10. It's an advantage, but not a cheat code.
-            atk = np.interp(elo, [1200, 1900], [0.90, 0.80])
-            dfe = np.interp(elo, [1200, 1900], [1.10, 1.05])
-        elif style == 'Direct Play':
-            atk = np.interp(elo, [1200, 1900], [1.08, 0.92])
-            dfe = np.interp(elo, [1200, 1900], [1.05, 0.96])
-        elif style == 'High Risk':
-            atk = np.interp(elo, [1200, 1900], [1.05, 1.15])
-            dfe = np.interp(elo, [1200, 1900], [0.75, 0.88])
-        else: 
-            atk, dfe = 1.0, 1.0
-
-        return float(atk), float(dfe)
-
-    c1_a, c1_d = apply_complexity(s1['elo'], style1)
-    c2_a, c2_d = apply_complexity(s2['elo'], style2)
-    t1_atk_mod *= c1_a; t1_def_mod *= c1_d
-    t2_atk_mod *= c2_a; t2_def_mod *= c2_d
-
-    # 6. HISTORICAL TACTICAL MATCHUPS (The Matrix)
-    # Automatically looks up if either team has a structural advantage.
-    # Defaults to 1.0 (neutral) if there is no specific historical counter.
-
-    t1_tactical_edge = STYLE_MATCHUPS.get((style1, style2), 1.0)
-    t2_tactical_edge = STYLE_MATCHUPS.get((style2, style1), 1.0)
+    if p1['is_open'] and p2['is_open']: pace_mod = 1.15
+    elif p1['is_slow'] and p2['is_slow']: pace_mod = 0.85
     
-    t1_atk_mod *= t1_tactical_edge
-    t2_atk_mod *= t2_tactical_edge
-
-    # 7. GAME PACE & DAVID-VS-GOLIATH
-    # Open games speed up the pace (more chances for both)
-    open_styles =['High Risk', 'High Press', 'Technical Play', 'Fast Build-up']
-    slow_styles =['Deep Block', 'Counter-Attack', 'Disciplined']
-    
-    if style1 in open_styles and style2 in open_styles: 
-        pace_mod = 1.15 
-    elif style1 in slow_styles and style2 in slow_styles: 
-        pace_mod = 0.85 
-
-    # Underdog "Park the Bus" desperation 
-    # If a defensive team is playing a massive favorite, they bunker even harder.    
-    if style1 in slow_styles and dr < -150: t1_def_mod *= 1.10 
-    if style2 in slow_styles and dr > 150: t2_def_mod *= 1.10
-
-
-    # 8. MOMENTUM (Replaces old Form Hack)
-    # Scale momentum safely so it doesn't break multipliers
-    mom1_adj = np.clip(1.0 + (s1.get('momentum', 0) * 0.10), 0.90, 1.10)
-    mom2_adj = np.clip(1.0 + (s2.get('momentum', 0) * 0.10), 0.90, 1.10)
+    if p1['is_slow'] and dr < -150: t1_def_mod *= 1.10
+    if p2['is_slow'] and dr > 150: t2_def_mod *= 1.10
 
     bus1, bus2 = 1.0, 1.0
     if dr > 300: 
@@ -901,62 +840,40 @@ def sim_match(t1, t2, knockout=False):
     elif dr < -300:
         bus1, bus2 = 0.65, 0.90
         
-    # 10. BRINGING IT ALL TOGETHER
     class1 = 1.0 + (we1 - 0.5) * 0.12 
     class2 = 1.0 + (we2 - 0.5) * 0.12
+    
+    pedigree_gap = p1['confed_mult'] - p2['confed_mult']
     ped1 = 1.0 + (pedigree_gap * 0.15)
     ped2 = 1.0 - (pedigree_gap * 0.15)
+
+    m1_base = (p1['off'] * p2['def']) * class1 * ped1 * bus1 * p1['mom_adj']
+    m2_base = (p2['off'] * p1['def']) * class2 * ped2 * bus2 * p2['mom_adj']
     
-    # Normalized host advantages
-    h1 = 1.15 if t1 in ['united states', 'mexico', 'canada'] else (1.05 if confed1 == 'CONCACAF' else 1.0)
-    h2 = 1.15 if t2 in ['united states', 'mexico', 'canada'] else (1.05 if confed2 == 'CONCACAF' else 1.0)
-
-    if t1 in ['united states', 'mexico', 'canada']: t1_def_mod *= 1.08
-    if t2 in ['united states', 'mexico', 'canada']: t2_def_mod *= 1.08
-
-    m1_base = (s1['off'] * s2['def']) * class1 * ped1 * bus1 * mom1_adj
-    m2_base = (s2['off'] * s1['def']) * class2 * ped2 * bus2 * mom2_adj
-    
-    # 11. ELASTIC LIMITER (Replaces hard 'compress')
-    vol1, vol2 = s1.get('volatility', 0.15), s2.get('volatility', 0.15)
-    total_chaos = (vol1 + vol2)
-
-    def elastic_limit(val, chaos):
-        # Raised ceiling to 2.1x: Favorites are allowed to be dominant again.
-        ceiling = 2.1 + (chaos * 1.5) 
-        return val if val <= ceiling else ceiling + np.log(val - (ceiling - 1)) * (1.0 + chaos)
-
+    total_chaos = p1['vol'] + p2['vol']
     intensity = 1.15 if knockout else 1.0
 
-    lam1 = AVG_GOALS * elastic_limit(m1_base, total_chaos) * h1 * intensity * pace_mod * t1_atk_mod * (2.0 - t2_def_mod)
-    lam2 = AVG_GOALS * elastic_limit(m2_base, total_chaos) * h2 * intensity * pace_mod * t2_atk_mod * (2.0 - t1_def_mod)
+    lam1 = AVG_GOALS * _elastic_limit(m1_base, total_chaos) * p1['h_mod'] * intensity * pace_mod * t1_atk_mod * (2.0 - t2_def_mod)
+    lam2 = AVG_GOALS * _elastic_limit(m2_base, total_chaos) * p2['h_mod'] * intensity * pace_mod * t2_atk_mod * (2.0 - t1_def_mod)
 
-    # 12. GOAL ROLLING (Variance Injection via Volatility)
-    def roll_goals(lam, v, ko_exp_weighted):
-        # Reduced variance: Multiplying volatility (v) by 0.4 
-        # This prevents the "Lambda" from swinging wildly into upset territory.
-        composure = np.clip(1.0 - (ko_exp_weighted * 0.05), 0.85, 1.0)
-        realized_lam = np.random.normal(lam, lam * (v * 0.4 * composure))
-        return np.random.poisson(max(0.1, realized_lam))
-
-    # Apply it (Removed undefined fatigue variables)
-    ko1 = s1.get('ko_exp_weighted', 0)
-    ko2 = s2.get('ko_exp_weighted', 0)
-    g1 = roll_goals(lam1, vol1, ko1)
-    g2 = roll_goals(lam2, vol2, ko2)
+    g1 = _roll_goals(lam1, p1['vol'], p1['ko'])
+    g2 = _roll_goals(lam2, p2['vol'], p2['ko'])
     
     if g1 > g2: return (t1, g1, g2, 'reg') if knockout else (t1, g1, g2)
     if g2 > g1: return (t2, g1, g2, 'reg') if knockout else (t2, g1, g2)
     if not knockout: return 'draw', g1, g2
 
+    # Extra Time
     g1 += np.random.poisson(lam1 * 0.4)
     g2 += np.random.poisson(lam2 * 0.4)
     if g1 > g2: return t1, g1, g2, 'aet'
     if g2 > g1: return t2, g1, g2, 'aet'
     
-    p1_b = 0.08 if style1 in ['Set-Piece Reliant', 'Control / Disciplined', 'Tactical Pragmatism'] else 0
-    p2_b = 0.08 if style2 in ['Set-Piece Reliant', 'Control / Disciplined', 'Tactical Pragmatism'] else 0
-    win_chance = np.clip(0.5 + (dr/2000) + (p1_b - p2_b), 0.30, 0.70)
+    # Penalties
+    win_chance = 0.5 + (dr/2000.0) + (p1['p_b'] - p2['p_b'])
+    if win_chance < 0.30: win_chance = 0.30
+    elif win_chance > 0.70: win_chance = 0.70
+        
     winner = t1 if random.random() < win_chance else t2
     return winner, g1, g2, 'pks'
 

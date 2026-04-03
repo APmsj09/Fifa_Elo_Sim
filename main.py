@@ -79,6 +79,9 @@ async def initialize_app():
         # Run calculations
         sim.TEAM_STATS, sim.TEAM_PROFILES, sim.AVG_GOALS = sim.initialize_engine()
         sim.calculate_confed_strength() 
+        
+        # --- NEW: Call the precompute step here to optimize bulk processing ---
+        sim.precompute_match_data()
 
         # 2. Setup UI Tabs & Buttons (This is where we bind clicks)
         setup_interactions()
