@@ -581,6 +581,7 @@ def initialize_engine():
         h_elo = TEAM_STATS.get(h, {}).get('elo', 1200)
         a_elo = TEAM_STATS.get(a, {}).get('elo', 1200)
 
+        # ---> COMBINE RECENCY AND MATCH IMPORTANCE <---
         weight = calculate_recency_weight(match_date, LATEST_DATE) * get_match_importance(row['tournament'], match_date)
 
         if h in TEAM_STATS:
@@ -927,10 +928,6 @@ def engineer_team_signatures(results_df):
 TEAM_PRECOMPUTE = {}
 
 def precompute_match_data():
-    """
-    Caches the ENGINEERED data so the simulation loop 
-    doesn't have to look up dictionaries thousands of times.
-    """
     global TEAM_PRECOMPUTE
     TEAM_PRECOMPUTE.clear()
     
@@ -938,11 +935,9 @@ def precompute_match_data():
         style = TEAM_PROFILES.get(t, 'Balanced')
         confed = TEAM_CONFEDS.get(t, 'OFC')
         
-        # HFA Logic: Derived from the Data-Driven HFA calculated in init
         is_host = t in ['united states', 'mexico', 'canada']
         h_mod = 1.15 if is_host else 1.0 
         
-        # Penalty Bonus: Data-driven (Teams that draw more pens in history)
         p_b = 0.05 if s.get('pen_pct', 0) > 15 else 0
         
         TEAM_PRECOMPUTE[t] = {
@@ -951,7 +946,8 @@ def precompute_match_data():
             'pace': s.get('pace_factor', 1.0),
             'vol': s.get('volatility', 0.15),
             'confed_mult': CONFED_MULTIPLIERS.get(confed, 1.0),
-            'p_b': p_b, # Added to fix the penalty crash
+            'p_b': p_b,
+            'gf_avg': s.get('gf_avg', 1.25),  # <--- ADD THIS LINE
             'ga_avg': s.get('ga_avg', 1.25)
         }
 
@@ -978,23 +974,31 @@ def sim_match(t1, t2, knockout=False):
     reg_weight = (p1['confed_mult'] + p2['confed_mult']) / 2
     intensity = 0.9 if knockout else 1.0
     
-    # 4. Lambda Calculation (Data-Driven Blend)
-    # The baseline of how many goals we expect in this specific match tempo
-    base_lam = AVG_GOALS * pace * intensity * reg_weight
+    # =========================================================
+    # 4. LAMBDA CALCULATION (Cleanly Decoupled)
+    # =========================================================
     
-    # A. STATISTICAL EXPECTATION: Based purely on engineered GF vs GA metrics
-    stat_lam1 = base_lam * t1_power
-    stat_lam2 = base_lam * t2_power
+    # --- A. ELO EXPECTATION (Skill Gap & Tempo) ---
+    # We restore a base 2.5 goals, but scale it entirely by the specific teams' PACE.
+    # This prevents double-counting absolute goals but maintains realistic game environments.
+    match_base_goals = 2.5 * pace * intensity * reg_weight
     
-    # B. ELO EXPECTATION: Based on standard Elo goal expectancy curves
-    # A 400 Elo gap historically translates to ~1.2 goals of difference
-    elo_goal_diff = dr / 330.0 
-    elo_lam1 = base_lam + (elo_goal_diff / 2)
-    elo_lam2 = base_lam - (elo_goal_diff / 2)
+    dr = (p1['elo'] - p2['elo'])
+    win_prob = 1 / (10**(-dr/400) + 1)
     
-    # C. THE BLEND: 60% Stats / 40% Elo (Prevents extreme stat anomalies from breaking the sim)
-    lam1 = max(0.1, (stat_lam1 * 0.6) + (elo_lam1 * 0.4))
-    lam2 = max(0.1, (stat_lam2 * 0.6) + (elo_lam2 * 0.4))
+    elo_lam1 = match_base_goals * win_prob
+    elo_lam2 = match_base_goals * (1.0 - win_prob)
+
+    # --- B. STATISTICAL EXPECTATION (Tactical Identity) ---
+    # Pure data: Team 1's offensive multiplier * Team 2's specific defensive leakage.
+    # We REMOVE pace here because ga_avg already inherently contains the team's defensive tempo.
+    stat_lam1 = p1['xg_coeff'] * p2['ga_avg'] * intensity
+    stat_lam2 = p2['xg_coeff'] * p1['ga_avg'] * intensity
+
+    # --- C. THE BLEND ---
+    # 55% True Stats / 45% Historical Elo
+    lam1 = max(0.1, (stat_lam1 * 0.55) + (elo_lam1 * 0.45))
+    lam2 = max(0.1, (stat_lam2 * 0.55) + (elo_lam2 * 0.45))
 
     # 5. The Roll (Using Historical Standard Deviation/Volatility)
     def roll(lam, vol):
