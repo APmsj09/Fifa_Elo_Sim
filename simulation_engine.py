@@ -692,8 +692,8 @@ def initialize_engine():
         elo_off_log = np.log(elo_off)
         elo_def_log = np.log(elo_def)
 
-        STAT_WEIGHT = 0.60
-        ELO_WEIGHT  = 0.40
+        STAT_WEIGHT = 0.30  # Reduced
+        ELO_WEIGHT  = 0.70  # Increased (Elo is the best predictor of WC success)
 
         final_off_log = STAT_WEIGHT * np.log(adjusted_off) + ELO_WEIGHT * elo_off_log
         s['off'] = np.exp(final_off_log)
