@@ -960,6 +960,17 @@ def sim_match(t1, t2, knockout=False):
     t2 = t2.lower().strip()
     p1 = TEAM_PRECOMPUTE.get(t1)
     p2 = TEAM_PRECOMPUTE.get(t2)
+
+    # --- ADD THIS DIAGNOSTIC BLOCK ---
+    if not p1 or not p2:
+        problem_team = t1 if not p1 else t2
+        # This will print a big red error in your browser's developer console (F12)
+        js.console.error(f"FATAL LOOKUP ERROR: Could not find data for team '{problem_team}'.")
+        # This will reveal hidden characters. A clean 'argentina' is 9 bytes.
+        js.console.log(f"The broken string has length {len(problem_team)} and bytes: {problem_team.encode('utf-8')}")
+        return (t1, 1, 0, 'reg') if knockout else (t1, 1, 0)
+    # --- END DIAGNOSTIC BLOCK ---
+
     if not p1 or not p2: return t1, 1, 0, 'reg'
 
     # 1. Boosted Tournament Environment
@@ -1045,6 +1056,21 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
         'K': ['portugal', 'uzbekistan', 'colombia', slots['ICP1']],
         'L': ['england', 'croatia', 'ghana', 'panama']
     }
+
+    # =========================================================================
+    # --- INSERT THIS DATA HYGIENE BLOCK ---
+    # This block rebuilds the groups dictionary, applying .lower() and .strip()
+    # to every single team name to eliminate hidden characters or spaces.
+    clean_groups = {}
+    for grp, teams in groups.items():
+        # This list comprehension cleans every team name in the list
+        clean_groups[grp] = [str(team).lower().strip() for team in teams]
+    # Overwrite the original dictionary with the perfectly clean one
+    groups = clean_groups
+    # =========================================================================
+
+    group_results_lists = {}
+    third_place =[]
     
     group_results_lists = {}
     third_place =[]
