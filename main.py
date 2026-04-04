@@ -1423,9 +1423,9 @@ def update_dashboard_data(event=None):
     mom_pct = max(0, min(100, ((t_mom + 1.5) / 3.0) * 100))
     
     # Calculate All-Time Pedigree Score
-    # Top nations (Brazil, Germany) score ~45+ points historically. 
+    # Top nations (Brazil, Germany) have played 110+ WC matches, scoring ~130 pts all time.
     heritage_pts = stats.get('pedigree_pts', 0)
-    heritage_rating = max(0, min(100, int((heritage_pts / 40.0) * 100)))
+    heritage_rating = max(0, min(100, int((heritage_pts / 120.0) * 100)))
     
     if heritage_rating >= 90: her_tier = "Football Royalty 👑"
     elif heritage_rating >= 60: her_tier = "Tournament Heavyweight 🌍"
@@ -1579,13 +1579,13 @@ def update_dashboard_data(event=None):
         
         <!-- NEW: ELO WIN RATE BRACKETS -->
         <div class="dashboard-card" style="margin:0; padding:15px; border-left:4px solid var(--accent-gold);">
-            <div style="font-size:0.75em; font-weight:bold; color:var(--text-light); margin-bottom:8px; text-transform:uppercase;">Win Rate by Matchup</div>
+            <div style="font-size:0.75em; font-weight:bold; color:var(--text-light); margin-bottom:8px; text-transform:uppercase;">All-Time Record by Matchup</div>
             <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.9em;">
-                <span style="color:var(--text-main);">Vs. Elite (+180 Elo):</span>
+                <span style="color:var(--text-main);">Vs. Global Elite (1800+ Elo):</span>
                 <span>{format_rec(rec_elite)}</span>
             </div>
             <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.9em;">
-                <span style="color:var(--text-main);">Vs. Stronger (+75 Elo):</span>
+                <span style="color:var(--text-main);">Vs. Better Teams (+75 Elo):</span>
                 <span>{format_rec(rec_stronger)}</span>
             </div>
             <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.9em;">
@@ -1593,7 +1593,7 @@ def update_dashboard_data(event=None):
                 <span>{format_rec(rec_similar)}</span>
             </div>
             <div style="font-size:0.8em; color:var(--text-light); margin-top:8px; border-top:1px solid var(--sidebar-border); padding-top:6px;">
-                <b>Biggest Scalp:</b> <span style="color:var(--text-main); font-weight:bold;">{best_win}</span>
+                <b>Biggest Recent Scalp:</b> <span style="color:var(--text-main); font-weight:bold;">{best_win}</span>
             </div>
         </div>
     </div>

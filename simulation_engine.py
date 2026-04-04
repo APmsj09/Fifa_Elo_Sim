@@ -433,33 +433,48 @@ def initialize_engine():
         rh = team_elo.get(h, INITIAL_RATING)
         ra = team_elo.get(a, INITIAL_RATING)
 
-        ko_stages = ['Quarter-finals', 'Semi-finals', 'Final']
-        if any(stage in tourney for stage in ko_stages):
-            w = calculate_recency_weight(date, LATEST_DATE) 
-            TEAM_STATS[h]['ko_exp_weighted'] = TEAM_STATS[h].get('ko_exp_weighted', 0) + w
-            TEAM_STATS[a]['ko_exp_weighted'] = TEAM_STATS[a].get('ko_exp_weighted', 0) + w
-            
-            # ALL-TIME HERITAGE SCORE (No time decay)
-            ped_val = 1.0 if 'world cup' in str(tourney).lower() else 0.35
-            TEAM_STATS[h]['pedigree_pts'] = TEAM_STATS[h].get('pedigree_pts', 0) + ped_val
-            TEAM_STATS[a]['pedigree_pts'] = TEAM_STATS[a].get('pedigree_pts', 0) + ped_val
-        
         if hs > as_:   res_h, res_a = 0, 2
         elif hs == as_: res_h, res_a = 1, 1
         else:          res_h, res_a = 2, 0
         
+        # --- 1. ALL-TIME PEDIGREE TRACKING ---
+        t_str = str(tourney).lower()
+        is_wc_finals = 'world cup' in t_str and 'qualification' not in t_str
+        is_continental_finals = any(x in t_str for x in ['copa américa', 'euro', 'african cup', 'asian cup', 'gold cup']) and 'qualification' not in t_str
+
+        if is_wc_finals or is_continental_finals:
+            ped_val = 1.0 if is_wc_finals else 0.35
+            TEAM_STATS[h]['pedigree_pts'] = TEAM_STATS[h].get('pedigree_pts', 0) + ped_val
+            TEAM_STATS[a]['pedigree_pts'] = TEAM_STATS[a].get('pedigree_pts', 0) + ped_val
+
+        # --- 2. ALL-TIME ELO RECORD TRACKING ---
+        # "Elite" means opponent is 1800+ Elo. "Stronger" means opponent is +75 Elo higher.
+        diff_h = ra - rh 
+        if ra >= 1800: TEAM_STATS[h]['rec_elite'][res_h] += 1
+        elif diff_h > 75: TEAM_STATS[h]['rec_stronger'][res_h] += 1
+        elif diff_h < -75: TEAM_STATS[h]['rec_weaker'][res_h] += 1
+        else: TEAM_STATS[h]['rec_similar'][res_h] += 1
+
+        diff_a = rh - ra 
+        if rh >= 1800: TEAM_STATS[a]['rec_elite'][res_a] += 1
+        elif diff_a > 75: TEAM_STATS[a]['rec_stronger'][res_a] += 1
+        elif diff_a < -75: TEAM_STATS[a]['rec_weaker'][res_a] += 1
+        else: TEAM_STATS[a]['rec_similar'][res_a] += 1
+
+        # --- 3. RECENT TRACKING (Last 4 Years) ---
         if date > RELEVANCE_CUTOFF:
+            # Recent Knockout Experience Decay
+            if is_wc_finals or is_continental_finals:
+                w = calculate_recency_weight(date, LATEST_DATE) 
+                TEAM_STATS[h]['ko_exp_weighted'] = TEAM_STATS[h].get('ko_exp_weighted', 0) + w
+                TEAM_STATS[a]['ko_exp_weighted'] = TEAM_STATS[a].get('ko_exp_weighted', 0) + w
+
             def record_upset(team, opp, score_str, elo_diff, type_code, match_date):
                 TEAM_STATS[team]['notable_results'].append({
                     'opp': opp, 'score': score_str, 'diff': abs(int(elo_diff)), 'date': match_date, 'type': type_code
                 })
-
-            diff_h = ra - rh 
-            if diff_h > 180: TEAM_STATS[h]['rec_elite'][res_h] += 1
-            elif diff_h > 75: TEAM_STATS[h]['rec_stronger'][res_h] += 1
-            elif diff_h < -75: TEAM_STATS[h]['rec_weaker'][res_h] += 1
-            else: TEAM_STATS[h]['rec_similar'][res_h] += 1
             
+            # Record Giant Killings
             score_h = f"{hs}-{as_}"
             if res_h == 0: 
                 if diff_h > 300:   
@@ -473,12 +488,6 @@ def initialize_engine():
                     TEAM_STATS[h]['upsets_major_lost'] += 1
                     record_upset(h, a, score_h, diff_h, "LOST_MAJOR", date)
                 elif diff_h < -150: TEAM_STATS[h]['upsets_minor_lost'] += 1
-
-            diff_a = rh - ra 
-            if diff_a > 180: TEAM_STATS[a]['rec_elite'][res_a] += 1
-            elif diff_a > 75: TEAM_STATS[a]['rec_stronger'][res_a] += 1
-            elif diff_a < -75: TEAM_STATS[a]['rec_weaker'][res_a] += 1
-            else: TEAM_STATS[a]['rec_similar'][res_a] += 1
             
             score_a = f"{as_}-{hs}"
             if res_a == 0: 
