@@ -380,53 +380,40 @@ def initialize_engine():
 
     results_df, scorers_df, _ = load_data()
     
-    if results_df is None:
-        return {}, {}, 2.5
+    if results_df is None: return {}, {}, 2.5
 
-    # --- 1. CLEAN DATA (FIX IS HERE) ---
     results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
     results_df = results_df.dropna(subset=['date', 'home_score', 'away_score', 'neutral'])
     
-    # Ensure team names are cleaned BEFORE any other processing
     results_df['home_team'] = results_df['home_team'].str.lower().str.strip().replace(NAME_MAP)
     results_df['away_team'] = results_df['away_team'].str.lower().str.strip().replace(NAME_MAP)
-    
     results_df = results_df.astype({'home_score': int, 'away_score': int})
 
-    # --- NEW: CALCULATE DATA-DRIVEN HFA ---
+    # HFA CALC
     non_neutral = results_df[results_df['neutral'] == False]
     h_wins = len(non_neutral[non_neutral['home_score'] > non_neutral['away_score']])
     total_non_neutral = len(non_neutral)
     
     if total_non_neutral > 0:
         h_win_prob = h_wins / total_non_neutral
-        # Clamp probability to avoid math errors if data is weird
         h_win_prob = max(0.01, min(0.99, h_win_prob))
         calculated_hfa = round(-400 * math.log10(1/h_win_prob - 1))
     else:
-        calculated_hfa = 100 # Fallback
+        calculated_hfa = 100 
     
-    # Optional: Log it so you can see what your data says
     js.console.log(f"Data-Driven HFA: {calculated_hfa}")
-    
-    # Sort for Elo (Critical)
     elo_df = results_df.sort_values('date')
 
-    # ----------------------------------------------------
-    # PHASE 1: CHRONOLOGICAL ELO & LIVE TRACKING
-    # ----------------------------------------------------
+    # PHASE 1
     team_elo = {}
     INITIAL_RATING = 1200
-    RELEVANCE_CUTOFF = pd.to_datetime('2021-01-01') # "Recent History" Filter for Profile Stats
+    RELEVANCE_CUTOFF = pd.to_datetime('2021-01-01') 
     
-    global TEAM_HISTORY
+    global TEAM_HISTORY, TEAM_STATS
     TEAM_HISTORY = {} 
-    global TEAM_STATS
     TEAM_STATS = {}
     
     LATEST_DATE = elo_df['date'].max()
-    
-    # 1. INITIALIZE ALL TEAMS FIRST
     all_teams_set = set(elo_df['home_team']).union(set(elo_df['away_team']))
     recent_residuals = {t: [] for t in all_teams_set}
     
@@ -434,19 +421,12 @@ def initialize_engine():
         TEAM_STATS[t] = {
             'elo': INITIAL_RATING, 'notable_results': [],
             'vs_elite': [0, 0, 0], 'vs_stronger': [0, 0, 0], 'vs_similar':  [0, 0, 0], 'vs_weaker':   [0, 0, 0],
-
-            # --- Upset Tracking (Live Elo) ---
             'upsets_major_won': 0,  'upsets_minor_won': 0, 'upsets_major_lost': 0, 'upsets_minor_lost': 0,
-
-            # --- Stats to be filled in Phase 2 ---
             'matches': 0, 'clean_sheets': 0, 'btts': 0, 'gf_avg': 0, 'ga_avg': 0, 'off': 1.0, 'def': 1.0,
             'penalties': 0, 'first_half': 0, 'late_goals': 0, 'total_goals_recorded': 0, 'form': []
         }
 
-    # 2. THE MAIN LOOP (Chronological)
-    matches_data = zip(elo_df['home_team'], elo_df['away_team'], 
-                       elo_df['home_score'], elo_df['away_score'], 
-                       elo_df['tournament'], elo_df['neutral'], elo_df['date'])
+    matches_data = zip(elo_df['home_team'], elo_df['away_team'], elo_df['home_score'], elo_df['away_score'], elo_df['tournament'], elo_df['neutral'], elo_df['date'])
 
     for h, a, hs, as_, tourney, neutral, date in matches_data:
         rh = team_elo.get(h, INITIAL_RATING)
@@ -458,23 +438,16 @@ def initialize_engine():
             TEAM_STATS[h]['ko_exp_weighted'] = TEAM_STATS[h].get('ko_exp_weighted', 0) + w
             TEAM_STATS[a]['ko_exp_weighted'] = TEAM_STATS[a].get('ko_exp_weighted', 0) + w
         
-        # B. DETERMINE RESULT (0=Win, 1=Draw, 2=Loss)
         if hs > as_:   res_h, res_a = 0, 2
         elif hs == as_: res_h, res_a = 1, 1
         else:          res_h, res_a = 2, 0
         
-        # =========================================================
-        # C. TRACK TIERS & UPSETS (LIVE EVALUATION)
-        # =========================================================
         if date > RELEVANCE_CUTOFF:
-            # Helper to record upset
-            # type_code: "WON_MAJOR", "WON_MINOR", "LOST_MAJOR", "LOST_MINOR"
             def record_upset(team, opp, score_str, elo_diff, type_code, match_date):
                 TEAM_STATS[team]['notable_results'].append({
                     'opp': opp, 'score': score_str, 'diff': abs(int(elo_diff)), 'date': match_date, 'type': type_code
                 })
 
-            # --- HOME PERSPECTIVE ---
             diff_h = ra - rh 
             if ra > 1750 or diff_h > 150: TEAM_STATS[h]['vs_elite'][res_h] += 1
             if diff_h > 100: cat = 'vs_stronger'
@@ -482,24 +455,20 @@ def initialize_engine():
             else: cat = 'vs_similar'
             TEAM_STATS[h][cat][res_h] += 1
             
-            # Upset Logic + RECORDING
             score_h = f"{hs}-{as_}"
-            if res_h == 0: # Home Win
+            if res_h == 0: 
                 if diff_h > 300:   
                     TEAM_STATS[h]['upsets_major_won'] += 1
                     record_upset(h, a, score_h, diff_h, "WON_MAJOR", date)
                 elif diff_h > 150: 
                     TEAM_STATS[h]['upsets_minor_won'] += 1
                     record_upset(h, a, score_h, diff_h, "WON_MINOR", date)
-            
-            if res_h == 2: # Home Loss
+            if res_h == 2: 
                 if diff_h < -300:   
                     TEAM_STATS[h]['upsets_major_lost'] += 1
                     record_upset(h, a, score_h, diff_h, "LOST_MAJOR", date)
-                elif diff_h < -150: 
-                    TEAM_STATS[h]['upsets_minor_lost'] += 1
+                elif diff_h < -150: TEAM_STATS[h]['upsets_minor_lost'] += 1
 
-            # --- AWAY PERSPECTIVE ---
             diff_a = rh - ra 
             if rh > 1750 or diff_a > 150: TEAM_STATS[a]['vs_elite'][res_a] += 1
             if diff_a > 100: cat = 'vs_stronger'
@@ -508,46 +477,33 @@ def initialize_engine():
             TEAM_STATS[a][cat][res_a] += 1
             
             score_a = f"{as_}-{hs}"
-            if res_a == 0: # Away Win
+            if res_a == 0: 
                 if diff_a > 300:   
                     TEAM_STATS[a]['upsets_major_won'] += 1
                     record_upset(a, h, score_a, diff_a, "WON_MAJOR", date)
                 elif diff_a > 150: 
                     TEAM_STATS[a]['upsets_minor_won'] += 1
                     record_upset(a, h, score_a, diff_a, "WON_MINOR", date)
-            
-            if res_a == 2: # Away Loss
+            if res_a == 2: 
                 if diff_a < -300:   
                     TEAM_STATS[a]['upsets_major_lost'] += 1
                     record_upset(a, h, score_a, diff_a, "LOST_MAJOR", date)
-                elif diff_a < -150: 
-                    TEAM_STATS[a]['upsets_minor_lost'] += 1
+                elif diff_a < -150: TEAM_STATS[a]['upsets_minor_lost'] += 1
         
-         # =========================================================
-        
-        # D. ELO CALCULATION (Standard)
         if h not in TEAM_HISTORY: TEAM_HISTORY[h] = {'dates': [], 'elo': []}
         if a not in TEAM_HISTORY: TEAM_HISTORY[a] = {'dates': [], 'elo': []}
         
-        # Calculate Expectancy (Divisor changed to 400 for better elite separation)
         dr = rh - ra + (calculated_hfa if not neutral else 0)
         we_h = 1 / (10**(-dr/400) + 1)
         W_h = 1.0 if hs > as_ else (0.5 if hs == as_ else 0.0)
         
-        # Apply Update
         k = get_k_factor(tourney, abs(hs - as_), h, a)
         change = k * (W_h - we_h)
 
-        # If the match is recent, track the surprisal (volatility)
         if date > RELEVANCE_CUTOFF:
-            # COMBINE RECENCY AND IMPORTANCE
             weight = calculate_recency_weight(date, LATEST_DATE) * get_match_importance(tourney, date)
-            
-            # Home Team Volatility: (Actual - Expected)^2
             res_h_vol = (W_h - we_h)**2
             recent_residuals[h].append((weight, res_h_vol))
-            
-            # Away Team Volatility
             res_a_vol = ((1.0 - W_h) - (1.0 - we_h))**2
             recent_residuals[a].append((weight, res_a_vol))
         
@@ -557,15 +513,11 @@ def initialize_engine():
         TEAM_HISTORY[h]['dates'].append(date); TEAM_HISTORY[h]['elo'].append(team_elo[h])
         TEAM_HISTORY[a]['dates'].append(date); TEAM_HISTORY[a]['elo'].append(team_elo[a])
 
-    # Update Final Elos in Stats Dictionary
     for t in all_teams_set:
         TEAM_STATS[t]['elo'] = team_elo.get(t, INITIAL_RATING)
 
-    # ----------------------------------------------------
-    # PHASE 2: RECENT FORM & OPPONENT STRENGTH (Weighted)
-    # ----------------------------------------------------
+    # PHASE 2
     recent_df = elo_df[elo_df['date'] > RELEVANCE_CUTOFF]
-    
     if len(recent_df) > 0:
         LATEST_DATE = recent_df['date'].max()
         avg_goals_global = (recent_df['home_score'].mean() + recent_df['away_score'].mean()) / 2
@@ -583,7 +535,6 @@ def initialize_engine():
         h_elo = TEAM_STATS.get(h, {}).get('elo', 1200)
         a_elo = TEAM_STATS.get(a, {}).get('elo', 1200)
 
-        # ---> COMBINE RECENCY AND MATCH IMPORTANCE <---
         weight = calculate_recency_weight(match_date, LATEST_DATE) * get_match_importance(row['tournament'], match_date)
 
         if h in TEAM_STATS:
@@ -614,9 +565,7 @@ def initialize_engine():
             if hs == 0: TEAM_STATS[a]['clean_sheets'] += 1
             if hs > 0 and as_ > 0: TEAM_STATS[a]['btts'] += 1
 
-    # ----------------------------------------------------
-    # PHASE 3: TIMING & PENALTIES
-    # ----------------------------------------------------
+    # PHASE 3
     if scorers_df is not None:
         scorers_df['team'] = scorers_df['team'].str.lower().str.strip().replace(NAME_MAP)
         scorers_df['date'] = pd.to_datetime(scorers_df['date'])
@@ -625,10 +574,7 @@ def initialize_engine():
         for _, row in modern_scorers.iterrows():
             t = row['team']
             if t in TEAM_STATS:
-                # Find the match importance based on the date (Approximation if tourney isn't in scorers_df)
                 weight = calculate_recency_weight(row['date'], LATEST_DATE)
-                # Apply a slight penalty if it's super old, to favor modern tactical setups
-                
                 TEAM_STATS[t]['total_goals_recorded'] += weight
                 if row['penalty']: TEAM_STATS[t]['penalties'] += weight
                 try:
@@ -637,20 +583,17 @@ def initialize_engine():
                     if minute >= 75: TEAM_STATS[t]['late_goals'] += weight
                 except: pass
 
-    # --- CALCULATE GLOBAL ELO MEAN (Required for SOS) ---
     active_elos = [s['elo'] for s in TEAM_STATS.values()]
     GLOBAL_ELO_MEAN = sum(active_elos) / len(active_elos) if active_elos else 1500
 
-    # ----------------------------------------------------
-    # PHASE 4: FINALIZE (Weighted Math & Uncapped Elo)
-    # ----------------------------------------------------
+    # PHASE 4
+    global TEAM_PROFILES
     TEAM_PROFILES = {}
     REGRESSION_DUMMY_GAMES = 6
     
     for t, s in TEAM_STATS.items():
         agg = team_recent_aggregates[t]
         
-        # 1. Weighted Averages (Unchanged)
         denom = agg['eff_games'] + REGRESSION_DUMMY_GAMES
         numerator_gf = agg['gf'] + (REGRESSION_DUMMY_GAMES * avg_goals_global)
         numerator_ga = agg['ga'] + (REGRESSION_DUMMY_GAMES * avg_goals_global)
@@ -660,41 +603,32 @@ def initialize_engine():
         s['gf_avg'] = raw_gf_avg
         s['ga_avg'] = raw_ga_avg 
         
-        # 2. SOS Calculation
-        if agg['eff_games'] > 0:
-            avg_opp_elo = agg['opp_elo_sum'] / agg['eff_games']
-        else:
-            avg_opp_elo = GLOBAL_ELO_MEAN
+        if agg['eff_games'] > 0: avg_opp_elo = agg['opp_elo_sum'] / agg['eff_games']
+        else: avg_opp_elo = GLOBAL_ELO_MEAN
             
         weighted_opp_elo = (avg_opp_elo * agg['eff_games'] + GLOBAL_ELO_MEAN * REGRESSION_DUMMY_GAMES) / denom
         difficulty_ratio = weighted_opp_elo / GLOBAL_ELO_MEAN
         
-       # 3. Apply SOS to Stats
-        # Offense: Power Boost (Higher is Better)
         off_log = np.log(raw_gf_avg / avg_goals_global)
         sos_weight_off = np.clip(difficulty_ratio, 0.85, 1.15)
         adjusted_off = np.exp(off_log * sos_weight_off)
 
-        # Defense: Division Forgiveness (Lower is Better)
         sos_weight_def = difficulty_ratio ** 1.1 
         adjusted_def = (raw_ga_avg / avg_goals_global) / sos_weight_def
 
-        # -----------------------------------------------------------
-        # C. ELO BLENDING
-        # -----------------------------------------------------------
+        # --- ELO BLENDING (NERFED ELITE BOOST) ---
         elo_ratio = s['elo'] / GLOBAL_ELO_MEAN
-        # Power curve reduced to rein in dominant teams
-        elo_off = elo_ratio ** 1.4 
-        elo_def = 1.0 / (elo_ratio ** 1.2)
+        elo_off = elo_ratio ** 1.15 # Reduced from 1.4
+        elo_def = 1.0 / (elo_ratio ** 1.15) # Reduced from 1.2
         
-        elo_off = np.clip(elo_off, 0.4, 2.5)
-        elo_def = np.clip(elo_def, 0.4, 2.5)
+        elo_off = np.clip(elo_off, 0.6, 2.0)
+        elo_def = np.clip(elo_def, 0.6, 2.0)
 
         elo_off_log = np.log(elo_off)
         elo_def_log = np.log(elo_def)
 
-        STAT_WEIGHT = 0.30  # Reduced
-        ELO_WEIGHT  = 0.70  # Increased (Elo is the best predictor of WC success)
+        STAT_WEIGHT = 0.35  # Shifted to respect actual output more
+        ELO_WEIGHT  = 0.65  
 
         final_off_log = STAT_WEIGHT * np.log(adjusted_off) + ELO_WEIGHT * elo_off_log
         s['off'] = np.exp(final_off_log)
@@ -702,8 +636,8 @@ def initialize_engine():
         final_def_log = STAT_WEIGHT * np.log(adjusted_def) + ELO_WEIGHT * elo_def_log
         s['def'] = np.exp(final_def_log)
         
-        s['off'] = np.clip(s['off'], 0.4, 2.8)
-        s['def'] = np.clip(s['def'], 0.4, 2.8)
+        s['off'] = np.clip(s['off'], 0.5, 2.2) # Tightened
+        s['def'] = np.clip(s['def'], 0.5, 2.2) # Tightened
 
         s['adj_gf'] = s['off'] * avg_goals_global
         s['adj_ga'] = s['def'] * avg_goals_global
@@ -719,54 +653,11 @@ def initialize_engine():
         s['fh_pct'] = (s['first_half'] / g * 100) if g > 0 else 0
         s['late_pct'] = (s['late_goals'] / g * 100) if g > 0 else 0
         
-        # -----------------------------------------------------------
-        # E. ADVANCED STYLE LABEL (Data-Driven Logic)
-        # -----------------------------------------------------------
-        if t in ADVANCED_TEAM_DATA:
-            d = ADVANCED_TEAM_DATA[t]
-            t_type, poss, press, direct = d['type'], d['poss'], d['press'], d['dir']
-            
-            if t_type == 'Vertical Control':
-                if poss >= 0.70: style = 'Ball Control'
-                elif press >= 0.68: style = 'Fast Build-up'
-                elif direct >= 0.58: style = 'Technical Play'
-                else: style = 'Disciplined'
-                
-            elif t_type == 'Chaos & Intensity':
-                if press >= 0.75: style = 'High Press'
-                else: style = 'High Risk'
-                
-            elif t_type == 'Compact Block':
-                if poss <= 0.38 and direct >= 0.75: style = 'Deep Block'
-                else: style = 'Counter-Attack'
-                
-            elif t_type == 'Direct-Physical':
-                style = 'Direct Play'
-            else:
-                style = 'Balanced'
-                
-        else:
-            has_history = m >= 10 
-            rel_gf = s['adj_gf'] / avg_goals_global
-            rel_ga = s['adj_ga'] / avg_goals_global
-            clean_sheets = s.get('cs_pct', 0)
-            
-            if has_history:
-                if s['elo'] > 1850 and rel_ga < 0.85: style = "Ball Control"
-                elif rel_gf > 1.30 and s['elo'] > 1750: style = "Technical Play"
-                elif clean_sheets > 45: style = "Deep Block"
-                elif rel_ga < 0.90 and rel_gf < 1.00: style = "Counter-Attack"
-                elif rel_gf > 1.25 and rel_ga > 1.20: style = "High Risk"
-                elif s.get('fh_pct', 0) > 55: style = "High Press"
-                elif rel_ga > 1.10: style = "Direct Play"
-                else: style = "Disciplined"
-            else:
-                style = "Balanced"
-
         if t in recent_residuals and recent_residuals[t]:
             num = sum(w * r for w, r in recent_residuals[t])
             den = sum(w for w, r in recent_residuals[t])
-            s['volatility'] = np.clip(num / den, 0.05, 0.35)
+            # Raised floor from 0.05 to 0.10. Prevents top teams from having mathematically 0 variance.
+            s['volatility'] = np.clip(num / den, 0.10, 0.40) 
         else:
             s['volatility'] = 0.15
         
@@ -774,8 +665,6 @@ def initialize_engine():
             s['momentum'] = (TEAM_HISTORY[t]['elo'][-1] - TEAM_HISTORY[t]['elo'][-10]) / 100
         else:
             s['momentum'] = 0.0        
-
-        TEAM_PROFILES[t] = style
 
     return TEAM_STATS, TEAM_PROFILES, AVG_GOALS, results_df
 
@@ -819,53 +708,11 @@ def calculate_confed_strength():
             CONFED_MULTIPLIERS[confed] = round(0.8 + (win_rate * 0.4), 3)
         else:
             CONFED_MULTIPLIERS[confed] = 0.85 # Default for isolated regions
-
-# --- PERFORMANCE CACHING & FAST MATH UTILS ---
-OPEN_STYLES = {'High Risk', 'High Press', 'Technical Play', 'Fast Build-up'}
-SLOW_STYLES = {'Deep Block', 'Counter-Attack', 'Disciplined'}
-
-# def _fast_interp(val, x0, x1, y0, y1):
-#     if val <= x0: return y0
-#     if val >= x1: return y1
-#     return y0 + (y1 - y0) * ((val - x0) / (x1 - x0))
-
-# def _apply_complexity(elo, style):
-#     if style == 'Ball Control': return _fast_interp(elo, 1200, 2000, 0.90, 1.20), _fast_interp(elo, 1200, 2000, 0.85, 1.15)
-#     if style == 'Technical Play': return _fast_interp(elo, 1200, 2000, 0.95, 1.25), _fast_interp(elo, 1200, 2000, 0.90, 1.10)
-#     if style == 'High Press': return _fast_interp(elo, 1200, 1900, 0.85, 1.10), _fast_interp(elo, 1200, 1900, 0.80, 1.05)
-#     if style == 'Fast Build-up': return _fast_interp(elo, 1200, 1900, 0.85, 1.08), _fast_interp(elo, 1200, 1900, 0.85, 1.02)
-#     if style == 'Disciplined': return _fast_interp(elo, 1200, 1900, 0.95, 1.05), _fast_interp(elo, 1200, 1900, 1.02, 1.12)
-#     if style == 'Counter-Attack': return _fast_interp(elo, 1200, 1900, 0.95, 0.88), _fast_interp(elo, 1200, 1900, 1.15, 1.02)
-#     if style == 'Deep Block': return _fast_interp(elo, 1200, 1900, 0.90, 0.80), _fast_interp(elo, 1200, 1900, 1.10, 1.05)
-#     if style == 'Direct Play': return _fast_interp(elo, 1200, 1900, 1.08, 0.92), _fast_interp(elo, 1200, 1900, 1.05, 0.96)
-#     if style == 'High Risk': return _fast_interp(elo, 1200, 1900, 1.05, 1.15), _fast_interp(elo, 1200, 1900, 0.75, 0.88)
-#     return 1.0, 1.0
-
-# def _elastic_limit(val, chaos):
-#     ceiling = 2.1 + (chaos * 1.5) 
-#     if val <= ceiling: return val
-#     return ceiling + math.log(val - ceiling + 1.0) * (1.0 + chaos)
-
-# def _roll_goals(lam, v, ko_exp_weighted):
-#     composure = 1.0 - (ko_exp_weighted * 0.05)
-#     if composure < 0.85: composure = 0.85
-#     elif composure > 1.0: composure = 1.0
-    
-#     realized_lam = random.gauss(lam, lam * (v * 0.4 * composure))
-#     if realized_lam < 0.1: realized_lam = 0.1
-#     return np.random.poisson(realized_lam)
 def engineer_team_signatures(results_df):
-    """
-    Analyzes historical data to create unique statistical signatures.
-    Replaces 'Vibes' with math while keeping the names the same for the UI.
-    """
     global TEAM_PROFILES, ADVANCED_TEAM_DATA
-    
-    # Reset these to be filled by data
     TEAM_PROFILES = {}
     ADVANCED_TEAM_DATA = {} 
     
-    # Use modern data for tactical relevance
     modern_df = results_df[results_df['date'] > '2012-01-01'].copy()
     global_avg = (modern_df['home_score'].mean() + modern_df['away_score'].mean()) / 2
 
@@ -873,7 +720,6 @@ def engineer_team_signatures(results_df):
         t_games = modern_df[(modern_df['home_team'] == team) | (modern_df['away_team'] == team)]
         stats = TEAM_STATS[team]
         
-        # Grab the correct volatility calculated in Phase 4
         true_vol = stats.get('volatility', 0.15)
         
         if len(t_games) < 5:
@@ -881,7 +727,6 @@ def engineer_team_signatures(results_df):
             ADVANCED_TEAM_DATA[team] = {'type': 'Balanced', 'poss': 0.5, 'press': 0.5, 'dir': 0.5, 'vol': true_vol}
             continue
 
-        # --- A. CALCULATE PERFORMANCE RESIDALS ---
         off_res = []
         def_res = []
         pace_res = [] 
@@ -895,7 +740,6 @@ def engineer_team_signatures(results_df):
             opp_ga = TEAM_STATS.get(opp, {}).get('ga_avg', global_avg)
             opp_gf = TEAM_STATS.get(opp, {}).get('gf_avg', global_avg)
             
-            # How many goals did they score/concede vs what that opponent usually allows?
             off_res.append(scored / (opp_ga + 0.5))
             def_res.append(conceded / (opp_gf + 0.5))
             pace_res.append((scored + conceded) / (global_avg * 2))
@@ -905,7 +749,6 @@ def engineer_team_signatures(results_df):
         avg_def = np.mean(def_res)
         avg_pace = np.mean(pace_res)
 
-        # Assign a 'Style Name' based on their data profile
         if avg_pace > 1.15 and true_vol > 0.18: style = "Chaos & Intensity"
         elif avg_pace < 0.90 and avg_def < 0.95: style = "Compact Block"
         elif avg_off > 1.15 and avg_pace > 1.1: style = "Vertical Control"
@@ -914,13 +757,24 @@ def engineer_team_signatures(results_df):
 
         TEAM_PROFILES[team] = style
         
-        # We "fake" the poss/press/dir metrics using math so the 5D map still works
+        # We don't have possession data, so we map real statistical concepts 
+        # to a 0.0 - 1.0 scale for the UI to use safely.
+        
+        # 'poss' -> Match Control (Higher Elo teams dictate the game state)
+        control_index = np.clip((stats.get('elo', 1500) - 1000) / 1000.0, 0.2, 0.95)
+        
+        # 'press' -> Match Openness/Pace (How many total goals happen in their games)
+        openness_index = np.clip(avg_pace * 0.45, 0.2, 0.95)
+        
+        # 'dir' -> Efficiency (How well they score relative to how much they concede)
+        efficiency_index = np.clip((avg_off / (avg_def + 0.1)) * 0.35, 0.2, 0.95)
+
         ADVANCED_TEAM_DATA[team] = {
             'type': style,
-            'poss': np.clip(0.5 + (avg_off - avg_def), 0.3, 0.9), 
-            'press': np.clip(avg_pace * 0.5, 0.3, 0.9),           
-            'dir': np.clip(avg_off / (avg_pace + 0.1), 0.3, 0.9), 
-            'vol': true_vol # <-- Passed correctly to UI here
+            'poss': control_index,   # Acts as "Dominance"
+            'press': openness_index, # Acts as "Pace"
+            'dir': efficiency_index, # Acts as "Efficiency"
+            'vol': true_vol          # Actual calculated variance
         }
         
         # Store the "Signature" for the Match Engine
@@ -929,21 +783,14 @@ def engineer_team_signatures(results_df):
 
 TEAM_PRECOMPUTE = {}
 
-# Update precompute to handle any remaining case issues
 def precompute_match_data():
     global TEAM_PRECOMPUTE
     TEAM_PRECOMPUTE = {}
     for t, s in TEAM_STATS.items():
-        # Force the key to be lowercase
         clean_name = str(t).lower().strip()
-        
-        # --- ADD THIS LOGIC ---
-        # Calculate a Penalty Skill Bonus (p_b) 
-        # based on their recorded penalty percentage and knockout experience.
-        pen_skill = s.get('pen_pct', 5) / 100.0  # 5% is the global average
+        pen_skill = s.get('pen_pct', 5) / 100.0 
         experience = np.clip(s.get('ko_exp_weighted', 0) / 20.0, 0, 0.1)
         p_bonus = pen_skill + experience
-        # ----------------------
 
         TEAM_PRECOMPUTE[clean_name] = {
             'elo': s.get('elo', 1200),
@@ -952,58 +799,49 @@ def precompute_match_data():
             'pace': s.get('pace_factor', 1.0),
             'vol': s.get('volatility', 0.15),
             'composure': np.clip(s.get('ko_exp_weighted', 0) / 10.0, 0, 1.0),
-            'p_b': p_bonus # <--- ADD THIS LINE TO THE DICTIONARY
+            'p_b': p_bonus 
         }
 
 def sim_match(t1, t2, knockout=False):
-    t1 = t1.lower().strip() # FORCE matching
+    t1 = t1.lower().strip() 
     t2 = t2.lower().strip()
     p1 = TEAM_PRECOMPUTE.get(t1)
     p2 = TEAM_PRECOMPUTE.get(t2)
 
-    # --- ADD THIS DIAGNOSTIC BLOCK ---
-    if not p1 or not p2:
-        problem_team = t1 if not p1 else t2
-        # This will print a big red error in your browser's developer console (F12)
-        js.console.error(f"FATAL LOOKUP ERROR: Could not find data for team '{problem_team}'.")
-        # This will reveal hidden characters. A clean 'argentina' is 9 bytes.
-        js.console.log(f"The broken string has length {len(problem_team)} and bytes: {problem_team.encode('utf-8')}")
-        return (t1, 1, 0, 'reg') if knockout else (t1, 1, 0)
-    # --- END DIAGNOSTIC BLOCK ---
-
     if not p1 or not p2: return t1, 1, 0, 'reg'
 
-    # 1. Boosted Tournament Environment
+    # 1. Match Environment 
     pace = (p1['pace'] + p2['pace']) / 2
-    intensity = 1.15 if knockout else 1.0 
-    total_match_goals = 2.85 * pace * intensity 
+    # Knockout matches are tighter, more defensive -> reducing total goals increases upset potential
+    intensity = 0.90 if knockout else 1.0 
+    total_match_goals = 2.70 * pace * intensity 
     
     dr = p1['elo'] - p2['elo']
     
     # 3. Elo Probability Distribution
-    win_prob = 1 / (10**(-dr/400) + 1)
+    # Divisor increased from 400 to 500 to flatten the curve and allow more upsets 
+    win_prob = 1 / (10**(-dr/500) + 1)
     
     elo_lam1 = total_match_goals * win_prob
     elo_lam2 = total_match_goals * (1.0 - win_prob)
 
-    # 4. Tactical Stat Flavor (25% Weight - Driven by SOS-Adjusted Form)
-    # Because p['xg_coeff'] was adjusted by 'difficulty_ratio' in Phase 4,
-    # it already knows if these stats were earned against minnows.
+    # 4. Tactical Stat Flavor
     stat_lam1 = (total_match_goals / 2) * p1['xg_coeff'] * p2['xga_coeff']
     stat_lam2 = (total_match_goals / 2) * p2['xg_coeff'] * p1['xga_coeff']
 
     # 5. The Master Blend
-    lam1 = max(0.1, (elo_lam1 * 0.75) + (stat_lam1 * 0.25))
-    lam2 = max(0.1, (elo_lam2 * 0.75) + (stat_lam2 * 0.25))
+    lam1 = max(0.1, (elo_lam1 * 0.65) + (stat_lam1 * 0.35))
+    lam2 = max(0.1, (elo_lam2 * 0.65) + (stat_lam2 * 0.35))
     
-    # 6. Consistency/Clinical Bonus
-    lam1 *= (1.0 + max(0, 0.12 - p1['vol']))
-    lam2 *= (1.0 + max(0, 0.12 - p2['vol']))
+    # 6. Consistency/Clinical Bonus (Buff reduced slightly)
+    lam1 *= (1.0 + max(0, 0.15 - p1['vol']) * 0.5)
+    lam2 *= (1.0 + max(0, 0.15 - p2['vol']) * 0.5)
 
     # 7. THE ROLL (Gamma-Poisson Distribution)
     def roll(l, v, c, is_ko):
         if is_ko:
-            active_vol = v * (1.3 - (c * 0.5))
+            # Underdogs keep high variance, top teams get a slightly smaller composure buff
+            active_vol = v * (1.25 - (c * 0.35))
         else:
             active_vol = v
         if active_vol > 0:
@@ -1025,8 +863,9 @@ def sim_match(t1, t2, knockout=False):
     if g2 > g1: return t2, g1, g2, 'aet'
     
     # Penalties (Pressure + Skill + Luck)
-    win_chance = 0.5 + (dr / 3000.0) + (p1['p_b'] - p2['p_b'])
-    winner = t1 if random.random() < np.clip(win_chance, 0.35, 0.65) else t2
+    # Reduced the Elo advantage to make shootouts more of a 50/50 lottery
+    win_chance = 0.5 + (dr / 4000.0) + (p1['p_b'] - p2['p_b'])
+    winner = t1 if random.random() < np.clip(win_chance, 0.40, 0.60) else t2
     return winner, g1, g2, 'pks'
 
 def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=None):
@@ -1034,9 +873,6 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
     structured_bracket = [] if not fast_mode else None
     group_matches_log = {} if not fast_mode else None
 
-    # --- 0. PRE-TOURNAMENT QUALIFIERS ---
-    # Use finalized playoff results (actual 2026 qualifiers)
-    # If custom slots provided, use those; otherwise use FINALIZED_SLOTS
     if finalized_slots is None:
         slots = FINALIZED_SLOTS.copy()
     else:
@@ -1057,21 +893,11 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
         'L': ['england', 'croatia', 'ghana', 'panama']
     }
 
-    # =========================================================================
-    # --- INSERT THIS DATA HYGIENE BLOCK ---
-    # This block rebuilds the groups dictionary, applying .lower() and .strip()
-    # to every single team name to eliminate hidden characters or spaces.
     clean_groups = {}
     for grp, teams in groups.items():
-        # This list comprehension cleans every team name in the list
         clean_groups[grp] = [str(team).lower().strip() for team in teams]
-    # Overwrite the original dictionary with the perfectly clean one
     groups = clean_groups
-    # =========================================================================
 
-    group_results_lists = {}
-    third_place =[]
-    
     group_results_lists = {}
     third_place =[]
     
@@ -1159,7 +985,6 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
     third_place_winner = None
     semi_losers = []
     
-    # --- 3. KNOCKOUT SIMULATION ---
     for r_name in rounds:
         next_round_teams = []
         current_round_losers = []
@@ -1182,7 +1007,6 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
             champion = next_round_teams[0]
             runner_up = current_round_losers[0]
             
-            # Simulate 3rd Place Match
             t3_1, t3_2 = semi_losers[0], semi_losers[1]
             w_3rd, g3_1, g3_2, method_3rd = sim_match(t3_1, t3_2, knockout=True)
             third_place_winner = w_3rd 
@@ -1195,7 +1019,6 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
         if not fast_mode:
             structured_bracket.append({'round': r_name, 'matches': round_matches_log})
         
-         # Prepare next round pairings (Winner Match 1 vs Winner Match 2)
         bracket_matchups = []
         for i in range(0, len(next_round_teams), 2):
             if i+1 < len(next_round_teams):
