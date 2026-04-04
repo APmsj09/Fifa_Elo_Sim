@@ -618,8 +618,8 @@ def initialize_engine():
 
         # --- ELO BLENDING (NERFED ELITE BOOST) ---
         elo_ratio = s['elo'] / GLOBAL_ELO_MEAN
-        elo_off = elo_ratio ** 1.15 # Reduced from 1.4
-        elo_def = 1.0 / (elo_ratio ** 1.15) # Reduced from 1.2
+        elo_off = elo_ratio ** 0.95  # Flattens the offensive gap for mid-tier
+        elo_def = 1.0 / (elo_ratio ** 0.95) # Flattens the defensive gap
         
         elo_off = np.clip(elo_off, 0.6, 2.0)
         elo_def = np.clip(elo_def, 0.6, 2.0)
@@ -812,15 +812,16 @@ def sim_match(t1, t2, knockout=False):
 
     # 1. Match Environment 
     pace = (p1['pace'] + p2['pace']) / 2
-    # Knockout matches are tighter, more defensive -> reducing total goals increases upset potential
-    intensity = 0.90 if knockout else 1.0 
+    # Knockout matches are tighter -> fewer goals = more draws = better underdog odds
+    intensity = 0.82 if knockout else 1.0 
     total_match_goals = 2.70 * pace * intensity 
     
     dr = p1['elo'] - p2['elo']
     
     # 3. Elo Probability Distribution
-    # Divisor increased from 400 to 500 to flatten the curve and allow more upsets 
-    win_prob = 1 / (10**(-dr/500) + 1)
+    # Increase the divisor strictly for knockouts to simulate tournament parity
+    active_divisor = 580 if knockout else 500
+    win_prob = 1 / (10**(-dr/active_divisor) + 1)
     
     elo_lam1 = total_match_goals * win_prob
     elo_lam2 = total_match_goals * (1.0 - win_prob)
@@ -833,9 +834,9 @@ def sim_match(t1, t2, knockout=False):
     lam1 = max(0.1, (elo_lam1 * 0.65) + (stat_lam1 * 0.35))
     lam2 = max(0.1, (elo_lam2 * 0.65) + (stat_lam2 * 0.35))
     
-    # 6. Consistency/Clinical Bonus (Buff reduced slightly)
-    lam1 *= (1.0 + max(0, 0.15 - p1['vol']) * 0.5)
-    lam2 *= (1.0 + max(0, 0.15 - p2['vol']) * 0.5)
+    # 6. Consistency/Clinical Bonus (Buff reduced to prevent elite over-performance)
+    lam1 *= (1.0 + max(0, 0.15 - p1['vol']) * 0.25)
+    lam2 *= (1.0 + max(0, 0.15 - p2['vol']) * 0.25)
 
     # 7. THE ROLL (Gamma-Poisson Distribution)
     def roll(l, v, c, is_ko):
@@ -864,7 +865,7 @@ def sim_match(t1, t2, knockout=False):
     
     # Penalties (Pressure + Skill + Luck)
     # Reduced the Elo advantage to make shootouts more of a 50/50 lottery
-    win_chance = 0.5 + (dr / 4000.0) + (p1['p_b'] - p2['p_b'])
+    win_chance = 0.5 + (dr / 6000.0) + ((p1['p_b'] - p2['p_b']) * 0.5)
     winner = t1 if random.random() < np.clip(win_chance, 0.40, 0.60) else t2
     return winner, g1, g2, 'pks'
 

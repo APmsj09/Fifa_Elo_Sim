@@ -1412,17 +1412,42 @@ def update_dashboard_data(event=None):
     elif stats.get('upsets_major_won', 0) > 0: clutch_label, clutch_color = "Upset Threat 🃏", "#8b5cf6"
     else: clutch_label, clutch_color = "Standard ⚖️", "var(--text-light)"
 
-    # --- 2. ADVANCED TACTICAL METRICS ---
-    adv_data = getattr(sim, 'ADVANCED_TEAM_DATA', {}).get(team, {})
-    t_poss = adv_data.get('poss', 0.50)
-    t_press = adv_data.get('press', 0.50)
-    t_dir = adv_data.get('dir', 0.50)
+    # --- 2. DATA-DRIVEN IDENTITY METRICS ---
     t_vol = stats.get('volatility', 0.15)
+    t_pace = stats.get('pace_factor', 1.0)
+    t_exp = stats.get('ko_exp_weighted', 0)
+    t_mom = stats.get('momentum', 0.0)
+
+    # Scale to 0-100% for progress bars
+    # Pace: 0.8 (Slow) to 1.2 (Frantic)
+    pace_pct = max(0, min(100, ((t_pace - 0.8) / 0.4) * 100))
+    # Pedigree: 0 to 25 (Top teams)
+    ped_pct = max(0, min(100, (t_exp / 25.0) * 100))
+    # Volatility: 0.10 to 0.40
+    vol_pct = max(0, min(100, ((t_vol - 0.10) / 0.30) * 100))
+    # Momentum: -1.5 to +1.5 (Elo change per 10 games)
+    mom_pct = max(0, min(100, ((t_mom + 1.5) / 3.0) * 100))
     
-    # Scale Volatility to a 0-100% bar (Max observed is ~0.20)
-    vol_pct = min(100, (t_vol / 0.20) * 100)
+    # --- 3. UPSET PROFILE & HISTORICAL RESUME ---
+    elite_w, elite_d, elite_l = stats.get('vs_elite', [0,0,0])
+    elite_games = elite_w + elite_d + elite_l
+    elite_win_rate = (elite_w / elite_games * 100) if elite_games > 0 else 0
     
-    # --- 3. TACTICAL MATCHUPS (Kryptonite & Prey) ---
+    major_won = stats.get('upsets_major_won', 0)
+    minor_won = stats.get('upsets_minor_won', 0)
+    major_lost = stats.get('upsets_major_lost', 0)
+    
+    # Find their biggest scalp
+    notable = stats.get('notable_results', [])
+    best_win = "None Recorded"
+    if notable:
+        # Filter for wins and sort by the Elo difference overcome
+        wins = [n for n in notable if n['type'] in ['WON_MAJOR', 'WON_MINOR']]
+        if wins:
+            best = max(wins, key=lambda x: x['diff'])
+            best_win = f"{best['opp'].title()} ({best['score']})"
+
+    # --- 4. TACTICAL MATCHUPS (Kryptonite & Prey) ---
     style = sim.TEAM_PROFILES.get(team, 'Balanced')
     matchups = getattr(sim, 'STYLE_MATCHUPS', {})
     
@@ -1435,7 +1460,7 @@ def update_dashboard_data(event=None):
     strong_html = "".join([f"<span style='display:inline-block; background:rgba(16, 185, 129, 0.15); color:#10b981; padding:4px 8px; border-radius:4px; font-size:0.8em; margin:2px;'>{s}</span>" for s in strong_against]) if strong_against else "<span style='color:var(--text-light); font-size:0.8em;'>None specific</span>"
     weak_html = "".join([f"<span style='display:inline-block; background:rgba(239, 68, 68, 0.15); color:#ef4444; padding:4px 8px; border-radius:4px; font-size:0.8em; margin:2px;'>{s}</span>" for s in weak_against]) if weak_against else "<span style='color:var(--text-light); font-size:0.8em;'>None specific</span>"
 
-    # --- 4. RENDER HEADER ---
+    # --- 5. RENDER HEADER ---
     header = js.document.getElementById("dashboard-header")
     header.innerHTML = f"""
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
@@ -1459,25 +1484,23 @@ def update_dashboard_data(event=None):
 
     # --- Helper for Progress Bars ---
     def make_bar(label, val, color):
-        pct = val * 100
         return f"""
         <div style="margin-bottom:8px;">
             <div style="display:flex; justify-content:space-between; font-size:0.75em; font-weight:700; color:var(--text-light); text-transform:uppercase; margin-bottom:4px;">
-                <span>{label}</span><span>{pct:.0f}%</span>
+                <span>{label}</span>
             </div>
             <div style="height:6px; background:var(--sidebar-border); border-radius:3px; overflow:hidden;">
-                <div style="height:100%; width:{pct}%; background:{color};"></div>
+                <div style="height:100%; width:{val}%; background:{color};"></div>
             </div>
         </div>
         """
 
-    # --- 5. PULL IN BULK SIMULATION HEAD-TO-HEAD DATA ---
+    # --- 6. PULL IN BULK SIMULATION HEAD-TO-HEAD DATA ---
     sim_h2h_html = ""
     
-    # Check if a bulk sim has been run and if the team exists in the results
     if BULK_STATE and 'h2h' in BULK_STATE and team in BULK_STATE['h2h']:
         h2h_data = BULK_STATE['h2h'][team]
-        min_matches = max(5, BULK_STATE['num'] * 0.01) # Ignore 1-off random matches
+        min_matches = max(5, BULK_STATE['num'] * 0.01)
         
         valid_opps =[]
         for opp, data in h2h_data.items():
@@ -1496,7 +1519,7 @@ def update_dashboard_data(event=None):
 
         if valid_opps:
             best_opps = valid_opps[:3]
-            worst_opps = valid_opps[-3:][::-1] # Reverse bottom 3
+            worst_opps = valid_opps[-3:][::-1]
             
             best_html = "".join([render_h2h_row(x) for x in best_opps])
             worst_html = "".join([render_h2h_row(x) for x in worst_opps])
@@ -1524,7 +1547,6 @@ def update_dashboard_data(event=None):
             </div>
             """
     else:
-        # Prompt the user if they haven't run a simulation yet
         sim_h2h_html = """
         <div class="dashboard-card" style="margin-top:20px; text-align:center; padding:25px; background:rgba(139, 92, 246, 0.05); border:1px dashed rgba(139, 92, 246, 0.3);">
             <span style="font-size:2em; margin-bottom:10px; display:inline-block;">🎲</span><br>
@@ -1533,10 +1555,10 @@ def update_dashboard_data(event=None):
         </div>
         """
 
-    # --- 6. RENDER THE FINAL HTML GRID ---
+    # --- 7. RENDER THE FINAL HTML GRID ---
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
     <!-- TOP ROW: Power Ratings & Matchups -->
-    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:20px; margin-bottom:20px;">
+    <div style="display:grid; grid-template-columns: 1fr 1fr 1.2fr; gap:20px; margin-bottom:20px;">
         <div class="stat-pill" title="Expected goals scored per match vs. average team">
             <div class="stat-pill-title">Offensive Power 💪</div>
             <div class="stat-pill-value" style="color:var(--accent-blue);">{round(atk_power, 2)}x</div>
@@ -1547,33 +1569,44 @@ def update_dashboard_data(event=None):
             <div class="stat-pill-value" style="color:var(--accent-green);">{round(def_index, 2)}x</div>
             <div style="font-size:0.75em; font-weight:600; color:{def_color}; margin-top:4px;">{def_desc}</div>
         </div>
-        <div class="stat-pill">
-            <div class="stat-pill-title">Historical Matchups ⚔️</div>
-            <div style="margin-top:5px;">
-                <div style="font-size:0.7em; font-weight:bold; color:var(--text-light); margin-bottom:2px;">COUNTERS:</div>
-                <div>{strong_html}</div>
-                <div style="font-size:0.7em; font-weight:bold; color:var(--text-light); margin-top:6px; margin-bottom:2px;">WEAK TO:</div>
-                <div>{weak_html}</div>
+        
+        <!-- NEW: UPSET RESUME (Replaces Tactical Kryptonite) -->
+        <div class="dashboard-card" style="margin:0; padding:15px; border-left:4px solid var(--accent-gold);">
+            <div style="font-size:0.75em; font-weight:bold; color:var(--text-light); margin-bottom:8px; text-transform:uppercase;">Historical Resume</div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.85em;">
+                <span style="color:var(--text-main);">Record vs. Elite:</span>
+                <b style="color:var(--accent-blue);">{elite_w}W - {elite_d}D - {elite_l}L</b>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.85em;">
+                <span style="color:var(--text-main);">Major Upsets Delivered:</span>
+                <b style="color:#10b981;">{major_won} 🌟</b>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.85em;">
+                <span style="color:var(--text-main);">Shock Defeats Suffered:</span>
+                <b style="color:#ef4444;">{major_lost} ⚠️</b>
+            </div>
+            <div style="font-size:0.8em; color:var(--text-light); margin-top:8px; border-top:1px solid var(--sidebar-border); padding-top:6px;">
+                <b>Best Scalp:</b> {best_win}
             </div>
         </div>
     </div>
 
-    <!-- MIDDLE ROW: Advanced DNA & AI Report -->
+    <!-- MIDDLE ROW: Data-Driven Identity & AI Report -->
     <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:20px; margin-bottom:20px;">
         <!-- Left: Stat Bars -->
         <div class="dashboard-card" style="margin:0; padding:20px;">
-            <h4 style="margin:0 0 15px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">Advanced Tactical DNA</h4>
-            {make_bar("Possession Bias", t_poss, "#3b82f6")}
-            {make_bar("Pressing Intensity", t_press, "#ef4444")}
-            {make_bar("Vertical Directness", t_dir, "#10b981")}
-            {make_bar("Volatility (Chaos)", vol_pct / 100, "#f59e0b")} 
+            <h4 style="margin:0 0 15px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">Data-Driven Identity</h4>
+            {make_bar("Match Openness (Pace)", pace_pct, "#3b82f6")}
+            {make_bar("Tournament Pedigree", ped_pct, "#8b5cf6")}
+            {make_bar("Results Volatility (Chaos)", vol_pct, "#f59e0b")} 
+            {make_bar("Current Momentum", mom_pct, "#10b981")}
         </div>
         
         <!-- Right: AI Report -->
         <div class="dashboard-card" style="margin:0; padding:20px; background:rgba(59, 130, 246, 0.05); border-left:4px solid var(--accent-blue);">
             <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">🔭 AI Scout Report</h4>
             <div style="font-size:0.95em; line-height:1.6; color:var(--text-main); font-weight:500;">
-                {generate_dynamic_report(team, atk_power, def_power, upset_pct, stats, adv_data)}
+                {generate_dynamic_report(team, atk_power, def_power, upset_pct, stats)}
             </div>
         </div>
     </div>
@@ -1598,7 +1631,7 @@ def update_dashboard_data(event=None):
         </div>
     </div>
 
-    <!-- NEW ROW: SIMULATED HEAD-TO-HEAD INJECTION -->
+    <!-- SIMULATED HEAD-TO-HEAD INJECTION -->
     {sim_h2h_html}
     """
     
@@ -1684,9 +1717,7 @@ def _generate_notable_results_html(team, notable_results):
     
     return html
 
-def generate_dynamic_report(team, atk, dfe, upset, stats, adv_data=None):
-    if adv_data is None: adv_data = {}
-    import random
+def generate_dynamic_report(team, atk, dfe, upset, stats):
     report_paragraphs =[]
     
     # --- 1. Base Info ---
@@ -1701,49 +1732,51 @@ def generate_dynamic_report(team, atk, dfe, upset, stats, adv_data=None):
     elif rank <= 60: tier_text = "a highly competitive dark horse"
     else: tier_text = "an emerging underdog"
     
-    report_paragraphs.append(f"<b>Overview:</b> Ranked #{rank} globally, {team.title()} is {tier_text} out of {confed}. They utilize a <b>{style}</b> structural system.")
+    report_paragraphs.append(f"<b>Overview:</b> Ranked #{rank} globally, {team.title()} is {tier_text} out of {confed}. Their overall system is classified as <b>{style}</b>.")
     
-    # --- 2. Advanced Tactical Data Injection ---
+    # --- 2. Data-Driven Tactical Identity ---
     tactical =[]
-    poss = adv_data.get('poss', 0.5)
-    vol = adv_data.get('vol', 0.10)
+    pace = stats.get('pace_factor', 1.0)
+    ko_exp = stats.get('ko_exp_weighted', 0)
+    momentum = stats.get('momentum', 0.0)
     
-    if poss > 0.65: 
-        tactical.append(f"They heavily dominate the ball, maintaining an aggressive {int(poss*100)}% possession bias.")
-    elif poss < 0.40: 
-        tactical.append(f"They are entirely comfortable operating without the ball, seeing only {int(poss*100)}% possession on average.")
+    if pace > 1.15: 
+        tactical.append("Their games are typically open and played at a frantic pace, frequently resulting in end-to-end action.")
+    elif pace < 0.90: 
+        tactical.append("They prefer to control the tempo, systematically dragging opponents into tight, low-scoring tactical battles.")
     
     if atk > 1.10: 
-        tactical.append("Offensively, they generate high-quality chances with consistency and ruthless efficiency.")
+        tactical.append("Offensively, they consistently create high-quality chances and punish mistakes.")
     elif atk < 0.90: 
-        tactical.append("Goal-scoring can be a severe struggle, especially against organized defensive lines.")
+        tactical.append("Goal-scoring can be a severe struggle for them in open play.")
     
     if dfe < 0.85: 
         tactical.append("Defensively, they are incredibly disciplined and notoriously difficult to break down.")
     elif dfe > 1.10: 
-        tactical.append("Their backline is prone to leaks, often forcing them into high-scoring shootouts to secure results.")
+        tactical.append("Their backline is prone to leaks, heavily relying on outscoring their opponents to secure results.")
     
-    report_paragraphs.append("<b>Tactical DNA:</b> " + " ".join(tactical))
+    report_paragraphs.append("<b>Identity:</b> " + " ".join(tactical))
     
-    # --- 3. Volatility & Quirks ---
+    # --- 3. Tournament Readiness & Quirks ---
     quirks =[]
+    vol = stats.get('volatility', 0.15)
     
     # Volatility Check
-    if vol >= 0.15: 
-        quirks.append("⚠️ <b>High Volatility:</b> Their matches are wildly unpredictable. They are prone to suffering heavy defeats but are equally capable of pulling off massive tournament-altering upsets on any given day.")
-    elif vol <= 0.05:
-        quirks.append("🔒 <b>Highly Consistent:</b> They perform exactly to their mathematical expectations with almost zero variance. They reliably dispatch weaker teams but rarely upset heavy favorites.")
+    if vol >= 0.25: 
+        quirks.append("⚠️ <b>High Volatility:</b> Their matches are wildly unpredictable. They are entirely capable of pulling off a massive tournament-altering upset on any given day, but are equally vulnerable to shocking defeats.")
+    elif vol <= 0.10:
+        quirks.append("🔒 <b>Highly Consistent:</b> They perform exactly to their mathematical expectations with minimal variance. They reliably dispatch weaker teams but rarely pull off miracles against top-tier favorites.")
         
-    # Standard Quirks
-    if stats.get('fh_pct', 0) > 55: 
-        quirks.append("They are fast starters, looking to blitz opponents early in the first half.")
-    if stats.get('late_pct', 0) > 30: 
-        quirks.append("Fitness is a key strength; they frequently score decisive goals after the 75th minute.")
-    if stats.get('pen_pct', 0) > 20: 
-        quirks.append("A significant portion of their goals come from drawing fouls and converting penalties.")
+    # Pedigree & Form
+    if ko_exp > 15:
+        quirks.append("They boast immense tournament pedigree and vast experience navigating high-pressure knockout scenarios.")
+    if momentum > 0.5:
+        quirks.append("They are currently riding a massive wave of positive form, surging up the global power rankings.")
+    elif momentum < -0.5:
+        quirks.append("They enter the current cycle struggling for form, bleeding Elo rating over their last 10 matches.")
     
     if quirks: 
-        report_paragraphs.append("<b>Key Traits & Variance:</b> " + " ".join(quirks))
+        report_paragraphs.append("<b>Tournament Readiness:</b> " + " ".join(quirks))
 
     # Wrap paragraphs in clean HTML divs
     return "".join([f"<div style='margin-bottom:12px;'>{p}</div>" for p in report_paragraphs])
