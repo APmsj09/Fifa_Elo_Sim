@@ -956,6 +956,8 @@ def precompute_match_data():
         }
 
 def sim_match(t1, t2, knockout=False):
+    t1 = t1.lower().strip() # FORCE matching
+    t2 = t2.lower().strip()
     p1 = TEAM_PRECOMPUTE.get(t1)
     p2 = TEAM_PRECOMPUTE.get(t2)
     if not p1 or not p2: return t1, 1, 0, 'reg'
