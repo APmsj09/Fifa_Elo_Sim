@@ -1025,8 +1025,8 @@ def sim_match(t1, t2, knockout=False):
     if g2 > g1: return t2, g1, g2, 'aet'
     
     # Penalties (Pressure + Skill + Luck)
-    win_chance = 0.5 + (dr / 1800.0) + (p1['p_b'] - p2['p_b'])
-    winner = t1 if random.random() < np.clip(win_chance, 0.25, 0.75) else t2
+    win_chance = 0.5 + (dr / 3000.0) + (p1['p_b'] - p2['p_b'])
+    winner = t1 if random.random() < np.clip(win_chance, 0.35, 0.65) else t2
     return winner, g1, g2, 'pks'
 
 def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=None):
@@ -1138,7 +1138,7 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
         (get_t('A', 0), t3_mapping['A']),    
         (get_t('C', 1), get_t('F', 1)),      
         (get_t('E', 0), t3_mapping['E']),    
-        (get_t('G', 1), get_t('J', 1)),      
+        (get_t('J', 0), get_t('G', 1)),     
         (get_t('I', 0), t3_mapping['I']),    
         (get_t('A', 1), get_t('D', 1)),      
         (get_t('L', 0), t3_mapping['L']),    
