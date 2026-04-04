@@ -1415,33 +1415,41 @@ def update_dashboard_data(event=None):
     # --- 2. DATA-DRIVEN IDENTITY METRICS ---
     t_vol = stats.get('volatility', 0.15)
     t_pace = stats.get('pace_factor', 1.0)
-    t_exp = stats.get('ko_exp_weighted', 0)
     t_mom = stats.get('momentum', 0.0)
 
     # Scale to 0-100% for progress bars
-    # Pace: 0.8 (Slow) to 1.2 (Frantic)
     pace_pct = max(0, min(100, ((t_pace - 0.8) / 0.4) * 100))
-    # Pedigree: 0 to 25 (Top teams)
-    ped_pct = max(0, min(100, (t_exp / 25.0) * 100))
-    # Volatility: 0.10 to 0.40
     vol_pct = max(0, min(100, ((t_vol - 0.10) / 0.30) * 100))
-    # Momentum: -1.5 to +1.5 (Elo change per 10 games)
     mom_pct = max(0, min(100, ((t_mom + 1.5) / 3.0) * 100))
     
-    # --- 3. UPSET PROFILE & HISTORICAL RESUME ---
-    elite_w, elite_d, elite_l = stats.get('vs_elite', [0,0,0])
-    elite_games = elite_w + elite_d + elite_l
-    elite_win_rate = (elite_w / elite_games * 100) if elite_games > 0 else 0
+    # Calculate All-Time Pedigree Score
+    # Top nations (Brazil, Germany) score ~45+ points historically. 
+    heritage_pts = stats.get('pedigree_pts', 0)
+    heritage_rating = max(0, min(100, int((heritage_pts / 40.0) * 100)))
     
-    major_won = stats.get('upsets_major_won', 0)
-    minor_won = stats.get('upsets_minor_won', 0)
-    major_lost = stats.get('upsets_major_lost', 0)
+    if heritage_rating >= 90: her_tier = "Football Royalty 👑"
+    elif heritage_rating >= 60: her_tier = "Tournament Heavyweight 🌍"
+    elif heritage_rating >= 30: her_tier = "Respected Competitor 🛡️"
+    elif heritage_rating >= 10: her_tier = "Occasional Contender ⚽"
+    else: her_tier = "Tournament Novice 🌱"
+
+    # --- 3. UPSET PROFILE & ELO RANGE RECORDS ---
+    def format_rec(rec):
+        w, d, l = rec
+        total = w + d + l
+        pct = (w / total * 100) if total > 0 else 0
+        color = "#10b981" if pct >= 45 else ("#f59e0b" if pct >= 25 else "#ef4444")
+        if total == 0: return "<span style='color:var(--text-light);'>No Data</span>"
+        return f"<span style='color:{color}; font-weight:bold;'>{pct:.1f}% Win</span> <span style='font-size:0.75em; color:var(--text-light);'>({w}W - {d}D - {l}L)</span>"
+
+    rec_elite = stats.get('rec_elite', [0,0,0])
+    rec_stronger = stats.get('rec_stronger', [0,0,0])
+    rec_similar = stats.get('rec_similar', [0,0,0])
     
     # Find their biggest scalp
     notable = stats.get('notable_results', [])
     best_win = "None Recorded"
     if notable:
-        # Filter for wins and sort by the Elo difference overcome
         wins = [n for n in notable if n['type'] in ['WON_MAJOR', 'WON_MINOR']]
         if wins:
             best = max(wins, key=lambda x: x['diff'])
@@ -1471,8 +1479,7 @@ def update_dashboard_data(event=None):
             </div>
             <div style="display:flex; gap:15px; font-size:0.9em; color:var(--text-light); font-weight:500;">
                 <span>ELO: <b style="color:var(--text-main);">{int(stats['elo'])}</b></span>
-                <span>REGION: <b style="color:var(--text-main);">{confed}</b></span>
-                <span>IDENTITY: <b style="color:{clutch_color};">{clutch_label}</b></span>
+                <span>HERITAGE: <b style="color:var(--accent-gold);">{her_tier}</b></span>
             </div>
         </div>
         <div style="text-align:right;">
@@ -1558,7 +1565,7 @@ def update_dashboard_data(event=None):
     # --- 7. RENDER THE FINAL HTML GRID ---
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
     <!-- TOP ROW: Power Ratings & Matchups -->
-    <div style="display:grid; grid-template-columns: 1fr 1fr 1.2fr; gap:20px; margin-bottom:20px;">
+    <div style="display:grid; grid-template-columns: 1fr 1fr 1.3fr; gap:20px; margin-bottom:20px;">
         <div class="stat-pill" title="Expected goals scored per match vs. average team">
             <div class="stat-pill-title">Offensive Power 💪</div>
             <div class="stat-pill-value" style="color:var(--accent-blue);">{round(atk_power, 2)}x</div>
@@ -1570,23 +1577,23 @@ def update_dashboard_data(event=None):
             <div style="font-size:0.75em; font-weight:600; color:{def_color}; margin-top:4px;">{def_desc}</div>
         </div>
         
-        <!-- NEW: UPSET RESUME (Replaces Tactical Kryptonite) -->
+        <!-- NEW: ELO WIN RATE BRACKETS -->
         <div class="dashboard-card" style="margin:0; padding:15px; border-left:4px solid var(--accent-gold);">
-            <div style="font-size:0.75em; font-weight:bold; color:var(--text-light); margin-bottom:8px; text-transform:uppercase;">Historical Resume</div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.85em;">
-                <span style="color:var(--text-main);">Record vs. Elite:</span>
-                <b style="color:var(--accent-blue);">{elite_w}W - {elite_d}D - {elite_l}L</b>
+            <div style="font-size:0.75em; font-weight:bold; color:var(--text-light); margin-bottom:8px; text-transform:uppercase;">Win Rate by Matchup</div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.9em;">
+                <span style="color:var(--text-main);">Vs. Elite (+180 Elo):</span>
+                <span>{format_rec(rec_elite)}</span>
             </div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.85em;">
-                <span style="color:var(--text-main);">Major Upsets Delivered:</span>
-                <b style="color:#10b981;">{major_won} 🌟</b>
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.9em;">
+                <span style="color:var(--text-main);">Vs. Stronger (+75 Elo):</span>
+                <span>{format_rec(rec_stronger)}</span>
             </div>
-            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.85em;">
-                <span style="color:var(--text-main);">Shock Defeats Suffered:</span>
-                <b style="color:#ef4444;">{major_lost} ⚠️</b>
+            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.9em;">
+                <span style="color:var(--text-main);">Vs. Peers (Even):</span>
+                <span>{format_rec(rec_similar)}</span>
             </div>
             <div style="font-size:0.8em; color:var(--text-light); margin-top:8px; border-top:1px solid var(--sidebar-border); padding-top:6px;">
-                <b>Best Scalp:</b> {best_win}
+                <b>Biggest Scalp:</b> <span style="color:var(--text-main); font-weight:bold;">{best_win}</span>
             </div>
         </div>
     </div>
@@ -1597,7 +1604,7 @@ def update_dashboard_data(event=None):
         <div class="dashboard-card" style="margin:0; padding:20px;">
             <h4 style="margin:0 0 15px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">Data-Driven Identity</h4>
             {make_bar("Match Openness (Pace)", pace_pct, "#3b82f6")}
-            {make_bar("Tournament Pedigree", ped_pct, "#8b5cf6")}
+            {make_bar("All-Time Heritage Rating", heritage_rating, "#8b5cf6")}
             {make_bar("Results Volatility (Chaos)", vol_pct, "#f59e0b")} 
             {make_bar("Current Momentum", mom_pct, "#10b981")}
         </div>
@@ -1606,7 +1613,7 @@ def update_dashboard_data(event=None):
         <div class="dashboard-card" style="margin:0; padding:20px; background:rgba(59, 130, 246, 0.05); border-left:4px solid var(--accent-blue);">
             <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">🔭 AI Scout Report</h4>
             <div style="font-size:0.95em; line-height:1.6; color:var(--text-main); font-weight:500;">
-                {generate_dynamic_report(team, atk_power, def_power, upset_pct, stats)}
+                {generate_dynamic_report(team, atk_power, def_power, 0, stats)}
             </div>
         </div>
     </div>

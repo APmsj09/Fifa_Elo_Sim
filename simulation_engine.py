@@ -420,7 +420,8 @@ def initialize_engine():
     for t in all_teams_set:
         TEAM_STATS[t] = {
             'elo': INITIAL_RATING, 'notable_results': [],
-            'vs_elite': [0, 0, 0], 'vs_stronger': [0, 0, 0], 'vs_similar':  [0, 0, 0], 'vs_weaker':   [0, 0, 0],
+            'rec_weaker': [0, 0, 0], 'rec_similar': [0, 0, 0], 'rec_stronger': [0, 0, 0], 'rec_elite': [0, 0, 0],
+            'pedigree_pts': 0,
             'upsets_major_won': 0,  'upsets_minor_won': 0, 'upsets_major_lost': 0, 'upsets_minor_lost': 0,
             'matches': 0, 'clean_sheets': 0, 'btts': 0, 'gf_avg': 0, 'ga_avg': 0, 'off': 1.0, 'def': 1.0,
             'penalties': 0, 'first_half': 0, 'late_goals': 0, 'total_goals_recorded': 0, 'form': []
@@ -437,6 +438,11 @@ def initialize_engine():
             w = calculate_recency_weight(date, LATEST_DATE) 
             TEAM_STATS[h]['ko_exp_weighted'] = TEAM_STATS[h].get('ko_exp_weighted', 0) + w
             TEAM_STATS[a]['ko_exp_weighted'] = TEAM_STATS[a].get('ko_exp_weighted', 0) + w
+            
+            # ALL-TIME HERITAGE SCORE (No time decay)
+            ped_val = 1.0 if 'world cup' in str(tourney).lower() else 0.35
+            TEAM_STATS[h]['pedigree_pts'] = TEAM_STATS[h].get('pedigree_pts', 0) + ped_val
+            TEAM_STATS[a]['pedigree_pts'] = TEAM_STATS[a].get('pedigree_pts', 0) + ped_val
         
         if hs > as_:   res_h, res_a = 0, 2
         elif hs == as_: res_h, res_a = 1, 1
@@ -449,11 +455,10 @@ def initialize_engine():
                 })
 
             diff_h = ra - rh 
-            if ra > 1750 or diff_h > 150: TEAM_STATS[h]['vs_elite'][res_h] += 1
-            if diff_h > 100: cat = 'vs_stronger'
-            elif diff_h < -100: cat = 'vs_weaker'
-            else: cat = 'vs_similar'
-            TEAM_STATS[h][cat][res_h] += 1
+            if diff_h > 180: TEAM_STATS[h]['rec_elite'][res_h] += 1
+            elif diff_h > 75: TEAM_STATS[h]['rec_stronger'][res_h] += 1
+            elif diff_h < -75: TEAM_STATS[h]['rec_weaker'][res_h] += 1
+            else: TEAM_STATS[h]['rec_similar'][res_h] += 1
             
             score_h = f"{hs}-{as_}"
             if res_h == 0: 
@@ -470,11 +475,10 @@ def initialize_engine():
                 elif diff_h < -150: TEAM_STATS[h]['upsets_minor_lost'] += 1
 
             diff_a = rh - ra 
-            if rh > 1750 or diff_a > 150: TEAM_STATS[a]['vs_elite'][res_a] += 1
-            if diff_a > 100: cat = 'vs_stronger'
-            elif diff_a < -100: cat = 'vs_weaker'
-            else: cat = 'vs_similar'
-            TEAM_STATS[a][cat][res_a] += 1
+            if diff_a > 180: TEAM_STATS[a]['rec_elite'][res_a] += 1
+            elif diff_a > 75: TEAM_STATS[a]['rec_stronger'][res_a] += 1
+            elif diff_a < -75: TEAM_STATS[a]['rec_weaker'][res_a] += 1
+            else: TEAM_STATS[a]['rec_similar'][res_a] += 1
             
             score_a = f"{as_}-{hs}"
             if res_a == 0: 
