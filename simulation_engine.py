@@ -112,23 +112,34 @@ TEAM_TALENT = {}
 TEAM_FORMATIONS = {}
 
 def load_data():
+    import unicodedata
     try:
-        # Note: We removed "data/" from the path because PyScript 
-        # fetches them into the root of the virtual environment.
-        # We also added encoding='latin1' to handle international player names!
-        
-        results_df = pd.read_csv("results.csv", on_bad_lines='skip') 
-        goalscorers_df = pd.read_csv("goalscorers.csv", on_bad_lines='skip')
-        former_names_df = pd.read_csv("former_names.csv", on_bad_lines='skip')
-        
-        formation_df = pd.read_csv("Formations.csv", encoding='latin1', on_bad_lines='skip')
-        player_df = pd.read_csv("Player_Data.csv", encoding='latin1', on_bad_lines='skip')
+        def safe_read(file):
+            # utf-8-sig handles files with or without a "BOM" marker
+            try:
+                df = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip')
+            except:
+                df = pd.read_csv(file, encoding='latin1', on_bad_lines='skip')
+            
+            # CLEANUP: Preserve accents but remove hidden formatting/whitespace
+            for col in df.select_dtypes(include=['object']):
+                # 1. Normalize characters (combines 'i' + '´' into 'í')
+                df[col] = df[col].apply(lambda x: unicodedata.normalize('NFC', str(x)) if pd.notnull(x) else x)
+                # 2. Strip hidden whitespace/tabs
+                df[col] = df[col].str.strip()
+            return df
+
+        results_df = safe_read("results.csv")
+        goalscorers_df = safe_read("goalscorers.csv")
+        former_names_df = safe_read("former_names.csv")
+        formation_df = safe_read("Formations.csv")
+        player_df = safe_read("Player_Data.csv")
         
         return results_df, goalscorers_df, former_names_df, player_df, formation_df
     except Exception as e:
-        js.console.error(f"CRITICAL ERROR LOADING DATA: {e}")
-        # This will trigger the red error box on your main.py step-by-step
+        js.console.error(f"DATA LOAD ERROR: {e}")
         raise RuntimeError(f"Could not load CSV files: {e}")
+        
 def calculate_squad_ratings(player_df, formation_df):
     """Calculates team ratings with safety checks for missing columns."""
     if player_df is None: return {}
