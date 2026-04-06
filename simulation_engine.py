@@ -145,7 +145,11 @@ def calculate_squad_ratings(player_df, formation_df):
         js.console.warn("Player Data missing required columns (nation, rat, position). Skipping squad ratings.")
         return {}
 
+    # FORCE RATINGS TO BE NUMBERS, default to 70 if missing/corrupt
+    player_df['rat'] = pd.to_numeric(player_df['rat'], errors='coerce').fillna(70)
+
     def get_primary_pos(pos_str):
+
         p = str(pos_str).upper()
         if 'GK' in p: return 'GK'
         if 'ST' in p or 'FW' in p: return 'ST'
@@ -646,7 +650,7 @@ def calculate_confed_strength(results_df=None):
     global CONFED_MULTIPLIERS
     
     if results_df is None:
-        results_df, _, _ = load_data()
+        results_df = load_data()[0] 
         if results_df is not None and 'date' in results_df.columns:
             results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
             
@@ -1016,7 +1020,7 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
     }
 
 def get_historical_elo(cutoff_date='2022-11-20'):
-    results_df, _, _ = load_data()
+    results_df = load_data()[0]
     if results_df is None or 'date' not in results_df.columns: return {}
 
     results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
