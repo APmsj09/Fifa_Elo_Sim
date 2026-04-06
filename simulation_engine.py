@@ -273,29 +273,43 @@ FINALIZED_SLOTS = {
 }
 
 def _read_csv_safe(path):
-    try:
-        return pd.read_csv(open_url(path))
-    except Exception:
-        normalized = str(path).lstrip('./')
-        fallback_urls = []
-        if not normalized.startswith('http://') and not normalized.startswith('https://'):
-            fallback_urls.append(f"{GITHUB_RAW_BASE}/{normalized}")
-            if not normalized.startswith('data/'):
-                fallback_urls.append(f"{GITHUB_RAW_BASE}/data/{normalized}")
-        else:
-            fallback_urls.append(normalized)
+    normalized = str(path).lstrip('./')
+    basename = normalized.split('/')[-1]
 
-        for fallback in fallback_urls:
-            try:
-                return pd.read_csv(open_url(fallback))
-            except Exception:
-                continue
+    local_paths = [path, normalized, f"./{normalized}", f"/{normalized}"]
+    if basename != normalized:
+        local_paths += [basename, f"./{basename}", f"/{basename}"]
 
+    if normalized.startswith('http://') or normalized.startswith('https://'):
+        local_paths = [normalized]
+
+    for candidate in local_paths:
         try:
-            return pd.read_csv(path)
-        except Exception as e:
-            js.console.error(f"Failed to read {path}: {e}")
-            return None
+            return pd.read_csv(open_url(candidate))
+        except Exception:
+            continue
+
+    fallback_urls = []
+    if normalized.startswith('http://') or normalized.startswith('https://'):
+        fallback_urls.append(normalized)
+    else:
+        fallback_urls.append(f"{GITHUB_RAW_BASE}/{normalized}")
+        if not normalized.startswith('data/'):
+            fallback_urls.append(f"{GITHUB_RAW_BASE}/data/{normalized}")
+        if basename != normalized:
+            fallback_urls.append(f"{GITHUB_RAW_BASE}/{basename}")
+
+    for fallback in fallback_urls:
+        try:
+            return pd.read_csv(open_url(fallback))
+        except Exception:
+            continue
+
+    try:
+        return pd.read_csv(path)
+    except Exception as e:
+        js.console.error(f"Failed to read {path}: {e}")
+        return None
 
 
 def load_data():
@@ -303,8 +317,8 @@ def load_data():
         former_names_df = _read_csv_safe(f"{DATA_DIR}/former_names.csv")
         results_df = _read_csv_safe(f"{DATA_DIR}/results.csv")
         goalscorers_df = _read_csv_safe(f"{DATA_DIR}/goalscorers.csv")
-        player_df = _read_csv_safe(f"{DATA_DIR}/data/FM 26 Player Data.csv")
-        formation_df = _read_csv_safe(f"{DATA_DIR}/data/FM 26 Player Data - Formations.csv")
+        player_df = _read_csv_safe(f"{DATA_DIR}/FM 26 Player Data.csv")
+        formation_df = _read_csv_safe(f"{DATA_DIR}/FM 26 Player Data - Formations.csv")
         return results_df, goalscorers_df, former_names_df, player_df, formation_df
     except Exception as e:
         js.console.error(f"CRITICAL ERROR LOADING DATA: {e}")
@@ -717,7 +731,15 @@ def initialize_engine():
     
     _clean_player_dataframe(player_df, formation_df)
     
-    if results_df is None: return {}, {}, 2.5
+    if results_df is None:
+        return {}, {}, 2.5
+
+    if 'date' not in results_df.columns:
+        js.console.warn("Results data missing 'date' column; retrying alternate load paths.")
+        results_df = _read_csv_safe('data/results.csv') or _read_csv_safe('results.csv')
+        if results_df is None or 'date' not in results_df.columns:
+            js.console.error("Failed to load results.csv with expected 'date' column.")
+            return {}, {}, 2.5
 
     results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
     results_df = results_df.dropna(subset=['date', 'home_score', 'away_score', 'neutral'])
