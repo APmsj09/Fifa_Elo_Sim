@@ -1270,18 +1270,6 @@ def update_dashboard_data(event=None):
             best = max(wins, key=lambda x: x['diff'])
             best_win = f"{best['opp'].title()} ({best['score']})"
 
-    style = sim.TEAM_PROFILES.get(team, 'Balanced')
-    matchups = getattr(sim, 'STYLE_MATCHUPS', {})
-    
-    strong_against = []
-    weak_against =[]
-    for (s1, s2), mult in matchups.items():
-        if s1 == style and mult > 1.0: strong_against.append(s2)
-        if s2 == style and mult > 1.0: weak_against.append(s1)
-        
-    strong_html = "".join([f"<span style='display:inline-block; background:rgba(16, 185, 129, 0.15); color:#10b981; padding:4px 8px; border-radius:4px; font-size:0.8em; margin:2px;'>{s}</span>" for s in strong_against]) if strong_against else "<span style='color:var(--text-light); font-size:0.8em;'>None specific</span>"
-    weak_html = "".join([f"<span style='display:inline-block; background:rgba(239, 68, 68, 0.15); color:#ef4444; padding:4px 8px; border-radius:4px; font-size:0.8em; margin:2px;'>{s}</span>" for s in weak_against]) if weak_against else "<span style='color:var(--text-light); font-size:0.8em;'>None specific</span>"
-
     header = js.document.getElementById("dashboard-header")
     header.innerHTML = f"""
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
@@ -1301,18 +1289,6 @@ def update_dashboard_data(event=None):
         </div>
     </div>
     """
-
-    def make_bar(label, val, color):
-        return f"""
-        <div style="margin-bottom:8px;">
-            <div style="display:flex; justify-content:space-between; font-size:0.75em; font-weight:700; color:var(--text-light); text-transform:uppercase; margin-bottom:4px;">
-                <span>{label}</span>
-            </div>
-            <div style="height:6px; background:var(--sidebar-border); border-radius:3px; overflow:hidden;">
-                <div style="height:100%; width:{val}%; background:{color};"></div>
-            </div>
-        </div>
-        """
 
     sim_h2h_html = ""
     
@@ -1373,6 +1349,29 @@ def update_dashboard_data(event=None):
         </div>
         """
 
+    # --- THIS IS THE NEW PLAYER LOGIC SECTION ---
+    talent_info = sim.TEAM_TALENT.get(team, {}) if hasattr(sim, 'TEAM_TALENT') else {}
+    formation_info = sim.TEAM_FORMATIONS.get(team, {}) if hasattr(sim, 'TEAM_FORMATIONS') else {}
+    
+    playmakers_html = ""
+    if 'top_players' in talent_info:
+        import math
+        for p in talent_info['top_players'][:4]:
+            club = p.get('club', 'Unknown')
+            # Safely handle float ratings by checking if they are valid numbers
+            try:
+                if math.isnan(float(p['rat'])): rating = '--'
+                else: rating = int(p['rat'])
+            except:
+                rating = '--'
+            
+            playmakers_html += f"""
+            <div style="display:flex; justify-content:space-between; font-size:0.85em; padding:6px 0; border-bottom:1px solid var(--sidebar-border);">
+                <span style="color:var(--text-main); font-weight:600;">{p['name']} <span style="font-size:0.8em; color:var(--text-light); font-weight:normal;">({club})</span></span>
+                <span style="color:var(--accent-blue); font-weight:bold;">{rating}</span>
+            </div>"""
+
+    # --- FULL HTML GRID RENDER ---
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
     <div style="display:grid; grid-template-columns: 1fr 1fr 1.3fr; gap:20px; margin-bottom:20px;">
         <div class="stat-pill" title="Expected goals scored per match vs. average team">
@@ -1406,23 +1405,31 @@ def update_dashboard_data(event=None):
         </div>
     </div>
 
+    <!-- PLAYER TALENT AND SQUAD OVERVIEW BLOCK -->
     <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:20px; margin-bottom:20px;">
         <div class="dashboard-card" style="margin:0; padding:20px;">
-            <h4 style="margin:0 0 15px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">Data-Driven Identity</h4>
-            {make_bar("Match Openness (Pace)", pace_pct, "#3b82f6")}
-            {make_bar("All-Time Heritage Rating", heritage_rating, "#8b5cf6")}
-            {make_bar("Results Volatility (Chaos)", vol_pct, "#f59e0b")} 
-            {make_bar("Current Momentum", mom_pct, "#10b981")}
+            <h4 style="margin:0 0 12px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">🌟 Key Playmakers</h4>
+            {playmakers_html if playmakers_html else "<div style='color:var(--text-light); font-size:0.9em;'>No player data available.</div>"}
+            <div style="margin-top:15px; font-size:0.8em; color:var(--text-light);">
+                <b style="color:var(--text-main);">Primary Formation:</b> {formation_info.get('formation 1', 'Unknown')}
+            </div>
         </div>
         
         <div class="dashboard-card" style="margin:0; padding:20px; background:rgba(59, 130, 246, 0.05); border-left:4px solid var(--accent-blue);">
-            <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">🔭 AI Scout Report</h4>
-            <div style="font-size:0.95em; line-height:1.6; color:var(--text-main); font-weight:500;">
-                {generate_dynamic_report(team, atk_power, def_power, 0, stats)}
+            <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">🔭 Squad Overview</h4>
+            <div style="font-size:0.95em; line-height:1.6; color:var(--text-main);">
+                {formation_info.get('wc 2026 squad overview', 'No overview available for this nation.')}
+                <div style="margin-top:12px; padding-top:12px; border-top:1px dashed #cbd5e1;">
+                    <b style="color:var(--accent-blue);">Likely Starters:</b> {formation_info.get('key likely players', 'N/A')}
+                </div>
+                <div style="margin-top:8px;">
+                    <b style="color:var(--accent-red);">Missing/Retired:</b> {formation_info.get('notable absences / retirements', 'None noted.')}
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- STANDARD STATS ROW -->
     <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:15px;">
         <div class="stat-pill" style="padding:10px;">
             <div class="stat-pill-title" style="font-size:0.65em;">Clean Sheets</div>

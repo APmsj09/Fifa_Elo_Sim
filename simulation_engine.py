@@ -107,12 +107,13 @@ FINALIZED_SLOTS = {
     'ICP2': 'iraq'                       
 }
 
-# --- ROBUST DATA LOADING ---
+TEAM_TALENT = {}
+TEAM_FORMATIONS = {}
+
 def load_data():
     def load_csv(filename):
         try:
             df = pd.read_csv(filename)
-            # Make columns lowercase and strip whitespace to prevent KeyErrors
             df.columns = df.columns.str.strip().str.lower()
             return df
         except Exception as e:
@@ -122,8 +123,45 @@ def load_data():
     results_df = load_csv("results.csv") 
     goalscorers_df = load_csv("goalscorers.csv")
     former_names_df = load_csv("former_names.csv")
+    player_df = load_csv("FM 26 Player Data.csv")
+    formation_df = load_csv("FM 26 Player Data - Formations.csv")
     
-    return results_df, goalscorers_df, former_names_df
+    return results_df, goalscorers_df, former_names_df, player_df, formation_df
+
+def calculate_squad_ratings(player_df):
+    """Calculates team overall based on top 2 players per position category (1-100 scale)."""
+    if player_df is None: return {}
+    
+    def categorize(pos):
+        pos = str(pos).upper()
+        # Prioritize strikers/forwards over wingers/midfielders
+        if 'GK' in pos: return 'GK'
+        if 'ST' in pos or 'FW' in pos: return 'FWD' 
+        if 'M' in pos: return 'MID' # Catches AM, M, DM
+        if 'D' in pos: return 'DEF'
+        return 'MID'
+
+    player_df['category'] = player_df['position(s)'].apply(categorize)
+    team_ratings = {}
+    
+    for nation, group in player_df.groupby('nation'):
+        nation_key = str(nation).lower().strip()
+        # Get top 2 highest rated players per positional category
+        cat_scores = group.sort_values('rat', ascending=False).groupby('category').head(2)
+        
+        if not cat_scores.empty:
+            avg_rat = cat_scores['rat'].mean()
+            
+            # MATH FIX: Ratings are 1-100. 
+            # We assume ~70 is an average WC team. 85+ is elite.
+            talent_weight = np.clip(avg_rat / 70.0, 0.84, 1.20)
+            
+            team_ratings[nation_key] = {
+                'talent_score': avg_rat,
+                'talent_weight': talent_weight,
+                'top_players': group.sort_values('rat', ascending=False).head(4).to_dict('records')
+            }
+    return team_ratings
 
 # =============================================================================
 # --- PART 2: INITIALIZATION (OPTIMIZED) ---
@@ -641,23 +679,30 @@ def engineer_team_signatures(results_df):
 
 TEAM_PRECOMPUTE = {}
 
-def precompute_match_data():
+def precompute_match_data(talent_data=None):
     global TEAM_PRECOMPUTE
     TEAM_PRECOMPUTE = {}
     for t, s in TEAM_STATS.items():
         clean_name = str(t).lower().strip()
+        talent = talent_data.get(clean_name, {'talent_weight': 1.0}) if talent_data else {'talent_weight': 1.0}
+        
+        # BLENDING: 70% Elo Performance / 30% Squad Talent
+        base_elo = s.get('elo', 1200)
+        # Convert talent weight back to an Elo-delta (e.g., 1.1 weight = +100 Elo)
+        talent_bonus = (talent['talent_weight'] - 1.0) * 800 
+        blended_elo = base_elo + talent_bonus
+
         pen_skill = s.get('pen_pct', 5) / 100.0 
         experience = np.clip(s.get('ko_exp_weighted', 0) / 20.0, 0, 0.1)
-        p_bonus = pen_skill + experience
 
         TEAM_PRECOMPUTE[clean_name] = {
-            'elo': s.get('elo', 1200),
-            'xg_coeff': s.get('off', 1.0),   
-            'xga_coeff': s.get('def', 1.0),  
+            'elo': blended_elo,
+            'xg_coeff': s.get('off', 1.0) * talent['talent_weight'], # Talent boosts finishing
+            'xga_coeff': s.get('def', 1.0) / talent['talent_weight'], # Talent boosts defending
             'pace': s.get('pace_factor', 1.0),
             'vol': s.get('volatility', 0.15),
             'composure': np.clip(s.get('ko_exp_weighted', 0) / 10.0, 0, 1.0),
-            'p_b': p_bonus 
+            'p_b': pen_skill + experience
         }
 
 def sim_match(t1, t2, knockout=False):
