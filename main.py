@@ -1243,13 +1243,13 @@ async def view_team_history(event=None):
 def update_dashboard_data(event=None):
     select = js.document.getElementById("team-select-dashboard")
     if not select or not select.value:
-        populate_team_dropdown(target_id="team-select-dashboard") 
+        populate_team_dropdown(target_id="team-select-dashboard")
         select = js.document.getElementById("team-select-dashboard")
-    
-    if not select or not select.value: return 
+
+    if not select or not select.value: return
 
     # 'team' is now the SLUG (e.g., 'curacao') because of our dropdown change
-    team = select.value 
+    team = select.value
     stats = sim.TEAM_STATS.get(team)
     if not stats: return
 
@@ -1259,18 +1259,18 @@ def update_dashboard_data(event=None):
     history = sim.TEAM_HISTORY.get(team)
     # Use the slug to look up the confederation
     confed = sim.TEAM_CONFEDS.get(team, 'OFC')
-    
+
     sorted_teams = sorted(sim.TEAM_STATS.keys(), key=lambda t: sim.TEAM_STATS[t]['elo'], reverse=True)
     global_rank = sorted_teams.index(team) + 1
-    
+
     reg_mult = sim.CONFED_MULTIPLIERS.get(confed, 1.0)
-    
+
     atk_index = stats.get('off', 1.0)
     def_index = stats.get('def', 1.0)
-    
+
     atk_power = atk_index * reg_mult
     def_power = def_index
-    
+
     if atk_power > 1.45: atk_desc, atk_color = "Elite 🔥", "var(--accent-green)"
     elif atk_power > 1.10: atk_desc, atk_color = "Strong ⚔️", "var(--accent-blue)"
     else: atk_desc, atk_color = "Average ⚖️", "var(--text-light)"
@@ -1279,7 +1279,7 @@ def update_dashboard_data(event=None):
     elif def_power < 0.95: def_desc, def_color = "Solid 🛡️", "var(--accent-blue)"
     else: def_desc, def_color = "Leaky ⚠️", "var(--accent-red)"
 
-     form_html = "".join([f"<span class='form-dot {'form-'+c if c in ['W','L','D'] else ''}'>{c if c != '-' else ''}</span>" for c in stats.get('form', '-----')[-5:]])
+    form_html = "".join([f"<span class='form-dot {'form-'+c if c in ['W','L','D'] else ''}'>{c if c != '-' else ''}</span>" for c in stats.get('form', '-----')[-5:]]) # Indentation fixed
 
     def format_rec(rec):
         w, d, l = rec
@@ -1293,7 +1293,7 @@ def update_dashboard_data(event=None):
     rec_elite = stats.get('rec_elite', [0,0,0])
     rec_stronger = stats.get('rec_stronger', [0,0,0])
     rec_similar = stats.get('rec_similar', [0,0,0])
-    
+
     best_win = stats.get('best_win', 'None Recorded')
 
     header = js.document.getElementById("dashboard-header")
@@ -1317,33 +1317,33 @@ def update_dashboard_data(event=None):
     """
 
     sim_h2h_html = ""
-    
+
     if BULK_STATE and 'h2h' in BULK_STATE and team in BULK_STATE['h2h']:
         h2h_data = BULK_STATE['h2h'][team]
         min_matches = max(5, BULK_STATE['num'] * 0.01)
-        
+
         valid_opps =[]
         for opp, data in h2h_data.items():
             if data['m'] >= min_matches:
                 win_pct = (data['w'] / data['m']) * 100
                 valid_opps.append((opp, win_pct, data['m']))
-        
+
         valid_opps.sort(key=lambda x: x[1], reverse=True)
-        
+
         def render_h2h_row(x):
             return f"""
             <div style='display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--sidebar-border);'>
-                <span style='font-weight:600; color:var(--text-main);'>{x[0].title()} <span style='font-weight:normal; font-size:0.8em; color:var(--text-light);'>({x[2]} matches)</span></span> 
+                <span style='font-weight:600; color:var(--text-main);'>{x[0].title()} <span style='font-weight:normal; font-size:0.8em; color:var(--text-light);'>({x[2]} matches)</span></span>
                 <b style='font-size:1.1em; color:var(--text-main);'>{x[1]:.1f}%</b>
             </div>"""
 
         if valid_opps:
             best_opps = valid_opps[:3]
             worst_opps = valid_opps[-3:][::-1]
-            
+
             best_html = "".join([render_h2h_row(x) for x in best_opps])
             worst_html = "".join([render_h2h_row(x) for x in worst_opps])
-            
+
             sim_h2h_html = f"""
             <div class="dashboard-card" style="margin-top:20px; border-top:4px solid #8b5cf6;">
                 <h3 style="margin-top:0; color:#8b5cf6; font-size:1.1em;">🎲 Simulated Head-to-Head (Based on {BULK_STATE['num']:,} Tournaments)</h3>
@@ -1378,16 +1378,16 @@ def update_dashboard_data(event=None):
     # --- THIS IS THE NEW PLAYER LOGIC SECTION ---
     import math
     import re, unicodedata
-    
+
     def get_slug(text):
         t = unicodedata.normalize('NFKD', str(text)).encode('ascii', 'ignore').decode('utf-8')
         return re.sub(r'[^a-z0-9]', '', t.lower())
-        
+
     slug_team = get_slug(team)
-    
+
     talent_info = sim.TEAM_TALENT.get(slug_team, {}) if hasattr(sim, 'TEAM_TALENT') else {}
     formation_info = sim.TEAM_FORMATIONS.get(slug_team, {}) if hasattr(sim, 'TEAM_FORMATIONS') else {}
-    
+
     # 1. Build Playmakers List
     playmakers_html = ""
     if 'top_players' in talent_info:
@@ -1397,7 +1397,7 @@ def update_dashboard_data(event=None):
                 rating = '--' if math.isnan(float(p['rat'])) else int(p['rat'])
             except:
                 rating = '--'
-            
+
             playmakers_html += f"""
             <div style="display:flex; justify-content:space-between; font-size:0.85em; padding:6px 0; border-bottom:1px solid var(--sidebar-border);">
                 <span style="color:var(--text-main); font-weight:600;">{p['name']} <span style="font-size:0.8em; color:var(--text-light); font-weight:normal;">({club})</span></span>
@@ -1409,7 +1409,7 @@ def update_dashboard_data(event=None):
     r_mid = int(talent_info.get('rating_mid', 0))
     r_def = int(talent_info.get('rating_def', 0))
     r_gk  = int(talent_info.get('rating_gk', 0))
-    
+
     def make_unit_bar(label, val):
         if val == 0: return ""
         # Dynamic color mapping based on how strong the unit is
@@ -1451,9 +1451,9 @@ def update_dashboard_data(event=None):
             <div class="stat-pill-value" style="color:var(--accent-green);">{round(def_index, 2)}x</div>
             <div style="font-size:0.75em; font-weight:600; color:{def_color}; margin-top:4px;">{def_desc}</div>
         </div>
-        
+
         <div class="dashboard-card" style="margin:0; padding:15px; border-left:4px solid var(--accent-gold);">
-            <div style="font-size:0.75em; font-weight:bold; color:var(--text-light); margin-bottom:8px; text-transform:uppercase;">All-Time Record by Matchup</div>
+            <div style="font-size:0.7em; font-weight:700; color:var(--text-light); margin-bottom:8px; text-transform:uppercase;">All-Time Record by Matchup</div>
             <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.9em;">
                 <span style="color:var(--text-main);">Vs. Global Elite (1800+ Elo):</span>
                 <span>{format_rec(rec_elite)}</span>
@@ -1481,7 +1481,7 @@ def update_dashboard_data(event=None):
                 <b style="color:var(--text-main);">Primary Formation:</b> {formation_info.get('formation 1', 'Unknown')}
             </div>
         </div>
-        
+
         <div class="dashboard-card" style="margin:0; padding:20px; background:rgba(59, 130, 246, 0.05); border-left:4px solid var(--accent-blue);">
             <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">🔭 Squad Overview</h4>
             <div style="font-size:0.95em; line-height:1.6; color:var(--text-main);">
@@ -1519,7 +1519,7 @@ def update_dashboard_data(event=None):
 
     {sim_h2h_html}
     """
-    
+
     render_elo_chart(history, display_name)
     render_power_chart(atk_index, def_index, display_name)
 
