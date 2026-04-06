@@ -112,27 +112,16 @@ TEAM_TALENT = {}
 TEAM_FORMATIONS = {}
 
 def load_data():
-    def load_csv(filename):
-        path = f"data/{filename}"
-        try:
-            # Use latin1 encoding to handle player name accents safely
-            df = pd.read_csv(path, encoding='latin1', on_bad_lines='skip')
-            # Clean headers to ensure they are lowercase and trimmed
-            df.columns = df.columns.str.strip().str.lower()
-            js.console.log(f"Successfully loaded {path}")
-            return df
-        except Exception as e:
-            js.console.warn(f"Could not load {path}: {e}")
-            return None
-
-    results_df = load_csv("results.csv") 
-    goalscorers_df = load_csv("goalscorers.csv")
-    former_names_df = load_csv("former_names.csv")
-    player_df = load_csv("Player_Data.csv")
-    formation_df = load_csv("Formations.csv")
-        
-    return results_df, goalscorers_df, former_names_df, player_df, formation_df
-
+    try:
+        former_names_df = pd.read_csv("former_names.csv")
+        results_df = pd.read_csv("results.csv") 
+        goalscorers_df = pd.read_csv("goalscorers.csv")
+        formation_df = pd.read_csv("Formations.csv")
+        player_df = pd.read_csv("Player_Data.csv")
+        return results_df, goalscorers_df, former_names_df, player_df, formation_df
+    except Exception as e:
+        js.console.error(f"CRITICAL ERROR LOADING DATA: {e}")
+        return None, None, None, None, None
 def calculate_squad_ratings(player_df, formation_df):
     """Calculates team ratings with safety checks for missing columns."""
     if player_df is None: return {}

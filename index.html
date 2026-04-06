@@ -1097,25 +1097,15 @@
 
     <py-config>
         packages = ["pandas", "numpy", "matplotlib", "mplcursors"]
-    
-        [[fetch]]
-        from = "data"
-        files = ["results.csv", "goalscorers.csv", "former_names.csv", "Player_Data.csv", "Formations.csv"]
-        dest = "data"
-
         [[fetch]]
         files = ["main.py", "simulation_engine.py", "analysis.py"]
+        [[fetch]]
+        from = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/main/data"
+        files = ["results.csv", "goalscorers.csv", "former_names.csv", "Formations.csv", "Player_Data.csv"]
     </py-config>
 
-    <py-script>
-    import asyncio
-    from analysis import init_analysis
-    # Wait a second for main.py to finish initializing
-    async def setup_analysis():
-        await asyncio.sleep(2)
-        init_analysis()
-    asyncio.ensure_future(setup_analysis())
-    </py-script>
+    <py-script src="./main.py"></py-script>
+    <py-script src="./analysis.py"></py-script>
 
 </body>
 
