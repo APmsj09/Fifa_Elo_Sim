@@ -112,23 +112,30 @@ TEAM_TALENT = {}
 TEAM_FORMATIONS = {}
 
 def load_data():
-    def load_csv(path):
-        try:
-            df = pd.read_csv(path)
-            df.columns = df.columns.str.strip().str.lower()
-            return df
-        except Exception as e:
-            js.console.warn(f"Warning: Could not load {path}: {e}")
-            return None
+    def load_csv(paths):
+        """Try to load CSV from multiple possible paths"""
+        if isinstance(paths, str):
+            paths = [paths]
+        
+        for path in paths:
+            try:
+                df = pd.read_csv(path)
+                df.columns = df.columns.str.strip().str.lower()
+                js.console.log(f"Successfully loaded {path}")
+                return df
+            except Exception as e:
+                js.console.warn(f"Could not load {path}: {e}")
+        
+        return None
 
-    # Load core files locally
-    results_df = load_csv("data/results.csv") 
-    goalscorers_df = load_csv("data/goalscorers.csv")
-    former_names_df = load_csv("data/former_names.csv")
+    # Load core files locally - try multiple paths for Pyodide compatibility
+    results_df = load_csv(["data/results.csv", "results.csv"]) 
+    goalscorers_df = load_csv(["data/goalscorers.csv", "goalscorers.csv"])
+    former_names_df = load_csv(["data/former_names.csv", "former_names.csv"])
     
     # Load FM files locally (they are fetched by py-config)
-    player_df = load_csv("data/FM 26 Player Data.csv")
-    formation_df = load_csv("data/FM 26 Player Data - Formations.csv")
+    player_df = load_csv(["data/FM 26 Player Data.csv", "FM 26 Player Data.csv"])
+    formation_df = load_csv(["data/FM 26 Player Data - Formations.csv", "FM 26 Player Data - Formations.csv"])
         
     return results_df, goalscorers_df, former_names_df, player_df, formation_df
 
@@ -311,6 +318,14 @@ def get_k_factor(tourney, goal_diff, home_team, away_team):
     return k * gd_factor
 
 def initialize_engine():
+    try:
+        return _initialize_engine_impl()
+    except Exception as e:
+        js.console.error(f"Error in initialize_engine: {e}")
+        # Return safe defaults so the app can still start
+        return {}, {}, 2.5, None
+
+def _initialize_engine_impl():
     results_df, scorers_df, df_names, player_df, formation_df = load_data()
     
     global TEAM_TALENT, TEAM_FORMATIONS

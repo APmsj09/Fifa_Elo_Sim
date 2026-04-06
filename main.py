@@ -59,36 +59,88 @@ async def initialize_app():
         js.console.log("Initializing Engine...")
         apply_saved_theme()
         
+        # Update status message
+        status_el = js.document.querySelector("#loading-screen div:last-child")
+        
         sim.DATA_DIR = "."
         
-        # This calls initialize_engine which now handles all data loading
-        stats, profiles, avg_goals, results_df = sim.initialize_engine()
-        sim.TEAM_STATS = stats
-        sim.TEAM_PROFILES = profiles
-        sim.AVG_GOALS = avg_goals
-    
-        if results_df is not None:
-            sim.engineer_team_signatures(results_df) 
-            sim.calculate_confed_strength(results_df) 
-        else:
-            js.console.warn("results_df is missing. Relying on default fallbacks.")
-            sim.engineer_team_signatures(None)
-            sim.calculate_confed_strength(None)
-            
-        sim.precompute_match_data()
-
-        setup_interactions()
-        populate_team_dropdown(wc_only=False)
+        # Step 1: Load data
+        try:
+            status_el.innerHTML = "Loading Datasets & Historical Elo..."
+            stats, profiles, avg_goals, results_df = sim.initialize_engine()
+            sim.TEAM_STATS = stats
+            sim.TEAM_PROFILES = profiles
+            sim.AVG_GOALS = avg_goals
+            js.console.log(f"Data loaded successfully. Teams: {len(stats)}")
+        except Exception as e:
+            js.console.error(f"Error in initialize_engine: {e}")
+            raise
+        
+        await asyncio.sleep(0.05)
+        
+        # Step 2: Engineer team signatures
+        try:
+            status_el.innerHTML = "Analyzing Team Signatures..."
+            if results_df is not None:
+                sim.engineer_team_signatures(results_df) 
+            else:
+                sim.engineer_team_signatures(None)
+            js.console.log("Team signatures engineered")
+        except Exception as e:
+            js.console.error(f"Error in engineer_team_signatures: {e}")
+            raise
+        
+        await asyncio.sleep(0.05)
+        
+        # Step 3: Calculate confederation strength
+        try:
+            status_el.innerHTML = "Calculating Confederation Strength..."
+            if results_df is not None:
+                sim.calculate_confed_strength(results_df) 
+            else:
+                sim.calculate_confed_strength(None)
+            js.console.log("Confederation strength calculated")
+        except Exception as e:
+            js.console.error(f"Error in calculate_confed_strength: {e}")
+            raise
+        
+        await asyncio.sleep(0.05)
+        
+        # Step 4: Precompute match data
+        try:
+            status_el.innerHTML = "Precomputing Match Data..."
+            sim.precompute_match_data()
+            js.console.log("Match data precomputed")
+        except Exception as e:
+            js.console.error(f"Error in precompute_match_data: {e}")
+            raise
+        
+        await asyncio.sleep(0.05)
+        
+        # Step 5: Setup UI
+        try:
+            status_el.innerHTML = "Setting Up Interface..."
+            setup_interactions()
+            populate_team_dropdown(wc_only=False)
+            js.console.log("Interface setup complete")
+        except Exception as e:
+            js.console.error(f"Error in setup_interactions: {e}")
+            raise
 
     except Exception as e:
-        js.console.error(f"CRITICAL ERROR DURING STARTUP: {e}")
-        # Display the error to the user instead of a blank screen
-        js.document.getElementById("loading-screen").innerHTML = f"<div style='padding:20px; color:white;'><h3>Startup Error</h3><p>{str(e)}</p></div>"
+        error_msg = str(e)
+        js.console.error(f"CRITICAL ERROR DURING STARTUP: {error_msg}")
+        loading_screen = js.document.getElementById("loading-screen")
+        loading_screen.innerHTML = f"<div style='padding:40px; color:white; text-align:center;'><h3 style='color:#ef4444;'>Initialization Error</h3><p style='word-break:break-word;'>{error_msg}</p><p style='font-size:0.9em; margin-top:20px;'>Please refresh the page.</p></div>"
     
     finally:
         # ALWAYS hide the loading screen if we get this far
-        js.document.getElementById("loading-screen").style.display = "none"
-        js.document.getElementById("main-dashboard").style.display = "grid"
+        await asyncio.sleep(0.1)
+        try:
+            js.document.getElementById("loading-screen").style.display = "none"
+            js.document.getElementById("main-dashboard").style.display = "grid"
+        except:
+            pass
         js.console.log("Engine initialization sequence complete.")
 
 def switch_tab(tab_id):
