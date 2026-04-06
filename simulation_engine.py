@@ -276,18 +276,26 @@ def _read_csv_safe(path):
     try:
         return pd.read_csv(open_url(path))
     except Exception:
-        fallback = path
-        if not str(path).startswith(('http://', 'https://')):
-            normalized = str(path).lstrip('./')
-            fallback = f"{GITHUB_RAW_BASE}/{normalized}"
-        try:
-            return pd.read_csv(open_url(fallback))
-        except Exception:
+        normalized = str(path).lstrip('./')
+        fallback_urls = []
+        if not normalized.startswith('http://') and not normalized.startswith('https://'):
+            fallback_urls.append(f"{GITHUB_RAW_BASE}/{normalized}")
+            if not normalized.startswith('data/'):
+                fallback_urls.append(f"{GITHUB_RAW_BASE}/data/{normalized}")
+        else:
+            fallback_urls.append(normalized)
+
+        for fallback in fallback_urls:
             try:
-                return pd.read_csv(path)
-            except Exception as e:
-                js.console.error(f"Failed to read {path}: {e}")
-                return None
+                return pd.read_csv(open_url(fallback))
+            except Exception:
+                continue
+
+        try:
+            return pd.read_csv(path)
+        except Exception as e:
+            js.console.error(f"Failed to read {path}: {e}")
+            return None
 
 
 def load_data():
@@ -697,9 +705,12 @@ def _build_squad(players, preferred_formation):
 
 def initialize_engine():
     try:
-        df_names = pd.read_csv(open_url(f"{DATA_DIR}/former_names.csv"))
-        NAME_MAP = dict(zip(df_names['old_name'], df_names['new_name']))
-    except:
+        former_names_df = _read_csv_safe(f"{DATA_DIR}/former_names.csv")
+        if former_names_df is not None:
+            NAME_MAP = dict(zip(former_names_df['old_name'], former_names_df['new_name']))
+        else:
+            NAME_MAP = {}
+    except Exception:
         NAME_MAP = {}
 
     results_df, scorers_df, _, player_df, formation_df = load_data()
