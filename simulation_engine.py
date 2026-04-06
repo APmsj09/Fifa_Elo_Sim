@@ -18,7 +18,8 @@ def calculate_recency_weight(match_date, latest_date):
 # --- PART 1: SETUP & DATA LOADING ---
 # =============================================================================
 
-DATA_DIR = "." 
+DATA_DIR = "data"
+GITHUB_RAW_BASE = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/main"
 
 # Global Vars
 TEAM_STATS = {}
@@ -275,11 +276,18 @@ def _read_csv_safe(path):
     try:
         return pd.read_csv(open_url(path))
     except Exception:
+        fallback = path
+        if not str(path).startswith(('http://', 'https://')):
+            normalized = str(path).lstrip('./')
+            fallback = f"{GITHUB_RAW_BASE}/{normalized}"
         try:
-            return pd.read_csv(path)
-        except Exception as e:
-            js.console.error(f"Failed to read {path}: {e}")
-            return None
+            return pd.read_csv(open_url(fallback))
+        except Exception:
+            try:
+                return pd.read_csv(path)
+            except Exception as e:
+                js.console.error(f"Failed to read {path}: {e}")
+                return None
 
 
 def load_data():
@@ -459,21 +467,109 @@ def _player_groups(position):
     return groups
 
 
+def _estimate_club_influence(club_name):
+    if not isinstance(club_name, str):
+        return 0.0
+    club = club_name.lower()
+    elite = ['real madrid', 'barcelona', 'manchester city', 'man city', 'manchester united', 'bayern', 'psg', 'liverpool', 'juventus', 'atletico', 'inter', 'ac milan', 'chelsea', 'arsenal', 'ajax', 'porto', 'benfica']
+    strong = ['roma', 'napoli', 'leipzig', 'sevilla', 'marseille', 'lyon', 'celtic', 'rangers', 'lazio', 'fiorentina', 'monaco', 'dortmund']
+
+    if any(name in club for name in elite):
+        return 1.6
+    if any(name in club for name in strong):
+        return 1.1
+    if club.strip() == '':
+        return 0.0
+    return 0.5
+
+
 def _estimate_potential(row):
     current = row.get('Rat', 0)
     pot = row.get('Pot', np.nan)
     age = row.get('Age', 22)
     sell_m = row.get('Sell_Millions', 0.0)
     status = row.get('WC_Status', 'Unknown')
+    club = row.get('Club', '')
     if not np.isnan(pot) and pot > 0:
         return max(current, pot)
-    if age >= 27:
+    if age >= 27 or current <= 0:
         return current
-    age_bonus = max(0.0, (25.5 - age) * 1.2)
-    value_bonus = np.log10(max(sell_m, 1.0)) * 2.8
-    status_bonus = 5.0 if status in ['Yes', 'Likely'] and age <= 23 else 2.0 if status == 'Likely' else 0.0
-    estimate = current + min(22, age_bonus + value_bonus + status_bonus)
+
+    if age <= 19:
+        age_bonus = 6 + (19 - age) * 1.4
+    elif age <= 22:
+        age_bonus = 2 + (22 - age) * 0.9
+    else:
+        age_bonus = max(0.0, 1.5 - (age - 22) * 0.6)
+
+    value_bonus = np.log10(max(sell_m, 1.0)) * 2.3
+    club_bonus = _estimate_club_influence(club) * 1.8
+    status_bonus = 0.0
+    if status in ['Yes', 'Likely'] and age <= 23:
+        status_bonus = 4.0
+    elif status == 'Likely':
+        status_bonus = 1.5
+
+    estimate = current + age_bonus + value_bonus + club_bonus + status_bonus
+    estimate = max(current + 3, min(current + 18, estimate))
     return max(current, round(estimate))
+
+
+def _select_team_players(squad_df, explicit_keys=None, explicit_watchlist=None):
+    explicit_keys = [p for p in (explicit_keys or []) if p]
+    explicit_watchlist = [p for p in (explicit_watchlist or []) if p]
+    if squad_df is None or squad_df.empty:
+        return explicit_keys, explicit_watchlist
+
+    selected_keys = []
+    if explicit_keys:
+        selected_keys.extend(explicit_keys)
+
+    group_targets = [('GK', 1), ('D', 2), ('M', 2), ('F', 2)]
+    for group_name, count in group_targets:
+        if len(selected_keys) >= 6:
+            break
+        group_players = squad_df[squad_df['Position_Groups'].apply(lambda g: group_name in g)]
+        for _, row in group_players.sort_values(['Rat', 'Pot', 'Emerging_Score'], ascending=[False, False, False]).iterrows():
+            name = row['Name']
+            if name not in selected_keys:
+                selected_keys.append(name)
+                if len(selected_keys) >= 6:
+                    break
+
+    if len(selected_keys) < 6:
+        for _, row in squad_df.sort_values(['Rat', 'Pot', 'Emerging_Score'], ascending=[False, False, False]).iterrows():
+            name = row['Name']
+            if name not in selected_keys:
+                selected_keys.append(name)
+                if len(selected_keys) >= 6:
+                    break
+
+    # Watchlist: emerging young talent, prioritizing those who are not already key players.
+    watchlist = []
+    if explicit_watchlist:
+        watchlist.extend(explicit_watchlist)
+
+    if len(watchlist) < 4:
+        young_prospects = squad_df[(squad_df['Age'] <= 23) & (squad_df['Emerging_Score'] > 0)].copy()
+        young_prospects = young_prospects.sort_values(['Emerging_Score', 'Pot', 'Rat'], ascending=[False, False, False])
+        for _, row in young_prospects.iterrows():
+            name = row['Name']
+            if name not in watchlist and name not in selected_keys:
+                watchlist.append(name)
+                if len(watchlist) >= 4:
+                    break
+
+    if len(watchlist) < 2:
+        fallback_young = squad_df[squad_df['Age'] <= 22].sort_values(['Pot', 'Rat'], ascending=[False, False])
+        for _, row in fallback_young.iterrows():
+            name = row['Name']
+            if name not in watchlist and name not in selected_keys:
+                watchlist.append(name)
+                if len(watchlist) >= 2:
+                    break
+
+    return selected_keys[:6], watchlist[:4]
 
 
 def _clean_player_dataframe(player_df, formation_df):
@@ -523,13 +619,15 @@ def _clean_player_dataframe(player_df, formation_df):
         preferred_formation = form_row['Formation 1'] if form_row is not None and form_row['Formation 1'] not in ['', 'nan'] else '4-3-3'
         squad = _build_squad(nation_players, preferred_formation)
 
-        key_players = []
-        watchlist = []
+        explicit_keys = []
+        explicit_watchlist = []
         notable = ''
         if form_row is not None:
-            key_players = [p.strip() for p in str(form_row.get('Key Guaranteed Players', '')).split(',') if p.strip()]
-            watchlist = [p.strip() for p in str(form_row.get('Key Likely Players', '')).split(',') if p.strip()]
+            explicit_keys = [p.strip() for p in str(form_row.get('Key Guaranteed Players', '')).split(',') if p.strip()]
+            explicit_watchlist = [p.strip() for p in str(form_row.get('Key Likely Players', '')).split(',') if p.strip()]
             notable = str(form_row.get('Notable Absences / Retirements', '')).strip()
+
+        key_players, watchlist = _select_team_players(squad, explicit_keys, explicit_watchlist)
 
         squad_rating = float(squad['Rat'].mean()) if not squad.empty else 0.0
         squad_potential = float(squad['Pot'].mean()) if not squad.empty else squad_rating
@@ -599,7 +697,7 @@ def _build_squad(players, preferred_formation):
 
 def initialize_engine():
     try:
-        df_names = pd.read_csv(open_url("former_names.csv"))
+        df_names = pd.read_csv(open_url(f"{DATA_DIR}/former_names.csv"))
         NAME_MAP = dict(zip(df_names['old_name'], df_names['new_name']))
     except:
         NAME_MAP = {}
