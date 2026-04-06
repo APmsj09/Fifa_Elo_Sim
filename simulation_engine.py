@@ -14,6 +14,20 @@ def calculate_recency_weight(match_date, latest_date):
     days_old = (latest_date - match_date).days
     return math.exp(-0.00035 * max(0, days_old))
 
+import re
+import unicodedata
+
+def get_slug(name):
+    """Turns 'Curaçao' or 'Turkey ' into 'curacao' or 'turkey'"""
+    if not name: return ""
+    # Normalize unicode (turns ç into c + cedilla) then strip the accents
+    name = unicodedata.normalize('NFKD', str(name)).encode('ascii', 'ignore').decode('utf-8')
+    # Lowercase and remove all non-alphanumeric characters
+    return re.sub(r'[^a-z0-9]', '', name.lower().strip())
+
+# We will store the 'Pretty' version of names here as we find them
+PRETTY_NAMES = {}
+
 # =============================================================================
 # --- PART 1: SETUP & DATA LOADING ---
 # =============================================================================
@@ -38,7 +52,7 @@ WC_TEAMS = [
     # Group D
     'united states', 'paraguay', 'australia', 'turkey',
     # Group E
-    'germany', 'curaçao', 'ivory coast', 'ecuador',
+    'germany', 'curacao', 'ivory coast', 'ecuador',
     # Group F
     'netherlands', 'japan', 'sweden', 'tunisia',
     # Group G
@@ -115,17 +129,19 @@ def load_data():
     import unicodedata
     try:
         def safe_read(file):
+            
             # utf-8-sig handles files with or without a "BOM" marker
             try:
                 df = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip')
             except:
                 df = pd.read_csv(file, encoding='latin1', on_bad_lines='skip')
             
-            # CLEANUP: Preserve accents but remove hidden formatting/whitespace
             for col in df.select_dtypes(include=['object']):
-                # 1. Normalize characters (combines 'i' + '´' into 'í')
-                df[col] = df[col].apply(lambda x: unicodedata.normalize('NFC', str(x)) if pd.notnull(x) else x)
-                # 2. Strip hidden whitespace/tabs
+                if 'team' in col.lower() or 'nation' in col.lower():
+                    for val in df[col].dropna().unique():
+                        slug = get_slug(val)
+                        if slug and slug not in PRETTY_NAMES:
+                            PRETTY_NAMES[slug] = str(val).strip()
                 df[col] = df[col].str.strip()
             return df
 
@@ -172,7 +188,7 @@ def calculate_squad_ratings(player_df, formation_df):
     team_ratings = {}
     
     for nation, group in player_df.groupby('nation'):
-        n_key = create_slug(nation)
+        nation_key = get_slug(nation)
         
         # SQUAD-WIDE BASELINE (Top 15)
         squad_top_15 = group.sort_values('rat', ascending=False).head(15)
@@ -201,7 +217,7 @@ def calculate_squad_ratings(player_df, formation_df):
         overall_talent = group['rat'].sort_values(ascending=False).head(18).mean()
         
         # 4. STORE RESULTS
-        team_ratings[n_key] = {
+         team_ratings[nation_key] = {
             'talent_score': overall_talent,
             'talent_weight': np.clip(overall_talent / 75.0, 0.85, 1.25),
             'rating_gk': final_units['GK'],
@@ -345,8 +361,16 @@ def _initialize_engine_impl():
     results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
     results_df = results_df.dropna(subset=['date', 'home_score', 'away_score', 'neutral'])
     
-    results_df['home_team'] = results_df['home_team'].str.lower().str.strip().replace(NAME_MAP)
-    results_df['away_team'] = results_df['away_team'].str.lower().str.strip().replace(NAME_MAP)
+    # 1. Apply historical name changes (e.g. 'Soviet Union' -> 'Russia')
+    results_df['home_team'] = results_df['home_team'].replace(NAME_MAP)
+    results_df['away_team'] = results_df['away_team'].replace(NAME_MAP)
+
+    # 2. Convert to Slugs (e.g. 'Curaçao' -> 'curacao')
+    # This ensures that even if names differ slightly across files, they match here.
+    results_df['home_team'] = results_df['home_team'].apply(get_slug)
+    results_df['away_team'] = results_df['away_team'].apply(get_slug)
+
+    # 3. Ensure scores are integers
     results_df = results_df.astype({'home_score': int, 'away_score': int})
 
     # HFA CALC

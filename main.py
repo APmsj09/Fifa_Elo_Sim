@@ -1185,21 +1185,21 @@ DASHBOARD_BUILT = False
 
 def populate_team_dropdown(target_id="team-select-dashboard", wc_only=False):
     select = js.document.getElementById(target_id)
-    if not select:
-        select = js.document.getElementById("team-select")
     if not select: return 
 
-    current_val = select.value
-    select.innerHTML = "" 
-
+    # sorted_teams contains slugs (e.g., 'curacao')
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
 
-    for team, stats in sorted_teams:
-        if wc_only and team not in sim.WC_TEAMS:
+    select.innerHTML = ""
+    for slug, stats in sorted_teams:
+        # Check if the slug is in our WC list
+        if wc_only and slug not in [sim.get_slug(t) for t in sim.WC_TEAMS]:
             continue
+            
         opt = js.document.createElement("option")
-        opt.value = team
-        opt.text = team.title()
+        opt.value = slug # Math uses 'curacao'
+        # UI shows 'Curaçao' (fetched from our dictionary)
+        opt.text = sim.PRETTY_NAMES.get(slug, slug.title()) 
         select.appendChild(opt)
 
     if current_val:
@@ -1235,12 +1235,17 @@ def update_dashboard_data(event=None):
     
     if not select or not select.value: return 
 
-    team = select.value
+    # 'team' is now the SLUG (e.g., 'curacao') because of our dropdown change
+    team = select.value 
     stats = sim.TEAM_STATS.get(team)
     if not stats: return
 
+    # Get the "Nice" name for the UI (e.g., 'Curaçao')
+    display_name = sim.PRETTY_NAMES.get(team, team.title())
+
     history = sim.TEAM_HISTORY.get(team)
-    confed = sim.TEAM_CONFEDS.get(team.lower(), 'OFC')
+    # Use the slug to look up the confederation
+    confed = sim.TEAM_CONFEDS.get(team, 'OFC')
     
     sorted_teams = sorted(sim.TEAM_STATS.keys(), key=lambda t: sim.TEAM_STATS[t]['elo'], reverse=True)
     global_rank = sorted_teams.index(team) + 1
@@ -1263,44 +1268,11 @@ def update_dashboard_data(event=None):
 
     form_html = "".join([f"<span class='form-dot {'form-'+c if c in ['W','L','D'] else ''}'>{c if c != '-' else ''}</span>" for c in stats.get('form', '-----')[-5:]])
 
-    s_w, s_d, s_l = stats.get('vs_elite', [0,0,0])
-    upset_pct = (s_w / (s_w+s_d+s_l) * 100) if (s_w+s_d+s_l) > 0 else 0
-    
-    if global_rank > 15 and upset_pct > 30: clutch_label, clutch_color = "Giant Killer ⚔️", "var(--accent-gold)"
-    elif global_rank <= 15 and upset_pct > 40: clutch_label, clutch_color = "Big Game Player 🏆", "#8b5cf6"
-    elif stats.get('upsets_major_won', 0) > 0: clutch_label, clutch_color = "Upset Threat 🃏", "#8b5cf6"
-    else: clutch_label, clutch_color = "Standard ⚖️", "var(--text-light)"
-
-    t_vol = stats.get('volatility', 0.15)
-    t_pace = stats.get('pace_factor', 1.0)
-    t_mom = stats.get('momentum', 0.0)
-
-    pace_pct = max(0, min(100, ((t_pace - 0.8) / 0.4) * 100))
-    vol_pct = max(0, min(100, ((t_vol - 0.10) / 0.30) * 100))
-    mom_pct = max(0, min(100, ((t_mom + 1.5) / 3.0) * 100))
-    
-    heritage_pts = stats.get('pedigree_pts', 0)
-    heritage_rating = max(0, min(100, int((heritage_pts / 120.0) * 100)))
-    
-    if heritage_rating >= 90: her_tier = "Football Royalty 👑"
-    elif heritage_rating >= 60: her_tier = "Tournament Heavyweight 🌍"
-    elif heritage_rating >= 30: her_tier = "Respected Competitor 🛡️"
-    elif heritage_rating >= 10: her_tier = "Occasional Contender ⚽"
-    else: her_tier = "Tournament Novice 🌱"
-
-    def format_rec(rec):
-        w, d, l = rec
-        total = w + d + l
-        pct = (w / total * 100) if total > 0 else 0
-        color = "#10b981" if pct >= 45 else ("#f59e0b" if pct >= 25 else "#ef4444")
-        if total == 0: return "<span style='color:var(--text-light);'>No Data</span>"
-        return f"<span style='color:{color}; font-weight:bold;'>{pct:.1f}% Win</span> <span style='font-size:0.75em; color:var(--text-light);'>({w}W - {d}D - {l}L)</span>"
-
+    # Recency records
     rec_elite = stats.get('rec_elite', [0,0,0])
     rec_stronger = stats.get('rec_stronger', [0,0,0])
     rec_similar = stats.get('rec_similar', [0,0,0])
     
-    # New global best win tracking (from simulation_engine.py)
     best_win = stats.get('best_win', 'None Recorded')
 
     header = js.document.getElementById("dashboard-header")
@@ -1308,12 +1280,12 @@ def update_dashboard_data(event=None):
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
         <div>
             <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
-                <h1 style="margin:0; font-size:2.4em; font-weight:800; color:var(--text-main); letter-spacing:-1px;">{team.title()}</h1>
+                <h1 style="margin:0; font-size:2.4em; font-weight:800; color:var(--text-main); letter-spacing:-1px;">{display_name}</h1>
                 <span class="rank-badge">RANK #{global_rank}</span>
             </div>
             <div style="display:flex; gap:15px; font-size:0.9em; color:var(--text-light); font-weight:500;">
                 <span>ELO: <b style="color:var(--text-main);">{int(stats['elo'])}</b></span>
-                <span>HERITAGE: <b style="color:var(--accent-gold);">{her_tier}</b></span>
+                <span>CONFED: <b style="color:var(--accent-blue);">{confed}</b></span>
             </div>
         </div>
         <div style="text-align:right;">
@@ -1384,9 +1356,16 @@ def update_dashboard_data(event=None):
 
     # --- THIS IS THE NEW PLAYER LOGIC SECTION ---
     import math
+    import re, unicodedata
     
-    talent_info = sim.TEAM_TALENT.get(team, {}) if hasattr(sim, 'TEAM_TALENT') else {}
-    formation_info = sim.TEAM_FORMATIONS.get(team, {}) if hasattr(sim, 'TEAM_FORMATIONS') else {}
+    def get_slug(text):
+        t = unicodedata.normalize('NFKD', str(text)).encode('ascii', 'ignore').decode('utf-8')
+        return re.sub(r'[^a-z0-9]', '', t.lower())
+        
+    slug_team = get_slug(team)
+    
+    talent_info = sim.TEAM_TALENT.get(slug_team, {}) if hasattr(sim, 'TEAM_TALENT') else {}
+    formation_info = sim.TEAM_FORMATIONS.get(slug_team, {}) if hasattr(sim, 'TEAM_FORMATIONS') else {}
     
     # 1. Build Playmakers List
     playmakers_html = ""
@@ -1520,8 +1499,8 @@ def update_dashboard_data(event=None):
     {sim_h2h_html}
     """
     
-    render_elo_chart(history, team)
-    render_power_chart(atk_index, def_index, team)
+    render_elo_chart(history, display_name)
+    render_power_chart(atk_index, def_index, display_name)
 
 def render_elo_chart(history, team):
     js.document.getElementById("dashboard_chart_elo").innerHTML = ""
