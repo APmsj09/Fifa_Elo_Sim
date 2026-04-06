@@ -18,8 +18,7 @@ def calculate_recency_weight(match_date, latest_date):
 # --- PART 1: SETUP & DATA LOADING ---
 # =============================================================================
 
-DATA_DIR = "data"
-GITHUB_RAW_BASE = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/main"
+DATA_DIR = "." 
 
 # Global Vars
 TEAM_STATS = {}
@@ -28,10 +27,6 @@ TEAM_HISTORY = {}
 ADVANCED_TEAM_DATA = {} 
 AVG_GOALS = 2.5
 calculated_hfa = 0.0
-PLAYER_DF = None
-FORMATION_DF = None
-TEAM_ROSTERS = {}
-TEAM_FORMATIONS = {}
 
 # The 48 Teams of World Cup 2026 (Fully Qualified)
 WC_TEAMS = [
@@ -272,35 +267,15 @@ FINALIZED_SLOTS = {
     'ICP2': 'iraq'                       # Winner of Iraq vs CONMEBOL playoffs
 }
 
-def _read_csv_safe(path):
-    try:
-        return pd.read_csv(open_url(path))
-    except Exception:
-        fallback = path
-        if not str(path).startswith(('http://', 'https://')):
-            normalized = str(path).lstrip('./')
-            fallback = f"{GITHUB_RAW_BASE}/{normalized}"
-        try:
-            return pd.read_csv(open_url(fallback))
-        except Exception:
-            try:
-                return pd.read_csv(path)
-            except Exception as e:
-                js.console.error(f"Failed to read {path}: {e}")
-                return None
-
-
 def load_data():
     try:
-        former_names_df = _read_csv_safe(f"{DATA_DIR}/former_names.csv")
-        results_df = _read_csv_safe(f"{DATA_DIR}/results.csv")
-        goalscorers_df = _read_csv_safe(f"{DATA_DIR}/goalscorers.csv")
-        player_df = _read_csv_safe(f"{DATA_DIR}/data/FM 26 Player Data.csv")
-        formation_df = _read_csv_safe(f"{DATA_DIR}/data/FM 26 Player Data - Formations.csv")
-        return results_df, goalscorers_df, former_names_df, player_df, formation_df
+        former_names_df = pd.read_csv("former_names.csv")
+        results_df = pd.read_csv("results.csv") 
+        goalscorers_df = pd.read_csv("goalscorers.csv")
+        return results_df, goalscorers_df, former_names_df
     except Exception as e:
         js.console.error(f"CRITICAL ERROR LOADING DATA: {e}")
-        return None, None, None, None, None
+        return None, None, None
 
 # =============================================================================
 # --- PART 2: INITIALIZATION (OPTIMIZED) ---
@@ -396,315 +371,14 @@ def get_k_factor(tourney, goal_diff, home_team, away_team):
         
     return k * gd_factor
 
-def _parse_value(value):
-    if pd.isna(value):
-        return 0.0
-    text = str(value).replace('€', '').replace(',', '').strip()
-    if text == '-' or text == '':
-        return 0.0
-    try:
-        if '-' in text:
-            parts = [p.strip() for p in text.split('-') if p.strip()]
-            nums = []
-            for part in parts:
-                multiplier = 1.0
-                if part.endswith('M'):
-                    multiplier = 1_000_000
-                    part = part[:-1]
-                elif part.endswith('K'):
-                    multiplier = 1_000
-                    part = part[:-1]
-                part = part.strip()
-                nums.append(float(part) * multiplier)
-            return sum(nums) / len(nums) / 1_000_000.0
-        multiplier = 1.0
-        if text.endswith('M'):
-            multiplier = 1_000_000
-            text = text[:-1]
-        elif text.endswith('K'):
-            multiplier = 1_000
-            text = text[:-1]
-        return float(text) * multiplier / 1_000_000.0
-    except Exception:
-        return 0.0
-
-
-def _safe_int(value, fallback=np.nan):
-    try:
-        return int(float(value))
-    except Exception:
-        return fallback
-
-
-def _normalize_status(value):
-    if pd.isna(value):
-        return 'Unknown'
-    text = str(value).strip().lower()
-    if 'yes' in text:
-        return 'Yes'
-    if 'likely' in text:
-        return 'Likely'
-    if 'tbd' in text or 'unknown' in text:
-        return 'TBD'
-    if 'no' in text:
-        return 'No'
-    return value.title()
-
-
-def _player_groups(position):
-    pos = str(position).upper()
-    groups = set()
-    if 'GK' in pos:
-        groups.add('GK')
-    if any(token in pos for token in ['DL', 'DR', 'DC', 'LB', 'RB', 'WB', 'WBL', 'WBR', 'SW']):
-        groups.add('D')
-    if any(token in pos for token in ['DM', 'MC', 'CM', 'AMC', 'LM', 'RM', 'ML', 'MR']):
-        groups.add('M')
-    if any(token in pos for token in ['ST', 'CF', 'LW', 'RW', 'SS', 'FW', 'AMR', 'AML']):
-        groups.add('F')
-    if not groups:
-        groups.add('M')
-    return groups
-
-
-def _estimate_club_influence(club_name):
-    if not isinstance(club_name, str):
-        return 0.0
-    club = club_name.lower()
-    elite = ['real madrid', 'barcelona', 'manchester city', 'man city', 'manchester united', 'bayern', 'psg', 'liverpool', 'juventus', 'atletico', 'inter', 'ac milan', 'chelsea', 'arsenal', 'ajax', 'porto', 'benfica']
-    strong = ['roma', 'napoli', 'leipzig', 'sevilla', 'marseille', 'lyon', 'celtic', 'rangers', 'lazio', 'fiorentina', 'monaco', 'dortmund']
-
-    if any(name in club for name in elite):
-        return 1.6
-    if any(name in club for name in strong):
-        return 1.1
-    if club.strip() == '':
-        return 0.0
-    return 0.5
-
-
-def _estimate_potential(row):
-    current = row.get('Rat', 0)
-    pot = row.get('Pot', np.nan)
-    age = row.get('Age', 22)
-    sell_m = row.get('Sell_Millions', 0.0)
-    status = row.get('WC_Status', 'Unknown')
-    club = row.get('Club', '')
-    if not np.isnan(pot) and pot > 0:
-        return max(current, pot)
-    if age >= 27 or current <= 0:
-        return current
-
-    if age <= 19:
-        age_bonus = 6 + (19 - age) * 1.4
-    elif age <= 22:
-        age_bonus = 2 + (22 - age) * 0.9
-    else:
-        age_bonus = max(0.0, 1.5 - (age - 22) * 0.6)
-
-    value_bonus = np.log10(max(sell_m, 1.0)) * 2.3
-    club_bonus = _estimate_club_influence(club) * 1.8
-    status_bonus = 0.0
-    if status in ['Yes', 'Likely'] and age <= 23:
-        status_bonus = 4.0
-    elif status == 'Likely':
-        status_bonus = 1.5
-
-    estimate = current + age_bonus + value_bonus + club_bonus + status_bonus
-    estimate = max(current + 3, min(current + 18, estimate))
-    return max(current, round(estimate))
-
-
-def _select_team_players(squad_df, explicit_keys=None, explicit_watchlist=None):
-    explicit_keys = [p for p in (explicit_keys or []) if p]
-    explicit_watchlist = [p for p in (explicit_watchlist or []) if p]
-    if squad_df is None or squad_df.empty:
-        return explicit_keys, explicit_watchlist
-
-    selected_keys = []
-    if explicit_keys:
-        selected_keys.extend(explicit_keys)
-
-    group_targets = [('GK', 1), ('D', 2), ('M', 2), ('F', 2)]
-    for group_name, count in group_targets:
-        if len(selected_keys) >= 6:
-            break
-        group_players = squad_df[squad_df['Position_Groups'].apply(lambda g: group_name in g)]
-        for _, row in group_players.sort_values(['Rat', 'Pot', 'Emerging_Score'], ascending=[False, False, False]).iterrows():
-            name = row['Name']
-            if name not in selected_keys:
-                selected_keys.append(name)
-                if len(selected_keys) >= 6:
-                    break
-
-    if len(selected_keys) < 6:
-        for _, row in squad_df.sort_values(['Rat', 'Pot', 'Emerging_Score'], ascending=[False, False, False]).iterrows():
-            name = row['Name']
-            if name not in selected_keys:
-                selected_keys.append(name)
-                if len(selected_keys) >= 6:
-                    break
-
-    # Watchlist: emerging young talent, prioritizing those who are not already key players.
-    watchlist = []
-    if explicit_watchlist:
-        watchlist.extend(explicit_watchlist)
-
-    if len(watchlist) < 4:
-        young_prospects = squad_df[(squad_df['Age'] <= 23) & (squad_df['Emerging_Score'] > 0)].copy()
-        young_prospects = young_prospects.sort_values(['Emerging_Score', 'Pot', 'Rat'], ascending=[False, False, False])
-        for _, row in young_prospects.iterrows():
-            name = row['Name']
-            if name not in watchlist and name not in selected_keys:
-                watchlist.append(name)
-                if len(watchlist) >= 4:
-                    break
-
-    if len(watchlist) < 2:
-        fallback_young = squad_df[squad_df['Age'] <= 22].sort_values(['Pot', 'Rat'], ascending=[False, False])
-        for _, row in fallback_young.iterrows():
-            name = row['Name']
-            if name not in watchlist and name not in selected_keys:
-                watchlist.append(name)
-                if len(watchlist) >= 2:
-                    break
-
-    return selected_keys[:6], watchlist[:4]
-
-
-def _clean_player_dataframe(player_df, formation_df):
-    global PLAYER_DF, FORMATION_DF, TEAM_ROSTERS, TEAM_FORMATIONS
-    PLAYER_DF = None
-    FORMATION_DF = None
-    TEAM_ROSTERS = {}
-    TEAM_FORMATIONS = {}
-
-    if player_df is None:
-        return
-
-    player_df = player_df.copy()
-    player_df.columns = [c.strip() for c in player_df.columns]
-    player_df['Nation'] = player_df['Nation'].astype(str).str.lower().str.strip()
-    player_df['Name'] = player_df['Name'].astype(str).str.strip()
-    player_df['Rat'] = player_df['Rat'].apply(_safe_int)
-    player_df['Pot'] = player_df['Pot'].apply(_safe_int)
-    player_df['Age'] = player_df['Age'].apply(_safe_int)
-    player_df['Sell_Millions'] = player_df['Sell Value'].apply(_parse_value)
-    player_df['Wage_K'] = player_df['Wage (p/w)'].astype(str).str.replace('€','').str.replace('K','').str.replace(',','').replace('k','')
-    player_df['Wage_K'] = player_df['Wage_K'].apply(lambda x: float(x) if str(x).strip().replace('.','',1).isdigit() else 0.0)
-    player_df['WC_Status'] = player_df['WC 2026?'].apply(_normalize_status)
-    player_df['Position_Groups'] = player_df['Position(s)'].apply(_player_groups)
-    player_df['Pot'] = player_df.apply(_estimate_potential, axis=1)
-    player_df['Rating_Score'] = player_df['Pot'] * 0.7 + player_df['Rat'] * 0.3
-    player_df['Emerging_Score'] = player_df.apply(lambda r: ((r['Pot'] - r['Rat']) * max(0, 28 - r['Age']) * 0.15) if r['Age'] <= 23 else 0, axis=1)
-
-    PLAYER_DF = player_df
-
-    if formation_df is not None:
-        formation_df = formation_df.copy()
-        formation_df.columns = [c.strip() for c in formation_df.columns]
-        formation_df['Nation'] = formation_df['Nation'].astype(str).str.lower().str.strip()
-        formation_df['Formation 1'] = formation_df['Formation 1'].astype(str).str.strip()
-        formation_df['Formation 2'] = formation_df['Formation 2'].astype(str).str.strip()
-        formation_df['Key Guaranteed Players'] = formation_df['Key Guaranteed Players'].astype(str)
-        formation_df['Key Likely Players'] = formation_df['Key Likely Players'].astype(str)
-        formation_df['Notable Absences / Retirements'] = formation_df['Notable Absences / Retirements'].astype(str)
-        FORMATION_DF = formation_df
-
-    for nation in player_df['Nation'].unique():
-        nation_players = player_df[player_df['Nation'] == nation].copy()
-        form_row = None
-        if FORMATION_DF is not None and nation in FORMATION_DF['Nation'].values:
-            form_row = FORMATION_DF[FORMATION_DF['Nation'] == nation].iloc[0]
-        preferred_formation = form_row['Formation 1'] if form_row is not None and form_row['Formation 1'] not in ['', 'nan'] else '4-3-3'
-        squad = _build_squad(nation_players, preferred_formation)
-
-        explicit_keys = []
-        explicit_watchlist = []
-        notable = ''
-        if form_row is not None:
-            explicit_keys = [p.strip() for p in str(form_row.get('Key Guaranteed Players', '')).split(',') if p.strip()]
-            explicit_watchlist = [p.strip() for p in str(form_row.get('Key Likely Players', '')).split(',') if p.strip()]
-            notable = str(form_row.get('Notable Absences / Retirements', '')).strip()
-
-        key_players, watchlist = _select_team_players(squad, explicit_keys, explicit_watchlist)
-
-        squad_rating = float(squad['Rat'].mean()) if not squad.empty else 0.0
-        squad_potential = float(squad['Pot'].mean()) if not squad.empty else squad_rating
-        depth_score = float(squad['Emerging_Score'].sum()) if not squad.empty else 0.0
-        team_rating = round(squad_rating + 0.20 * max(0, squad_potential - squad_rating), 2)
-        if team_rating < 60:
-            team_rating = float(squad_rating)
-
-        TEAM_FORMATIONS[nation] = {
-            'preferred_formation': preferred_formation,
-            'secondary_formation': form_row['Formation 2'] if form_row is not None and form_row['Formation 2'] not in ['', 'nan'] else None,
-            'key_players': key_players,
-            'watchlist': watchlist,
-            'notable_absences': notable,
-            'squad': squad[['Name','Rat','Pot','Age','Position(s)','Club','WC_Status']].to_dict('records'),
-            'team_rating': team_rating,
-            'squad_rating': round(squad_rating,2),
-            'squad_potential': round(squad_potential,2),
-            'depth_score': round(depth_score,2)
-        }
-        TEAM_ROSTERS[nation] = TEAM_FORMATIONS[nation]
-
-
-def _build_squad(players, preferred_formation):
-    if players.empty:
-        return players
-
-    formation_counts = {
-        '4-3-3': {'GK': 3, 'D': 8, 'M': 8, 'F': 7},
-        '4-2-3-1': {'GK': 3, 'D': 8, 'M': 9, 'F': 6},
-        '4-4-2': {'GK': 3, 'D': 8, 'M': 8, 'F': 7},
-        '4-1-4-1': {'GK': 3, 'D': 8, 'M': 9, 'F': 6},
-        '3-4-2-1': {'GK': 3, 'D': 7, 'M': 9, 'F': 7},
-        '3-5-2': {'GK': 3, 'D': 7, 'M': 10, 'F': 6},
-        '5-3-2': {'GK': 3, 'D': 9, 'M': 8, 'F': 6}
-    }
-    counts = formation_counts.get(preferred_formation.lower(), formation_counts.get(preferred_formation, {'GK': 3, 'D': 8, 'M': 9, 'F': 6}))
-    players = players.copy()
-    players['selection_score'] = players['Rating_Score'] + players['Emerging_Score'] * 0.1
-    players = players.sort_values(['selection_score', 'Pot', 'Rat'], ascending=[False, False, False])
-
-    selected = []
-    used = set()
-
-    def pick_group(group_name, count):
-        rows = players[players['Position_Groups'].apply(lambda g: group_name in g) & ~players.index.isin(used)]
-        chosen = rows.head(count)
-        for idx in chosen.index:
-            used.add(idx)
-        return chosen
-
-    gk = pick_group('GK', counts['GK'])
-    d = pick_group('D', counts['D'])
-    m = pick_group('M', counts['M'])
-    f = pick_group('F', counts['F'])
-    selected_df = pd.concat([gk, d, m, f])
-
-    if len(selected_df) < 26:
-        remaining = players[~players.index.isin(used)].head(26 - len(selected_df))
-        selected_df = pd.concat([selected_df, remaining])
-
-    if len(selected_df) > 26:
-        selected_df = selected_df.head(26)
-
-    return selected_df
-
-
 def initialize_engine():
     try:
-        df_names = pd.read_csv(open_url(f"{DATA_DIR}/former_names.csv"))
+        df_names = pd.read_csv(open_url("former_names.csv"))
         NAME_MAP = dict(zip(df_names['old_name'], df_names['new_name']))
     except:
         NAME_MAP = {}
 
-    results_df, scorers_df, _, player_df, formation_df = load_data()
-    
-    _clean_player_dataframe(player_df, formation_df)
+    results_df, scorers_df, _ = load_data()
     
     if results_df is None: return {}, {}, 2.5
 
@@ -752,19 +426,6 @@ def initialize_engine():
             'matches': 0, 'clean_sheets': 0, 'btts': 0, 'gf_avg': 0, 'ga_avg': 0, 'off': 1.0, 'def': 1.0,
             'penalties': 0, 'first_half': 0, 'late_goals': 0, 'total_goals_recorded': 0, 'form': []
         }
-        if t in TEAM_ROSTERS:
-            TEAM_STATS[t].update({
-                'preferred_formation': TEAM_ROSTERS[t].get('preferred_formation'),
-                'secondary_formation': TEAM_ROSTERS[t].get('secondary_formation'),
-                'key_players': TEAM_ROSTERS[t].get('key_players', []),
-                'watchlist': TEAM_ROSTERS[t].get('watchlist', []),
-                'notable_absences': TEAM_ROSTERS[t].get('notable_absences', ''),
-                'team_rating': TEAM_ROSTERS[t].get('team_rating', 85.0),
-                'squad_rating': TEAM_ROSTERS[t].get('squad_rating', 0.0),
-                'squad_potential': TEAM_ROSTERS[t].get('squad_potential', 0.0),
-                'depth_score': TEAM_ROSTERS[t].get('depth_score', 0.0),
-                'squad': TEAM_ROSTERS[t].get('squad', [])
-            })
 
     matches_data = zip(elo_df['home_team'], elo_df['away_team'], elo_df['home_score'], elo_df['away_score'], elo_df['tournament'], elo_df['neutral'], elo_df['date'])
 
@@ -1025,7 +686,7 @@ def initialize_engine():
 # =============================================================================
 def calculate_confed_strength():
     global CONFED_MULTIPLIERS
-    results_df, _, _, _, _ = load_data()
+    results_df, _, _ = load_data()
     
     # Filter for modern era (last 10 years) to get current confederation parity
     recent_cutoff = pd.to_datetime('2014-01-01')
@@ -1143,82 +804,20 @@ def precompute_match_data():
         pen_skill = s.get('pen_pct', 5) / 100.0 
         experience = np.clip(s.get('ko_exp_weighted', 0) / 20.0, 0, 0.1)
         p_bonus = pen_skill + experience
-        team_rating = s.get('team_rating', 85.0)
-        rating_delta = team_rating - 85.0
-        rating_adj = 1.0 + np.clip(rating_delta / 110.0, -0.12, 0.12)
+
         TEAM_PRECOMPUTE[clean_name] = {
-            'elo': s.get('elo', 1200) + (team_rating - 85.0) * 1.15,
-            'xg_coeff': s.get('off', 1.0) * rating_adj,
-            'xga_coeff': s.get('def', 1.0) / rating_adj,
+            'elo': s.get('elo', 1200),
+            'xg_coeff': s.get('off', 1.0),   
+            'xga_coeff': s.get('def', 1.0),  
             'pace': s.get('pace_factor', 1.0),
             'vol': s.get('volatility', 0.15),
             'composure': np.clip(s.get('ko_exp_weighted', 0) / 10.0, 0, 1.0),
-            'p_b': p_bonus
+            'p_b': p_bonus 
         }
 
-
 def sim_match(t1, t2, knockout=False):
-    t1 = t1.lower().strip()
+    t1 = t1.lower().strip() 
     t2 = t2.lower().strip()
-    p1 = TEAM_PRECOMPUTE.get(t1)
-    p2 = TEAM_PRECOMPUTE.get(t2)
-
-    if not p1 or not p2:
-        return t1, 1, 0, 'reg'
-
-    # 1. Match Environment
-    pace = (p1['pace'] + p2['pace']) / 2
-    intensity = 0.82 if knockout else 1.0
-    total_match_goals = 2.70 * pace * intensity
-
-    dr = p1['elo'] - p2['elo']
-    active_divisor = 580 if knockout else 500
-    win_prob = 1 / (10**(-dr/active_divisor) + 1)
-
-    elo_lam1 = total_match_goals * win_prob
-    elo_lam2 = total_match_goals * (1.0 - win_prob)
-
-    stat_lam1 = (total_match_goals / 2) * p1['xg_coeff'] * p2['xga_coeff']
-    stat_lam2 = (total_match_goals / 2) * p2['xg_coeff'] * p1['xga_coeff']
-
-    lam1 = max(0.1, (elo_lam1 * 0.65) + (stat_lam1 * 0.35))
-    lam2 = max(0.1, (elo_lam2 * 0.65) + (stat_lam2 * 0.35))
-
-    lam1 *= (1.0 + max(0, 0.15 - p1['vol']) * 0.25)
-    lam2 *= (1.0 + max(0, 0.15 - p2['vol']) * 0.25)
-
-    def roll(l, v, c, is_ko):
-        if is_ko:
-            active_vol = v * (1.25 - (c * 0.35))
-        else:
-            active_vol = v
-        if active_vol > 0:
-            l = np.random.gamma(1/active_vol, l * active_vol)
-        return np.random.poisson(max(0.05, l))
-
-    g1 = roll(lam1, p1['vol'], p1['composure'], knockout)
-    g2 = roll(lam2, p2['vol'], p2['composure'], knockout)
-
-    if g1 > g2:
-        return (t1, g1, g2, 'reg') if knockout else (t1, g1, g2)
-    if g2 > g1:
-        return (t2, g1, g2, 'reg') if knockout else (t2, g1, g2)
-    if not knockout:
-        return 'draw', g1, g2
-
-    g1 += roll(lam1 * 0.38, p1['vol'], p1['composure'], True)
-    g2 += roll(lam2 * 0.38, p2['vol'], p2['composure'], True)
-    if g1 > g2:
-        return t1, g1, g2, 'aet'
-    if g2 > g1:
-        return t2, g1, g2, 'aet'
-
-    win_chance = 0.5 + (dr / 6000.0) + ((p1['p_b'] - p2['p_b']) * 0.5)
-    winner = t1 if random.random() < np.clip(win_chance, 0.40, 0.60) else t2
-    return winner, g1, g2, 'pks'
-
-
-def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=None):
     p1 = TEAM_PRECOMPUTE.get(t1)
     p2 = TEAM_PRECOMPUTE.get(t2)
 
@@ -1230,7 +829,7 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
     intensity = 0.82 if knockout else 1.0 
     total_match_goals = 2.70 * pace * intensity 
     
-    dr = p1.get('rating_elo', p1.get('elo', 1200)) - p2.get('rating_elo', p2.get('elo', 1200))
+    dr = p1['elo'] - p2['elo']
     
     # 3. Elo Probability Distribution
     # Increase the divisor strictly for knockouts to simulate tournament parity
@@ -1452,7 +1051,7 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
 # --- 6. HISTORICAL BACKTESTING UTILS ---
 # =============================================================================
 def get_historical_elo(cutoff_date='2022-11-20'):
-    results_df, _, _, _, _ = load_data()
+    results_df, _, _ = load_data()
     if results_df is None: return {}
 
     results_df['date'] = pd.to_datetime(results_df['date'])
