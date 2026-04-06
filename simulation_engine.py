@@ -336,9 +336,12 @@ def _initialize_engine_impl():
     TEAM_TALENT = calculate_squad_ratings(player_df, formation_df) 
     
     TEAM_FORMATIONS = {}
-    if formation_df is not None and 'nation' in formation_df.columns:
-        for _, row in formation_df.iterrows():
-            TEAM_FORMATIONS[str(row['nation']).lower().strip()] = row.to_dict()
+    if formation_df is not None:
+        # Lowercase all column headers so they match perfectly
+        formation_df.columns = [str(c).strip().lower() for c in formation_df.columns]
+        if 'nation' in formation_df.columns:
+            for _, row in formation_df.iterrows():
+                TEAM_FORMATIONS[str(row['nation']).lower().strip()] = row.to_dict()
 
     try:
         if df_names is not None and 'old_name' in df_names.columns and 'new_name' in df_names.columns:
@@ -443,6 +446,11 @@ def _initialize_engine_impl():
             
             score_h = f"{hs}-{as_}"
             if res_h == 0: 
+                # ---- NEW: Track Best Win (Home) ----
+                if ra > TEAM_STATS[h].get('best_win_elo', 0):
+                    TEAM_STATS[h]['best_win_elo'] = ra
+                    TEAM_STATS[h]['best_win'] = f"{a.title()} ({score_h})"
+                # ------------------------------------
                 if diff_h > 300:   
                     TEAM_STATS[h]['upsets_major_won'] += 1
                     record_upset(h, a, score_h, diff_h, "WON_MAJOR", date)
@@ -457,17 +465,17 @@ def _initialize_engine_impl():
             
             score_a = f"{as_}-{hs}"
             if res_a == 0: 
+                # ---- NEW: Track Best Win (Away) ----
+                if rh > TEAM_STATS[a].get('best_win_elo', 0):
+                    TEAM_STATS[a]['best_win_elo'] = rh
+                    TEAM_STATS[a]['best_win'] = f"{h.title()} ({score_a})"
+                # ------------------------------------
                 if diff_a > 300:   
                     TEAM_STATS[a]['upsets_major_won'] += 1
                     record_upset(a, h, score_a, diff_a, "WON_MAJOR", date)
                 elif diff_a > 150: 
                     TEAM_STATS[a]['upsets_minor_won'] += 1
                     record_upset(a, h, score_a, diff_a, "WON_MINOR", date)
-            if res_a == 2: 
-                if diff_a < -300:   
-                    TEAM_STATS[a]['upsets_major_lost'] += 1
-                    record_upset(a, h, score_a, diff_a, "LOST_MAJOR", date)
-                elif diff_a < -150: TEAM_STATS[a]['upsets_minor_lost'] += 1
         
         if h not in TEAM_HISTORY: TEAM_HISTORY[h] = {'dates': [], 'elo': []}
         if a not in TEAM_HISTORY: TEAM_HISTORY[a] = {'dates': [], 'elo': []}
@@ -765,22 +773,30 @@ def precompute_match_data():
     TEAM_PRECOMPUTE = {}
     for t, s in TEAM_STATS.items():
         clean_name = str(t).lower().strip()
-        # Use the global TEAM_TALENT populated during initialize_engine
-        talent = TEAM_TALENT.get(clean_name, {'talent_weight': 1.0})
+        talent = TEAM_TALENT.get(clean_name, {'talent_weight': 1.0, 'talent_score': 72.0})
         
-        # BLENDING: 70% Elo Performance / 30% Squad Talent
-        base_elo = s.get('elo', 1200)
-        # Convert talent weight back to an Elo-delta (e.g., 1.1 weight = +80 Elo)
-        talent_bonus = (talent.get('talent_weight', 1.0) - 1.0) * 800 
-        blended_elo = base_elo + talent_bonus
+        base_elo = s.get('elo', 1400)
+        
+        # --- NEW 55/45 SPLIT LOGIC ---
+        # 1. Translate FIFA rating (0-99) into a "Talent Elo" equivalent
+        # A rating of 85 = ~2000 Elo (Elite). A rating of 60 = ~1000 Elo (Minnow).
+        raw_rating = talent.get('talent_score', 72.0)
+        talent_elo = 1000 + (raw_rating - 60) * 40
+        
+        # 2. Apply the exact 55% / 45% mathematical blend
+        blended_elo = (base_elo * 0.55) + (talent_elo * 0.45)
 
         pen_skill = s.get('pen_pct', 5) / 100.0 
         experience = np.clip(s.get('ko_exp_weighted', 0) / 20.0, 0, 0.1)
 
+        # 3. Enhance the tactical impact to match the 45% weight
+        t_weight = talent.get('talent_weight', 1.0)
+        enhanced_t_weight = t_weight ** 1.35 # Amplifies the talent multiplier slightly
+
         TEAM_PRECOMPUTE[clean_name] = {
             'elo': blended_elo,
-            'xg_coeff': s.get('off', 1.0) * talent.get('talent_weight', 1.0),
-            'xga_coeff': s.get('def', 1.0) / talent.get('talent_weight', 1.0),
+            'xg_coeff': s.get('off', 1.0) * enhanced_t_weight,
+            'xga_coeff': s.get('def', 1.0) / enhanced_t_weight,
             'pace': s.get('pace_factor', 1.0),
             'vol': s.get('volatility', 0.15),
             'composure': np.clip(s.get('ko_exp_weighted', 0) / 10.0, 0, 1.0),

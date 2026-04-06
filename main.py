@@ -1019,21 +1019,25 @@ def load_data_view(event):
     <div style="margin-bottom:10px; font-size:0.8em; color:#7f8c8d; text-align:right;">
         *Tactical stats (1H, Late, Pens) based on available scorer data
     </div>
+    <div style="overflow-x:auto;">
     <table class="rankings-table">
         <thead>
             <tr>
                 <th>Rank</th>
                 <th>Team</th>
                 <th>Elo</th>
+                <th title="Overall Squad Rating" style="color:var(--accent-blue);">OVR</th>
+                <th title="Attack Unit" style="color:var(--accent-green);">ATT</th>
+                <th title="Midfield Unit" style="color:var(--accent-green);">MID</th>
+                <th title="Defense Unit" style="color:var(--accent-green);">DEF</th>
+                <th title="Goalkeeper" style="color:var(--accent-green);">GK</th>
                 <th>Form</th>
                 <th>Matches</th>
                 <th>Gls For</th>
-                <th>Gls Against</th>
-                <th>Clean Sheets</th>
-                <th>Both Teams Score</th>
-                <th title="% of 1st Half Gls">1st Half Gls%</th>
-                <th title="% of Gls After 75'">Late Gls%</th>
-                <th title="% of Pen Gls">Pen%</th>
+                <th>Gls Agst</th>
+                <th>CS%</th>
+                <th>BTTS%</th>
+                <th title="% of Gls After 75'">Late%</th>
             </tr>
         </thead>
         <tbody>
@@ -1070,31 +1074,41 @@ def load_data_view(event):
             else: color = "#bdc3c7"
             formatted_form += f"<span style='color:{color}; font-weight:bold;'>{char}</span>"
 
-        cs = stats.get('clean_sheets', 0)
-        btts = stats.get('btts', 0)
-        
-        fh_pct = int(stats.get('fh_pct', 0))
+        # Fetch Player/Talent Data
+        talent = getattr(sim, 'TEAM_TALENT', {}).get(team, {})
+        ovr = int(talent.get('talent_score', 0)) if talent.get('talent_score') else '--'
+        t_att = int(talent.get('rating_att', 0)) if talent.get('rating_att') else '--'
+        t_mid = int(talent.get('rating_mid', 0)) if talent.get('rating_mid') else '--'
+        t_def = int(talent.get('rating_def', 0)) if talent.get('rating_def') else '--'
+        t_gk = int(talent.get('rating_gk', 0)) if talent.get('rating_gk') else '--'
+
+        cs_pct = int(stats.get('cs_pct', 0))
+        btts_pct = int(stats.get('btts_pct', 0))
         late_pct = int(stats.get('late_pct', 0))
-        pen_pct = int(stats.get('pen_pct', 0))
         
         html += f"""
         <tr>
             <td style="font-weight:bold;">#{rank_counter}</td>
             <td style="font-weight:600">{team.title()}</td>
-            <td style="font-weight:bold; color:#2c3e50;">{int(stats['elo'])}</td>
+            <td style="font-weight:bold; color:var(--text-main); font-size:1.1em;">{int(stats['elo'])}</td>
+            
+            <td style="font-weight:bold; color:var(--accent-blue); background:rgba(59, 130, 246, 0.05); text-align:center;">{ovr}</td>
+            <td style="font-weight:600; text-align:center;">{t_att}</td>
+            <td style="font-weight:600; text-align:center;">{t_mid}</td>
+            <td style="font-weight:600; text-align:center;">{t_def}</td>
+            <td style="font-weight:600; text-align:center;">{t_gk}</td>
+
             <td style="font-family:monospace; letter-spacing:2px;">{formatted_form}</td>
             <td style="text-align:center;">{matches}</td>
             <td style="color:#2980b9; font-weight:bold;">{total_gf}</td>
             <td style="color:#c0392b;">{total_ga}</td>
-            <td>{cs}</td>
-            <td>{btts}</td>
-            <td style="color:#7f8c8d;">{fh_pct}%</td>
+            <td>{cs_pct}%</td>
+            <td>{btts_pct}%</td>
             <td style="color:#e67e22;">{late_pct}%</td>
-            <td style="color:#7f8c8d;">{pen_pct}%</td>
         </tr>
         """
     
-    html += "</tbody></table>"
+    html += "</tbody></table></div>"
     container.innerHTML = html
 
 def generate_scout_report(stats):
@@ -1276,13 +1290,8 @@ def update_dashboard_data(event=None):
     rec_stronger = stats.get('rec_stronger', [0,0,0])
     rec_similar = stats.get('rec_similar', [0,0,0])
     
-    notable = stats.get('notable_results', [])
-    best_win = "None Recorded"
-    if notable:
-        wins = [n for n in notable if n['type'] in ['WON_MAJOR', 'WON_MINOR']]
-        if wins:
-            best = max(wins, key=lambda x: x['diff'])
-            best_win = f"{best['opp'].title()} ({best['score']})"
+    # New global best win tracking (from simulation_engine.py)
+    best_win = stats.get('best_win', 'None Recorded')
 
     header = js.document.getElementById("dashboard-header")
     header.innerHTML = f"""
