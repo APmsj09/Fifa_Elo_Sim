@@ -1279,7 +1279,15 @@ def update_dashboard_data(event=None):
     elif def_power < 0.95: def_desc, def_color = "Solid 🛡️", "var(--accent-blue)"
     else: def_desc, def_color = "Leaky ⚠️", "var(--accent-red)"
 
-    form_html = "".join([f"<span class='form-dot {'form-'+c if c in ['W','L','D'] else ''}'>{c if c != '-' else ''}</span>" for c in stats.get('form', '-----')[-5:]])
+     form_html = "".join([f"<span class='form-dot {'form-'+c if c in ['W','L','D'] else ''}'>{c if c != '-' else ''}</span>" for c in stats.get('form', '-----')[-5:]])
+
+    def format_rec(rec):
+        w, d, l = rec
+        total = w + d + l
+        pct = (w / total * 100) if total > 0 else 0
+        color = "#10b981" if pct >= 45 else ("#f59e0b" if pct >= 25 else "#ef4444")
+        if total == 0: return "<span style='color:var(--text-light);'>No Data</span>"
+        return f"<span style='color:{color}; font-weight:bold;'>{pct:.1f}% Win</span> <span style='font-size:0.75em; color:var(--text-light);'>({w}W - {d}D - {l}L)</span>"
 
     # Recency records
     rec_elite = stats.get('rec_elite', [0,0,0])
