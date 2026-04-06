@@ -1358,10 +1358,8 @@ def update_dashboard_data(event=None):
         import math
         for p in talent_info['top_players'][:4]:
             club = p.get('club', 'Unknown')
-            # Safely handle float ratings by checking if they are valid numbers
             try:
-                if math.isnan(float(p['rat'])): rating = '--'
-                else: rating = int(p['rat'])
+                rating = '--' if math.isnan(float(p['rat'])) else int(p['rat'])
             except:
                 rating = '--'
             
@@ -1371,7 +1369,6 @@ def update_dashboard_data(event=None):
                 <span style="color:var(--accent-blue); font-weight:bold;">{rating}</span>
             </div>"""
 
-    # --- FULL HTML GRID RENDER ---
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
     <div style="display:grid; grid-template-columns: 1fr 1fr 1.3fr; gap:20px; margin-bottom:20px;">
         <div class="stat-pill" title="Expected goals scored per match vs. average team">
@@ -1405,7 +1402,7 @@ def update_dashboard_data(event=None):
         </div>
     </div>
 
-    <!-- PLAYER TALENT AND SQUAD OVERVIEW BLOCK -->
+    <!-- NEW: PLAYER TALENT AND SQUAD OVERVIEW BLOCK -->
     <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:20px; margin-bottom:20px;">
         <div class="dashboard-card" style="margin:0; padding:20px;">
             <h4 style="margin:0 0 12px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">🌟 Key Playmakers</h4>
@@ -1645,4 +1642,4 @@ async def plot_style_map(event):
     display(fig, target="main-chart-container")
     plt.close(fig)
 
-asyncio.ensure_future(initialize_app())
+await initialize_app()

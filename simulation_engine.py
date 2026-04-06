@@ -4,6 +4,7 @@ import numpy as np
 import random
 import math
 import js
+from pyodide.http import open_url
 
 def calculate_recency_weight(match_date, latest_date):
     """
@@ -111,56 +112,106 @@ TEAM_TALENT = {}
 TEAM_FORMATIONS = {}
 
 def load_data():
-    def load_csv(filename):
+    def load_csv(path):
         try:
-            df = pd.read_csv(filename)
+            df = pd.read_csv(path)
             df.columns = df.columns.str.strip().str.lower()
             return df
         except Exception as e:
-            js.console.warn(f"Warning: Could not load {filename}: {e}")
+            js.console.warn(f"Warning: Could not load {path}: {e}")
             return None
 
+    # Load core files locally
     results_df = load_csv("results.csv") 
     goalscorers_df = load_csv("goalscorers.csv")
     former_names_df = load_csv("former_names.csv")
-    player_df = load_csv("FM 26 Player Data.csv")
-    formation_df = load_csv("FM 26 Player Data - Formations.csv")
     
+    # Safely fetch FM files with spaces directly from GitHub via open_url
+    base_url = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/main/data/"
+    try:
+        player_df = load_csv(open_url(base_url + "FM%2026%20Player%20Data.csv"))
+        formation_df = load_csv(open_url(base_url + "FM%2026%20Player%20Data%20-%20Formations.csv"))
+    except:
+        player_df, formation_df = None, None
+        
     return results_df, goalscorers_df, former_names_df, player_df, formation_df
 
-def calculate_squad_ratings(player_df):
-    """Calculates team overall based on top 2 players per position category (1-100 scale)."""
-    if player_df is None: return {}
+def calculate_squad_ratings(player_df, formation_df):
+    """
+    Calculates team overall based on preferred formation, going up to 3 deep
+    at each position requirement (2 deep for GKs). Ratings on a 1-100 scale.
+    Scans the entire "AMR, AML, AMC" string to find the best fit.
+    """
+    if player_df is None or 'position(s)' not in player_df.columns: return {}
     
-    def categorize(pos):
-        pos = str(pos).upper()
-        # Prioritize strikers/forwards over wingers/midfielders
-        if 'GK' in pos: return 'GK'
-        if 'ST' in pos or 'FW' in pos: return 'FWD' 
-        if 'M' in pos: return 'MID' # Catches AM, M, DM
-        if 'D' in pos: return 'DEF'
-        return 'MID'
+    # 1. Smart Position Scanner
+    def get_primary_pos(pos_str):
+        p = str(pos_str).upper()
+        # Scan the entire string and prioritize specialized roles
+        if 'GK' in p: return 'GK'
+        if 'ST' in p or 'FW' in p: return 'ST'
+        if 'DC' in p or 'CB' in p: return 'MID_DEF'
+        if 'AMC' in p: return 'ATT_CEN'
+        if 'AMR' in p or 'AML' in p: return 'ATT_WIDE'
+        if 'DM' in p or 'MC' in p: return 'MID_CEN'
+        if 'DR' in p or 'DL' in p or 'WBR' in p or 'WBL' in p: return 'WIDE_DEF'
+        if 'MR' in p or 'ML' in p: return 'MID_WIDE'
+        return 'MID_CEN' # Fallback
 
-    player_df['category'] = player_df['position(s)'].apply(categorize)
+    player_df['category'] = player_df['position(s)'].apply(get_primary_pos)
+    
+    # 2. Extract preferred formations
+    pref_formations = {}
+    if formation_df is not None and 'nation' in formation_df.columns:
+        for _, row in formation_df.iterrows():
+            pref_formations[str(row['nation']).lower().strip()] = str(row.get('formation 1', '4-3-3')).strip()
+
+    # 3. Define depth blueprints (Starting Slots x 3 deep, GK x 2 deep)
+    blueprints = {
+        '4-3-3':   {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 6, 'MID_CEN': 9, 'MID_WIDE': 0, 'ATT_CEN': 0, 'ATT_WIDE': 6, 'ST': 3},
+        '4-2-3-1': {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 6, 'MID_CEN': 6, 'MID_WIDE': 0, 'ATT_CEN': 3, 'ATT_WIDE': 6, 'ST': 3},
+        '3-4-2-1': {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 9, 'MID_CEN': 6, 'MID_WIDE': 0, 'ATT_CEN': 6, 'ATT_WIDE': 0, 'ST': 3},
+        '4-4-2':   {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 6, 'MID_CEN': 6, 'MID_WIDE': 6, 'ATT_CEN': 0, 'ATT_WIDE': 0, 'ST': 6},
+        '3-5-2':   {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 9, 'MID_CEN': 9, 'MID_WIDE': 0, 'ATT_CEN': 0, 'ATT_WIDE': 0, 'ST': 6},
+        '5-3-2':   {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 9, 'MID_CEN': 9, 'MID_WIDE': 0, 'ATT_CEN': 0, 'ATT_WIDE': 0, 'ST': 6},
+        '3-4-3':   {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 9, 'MID_CEN': 6, 'MID_WIDE': 0, 'ATT_CEN': 0, 'ATT_WIDE': 6, 'ST': 3},
+        '4-5-1':   {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 6, 'MID_CEN': 9, 'MID_WIDE': 6, 'ATT_CEN': 0, 'ATT_WIDE': 0, 'ST': 3},
+        '4-1-4-1': {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 6, 'MID_CEN': 9, 'MID_WIDE': 0, 'ATT_CEN': 0, 'ATT_WIDE': 6, 'ST': 3},
+    }
+
     team_ratings = {}
     
     for nation, group in player_df.groupby('nation'):
         nation_key = str(nation).lower().strip()
-        # Get top 2 highest rated players per positional category
-        cat_scores = group.sort_values('rat', ascending=False).groupby('category').head(2)
         
-        if not cat_scores.empty:
-            avg_rat = cat_scores['rat'].mean()
+        formation = pref_formations.get(nation_key, '4-3-3')
+        blueprint = blueprints.get(formation, blueprints['4-3-3'])
+        
+        selected_ratings = []
+        
+        # 4. Fill the squad based on blueprint
+        for bucket, depth_needed in blueprint.items():
+            if depth_needed > 0:
+                bucket_players = group[group['category'] == bucket].sort_values('rat', ascending=False)
+                selected = bucket_players.head(depth_needed)['rat'].tolist()
+                selected_ratings.extend(selected)
+        
+        # 5. Fallback if positional mapping yields no players
+        if len(selected_ratings) == 0:
+            selected_ratings = group.sort_values('rat', ascending=False).head(23)['rat'].tolist()
             
-            # MATH FIX: Ratings are 1-100. 
-            # We assume ~70 is an average WC team. 85+ is elite.
-            talent_weight = np.clip(avg_rat / 70.0, 0.84, 1.20)
+        if selected_ratings:
+            avg_rat = np.mean(selected_ratings)
+            
+            # Normalize to an Elo-like weight (Assume 65 is avg WC team)
+            talent_weight = np.clip(avg_rat / 65.0, 0.80, 1.20)
             
             team_ratings[nation_key] = {
                 'talent_score': avg_rat,
                 'talent_weight': talent_weight,
                 'top_players': group.sort_values('rat', ascending=False).head(4).to_dict('records')
             }
+            
     return team_ratings
 
 # =============================================================================
@@ -257,8 +308,16 @@ def get_k_factor(tourney, goal_diff, home_team, away_team):
     return k * gd_factor
 
 def initialize_engine():
-    results_df, scorers_df, df_names = load_data()
+    results_df, scorers_df, df_names, player_df, formation_df = load_data()
     
+    global TEAM_TALENT, TEAM_FORMATIONS
+    TEAM_TALENT = calculate_squad_ratings(player_df)
+    
+    TEAM_FORMATIONS = {}
+    if formation_df is not None and 'nation' in formation_df.columns:
+        for _, row in formation_df.iterrows():
+            TEAM_FORMATIONS[str(row['nation']).lower().strip()] = row.to_dict()
+
     try:
         if df_names is not None and 'old_name' in df_names.columns and 'new_name' in df_names.columns:
             NAME_MAP = dict(zip(df_names['old_name'], df_names['new_name']))
