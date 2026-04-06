@@ -1097,10 +1097,14 @@
 
     <py-config>
         packages = ["pandas", "numpy", "matplotlib", "mplcursors"]
+        
+        # This fetches your scripts from the root folder
         [[fetch]]
         files = ["main.py", "simulation_engine.py", "analysis.py"]
+
+        # This fetches your CSVs from the /data/ folder
         [[fetch]]
-        from = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/main/data"
+        from = "data"
         files = ["results.csv", "goalscorers.csv", "former_names.csv", "Formations.csv", "Player_Data.csv"]
     </py-config>
 

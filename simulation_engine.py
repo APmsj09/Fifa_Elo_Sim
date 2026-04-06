@@ -113,15 +113,22 @@ TEAM_FORMATIONS = {}
 
 def load_data():
     try:
-        former_names_df = pd.read_csv("former_names.csv")
-        results_df = pd.read_csv("results.csv") 
-        goalscorers_df = pd.read_csv("goalscorers.csv")
-        formation_df = pd.read_csv("Formations.csv")
-        player_df = pd.read_csv("Player_Data.csv")
+        # Note: We removed "data/" from the path because PyScript 
+        # fetches them into the root of the virtual environment.
+        # We also added encoding='latin1' to handle international player names!
+        
+        results_df = pd.read_csv("results.csv", on_bad_lines='skip') 
+        goalscorers_df = pd.read_csv("goalscorers.csv", on_bad_lines='skip')
+        former_names_df = pd.read_csv("former_names.csv", on_bad_lines='skip')
+        
+        formation_df = pd.read_csv("Formations.csv", encoding='latin1', on_bad_lines='skip')
+        player_df = pd.read_csv("Player_Data.csv", encoding='latin1', on_bad_lines='skip')
+        
         return results_df, goalscorers_df, former_names_df, player_df, formation_df
     except Exception as e:
         js.console.error(f"CRITICAL ERROR LOADING DATA: {e}")
-        return None, None, None, None, None
+        # This will trigger the red error box on your main.py step-by-step
+        raise RuntimeError(f"Could not load CSV files: {e}")
 def calculate_squad_ratings(player_df, formation_df):
     """Calculates team ratings with safety checks for missing columns."""
     if player_df is None: return {}
