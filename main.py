@@ -1,3 +1,5 @@
+### `main.py`
+```python
 import js
 import asyncio
 import gc
@@ -10,27 +12,16 @@ import mplcursors
 import random
 import numpy as np
 
-# GLOBAL VARIABLES
 LAST_SIM_RESULTS = {}
-# This list prevents the browser-to-python bridges from being deleted
 EVENT_HANDLERS = []
+BULK_STATE = {} 
 
-BULK_STATE = {} # Stores bulk data so we can toggle odds without re-running
-
-# =============================================================================
-# --- UTILITY FUNCTIONS ---
-# =============================================================================
 def calculate_ci(count, total):
-    """
-    Calculate 95% confidence interval margin for a binomial proportion.
-    Returns the ± margin as a percentage (e.g., 2.4 for ±2.4%)
-    """
     p = count / total if total > 0 else 0
     margin = 1.96 * np.sqrt(p * (1 - p) / total) * 100 if total > 0 else 0
     return margin
 
 def toggle_dark_mode(event):
-    """Toggle dark mode theme and persist preference to localStorage."""
     html = js.document.documentElement
     btn = js.document.getElementById("dark-mode-btn")
     
@@ -43,15 +34,12 @@ def toggle_dark_mode(event):
         js.localStorage.setItem("theme", "dark")
         if btn: btn.innerText = "☀️"
         
-    # Re-render active charts if in history tab to update text colors
     try:
         if js.document.getElementById("tab-history").style.display == "block":
             update_dashboard_data()
-    except:
-        pass
+    except: pass
 
 def apply_saved_theme():
-    """Apply saved theme preference from localStorage on page load."""
     saved_theme = js.localStorage.getItem("theme")
     html = js.document.documentElement
     btn = js.document.getElementById("dark-mode-btn")
@@ -73,20 +61,21 @@ async def initialize_app():
         
         sim.DATA_DIR = "."
         
-        # 1. Initialize Backend (Now returns 4 items including the cleaned results_df)
         stats, profiles, avg_goals, results_df = sim.initialize_engine()
         sim.TEAM_STATS = stats
         sim.TEAM_PROFILES = profiles
         sim.AVG_GOALS = avg_goals
     
-        # 2. Run the Engineering using the dataframe returned above
-        sim.engineer_team_signatures(results_df) 
-        sim.calculate_confed_strength() 
-        
-        # 3. Optimize for bulk
+        if results_df is not None:
+            sim.engineer_team_signatures(results_df) 
+            sim.calculate_confed_strength(results_df) 
+        else:
+            js.console.warn("results_df is missing. Relying on default fallbacks.")
+            sim.engineer_team_signatures(None)
+            sim.calculate_confed_strength(None)
+            
         sim.precompute_match_data()
 
-        # 4. Setup UI
         setup_interactions()
         populate_team_dropdown(wc_only=False)
 
@@ -96,50 +85,36 @@ async def initialize_app():
         js.console.log("Engine Ready.")
 
     except Exception as e:
-        # Show error on screen
         js.document.getElementById("loading-screen").innerHTML = f"""
-        <div style='color:#e74c3c; text-align:center; padding:20px;'>
+        <div style='color:#e74c3c; text-align:center; padding:20px; width: 80%; margin: 0 auto;'>
             <h1>Startup Error</h1>
-            <p>The Python script crashed:</p>
-            <pre style='background:black; padding:15px; border-radius:5px; text-align:left;'>{str(e)}</pre>
-            <p>Check your console (F12) for more details.</p>
+            <p>The AI Engine crashed during initialization.</p>
+            <pre style='background:#1e293b; padding:15px; border-radius:5px; text-align:left; font-size: 0.85em; overflow:auto;'>{str(e)}</pre>
+            <p style="color: #cbd5e1; font-size:0.9em; margin-top:20px;">If the error mentions a missing column like 'date', your raw GitHub URL for the dataset might be broken and returning a 404 HTML page instead of the CSV file. Check your &lt;py-config&gt; setup.</p>
         </div>
         """
         js.console.error(f"CRITICAL ERROR: {e}")
 
-# =============================================================================
-# --- 1. TAB NAVIGATION & INTERACTION SETUP ---
-# =============================================================================
 def switch_tab(tab_id):
     for t in ["tab-single", "tab-bulk", "tab-data", "tab-history", "tab-analysis", "tab-matchup"]:
         el = js.document.getElementById(t)
         if el: el.style.display = "none"
         
-    # Show selected
     target = js.document.getElementById(tab_id)
     if target: target.style.display = "block"
 
 def setup_interactions():
-    """
-    Consolidates all event binding into one safe place.
-    Includes Event Delegation for the Groups Grid.
-    """
     global EVENT_HANDLERS 
 
-    # Helper to create persistent listeners
     def bind_click(btn_id, func):
         el = js.document.getElementById(btn_id)
         if el:
-            # Create the proxy
             proxy = create_proxy(func)
-            # IMPORTANT: Store it so it doesn't get Garbage Collected
             EVENT_HANDLERS.append(proxy) 
-            # Attach it
             el.addEventListener("click", proxy)
         else:
             js.console.warn(f"Warning: Element {btn_id} not found in HTML")
 
-    # --- Navigation Tabs ---
     bind_click("btn-tab-single", lambda e: switch_tab("tab-single"))
     bind_click("btn-tab-bulk", lambda e: switch_tab("tab-bulk"))
     bind_click("btn-tab-data", lambda e: switch_tab("tab-data"))
@@ -148,10 +123,8 @@ def setup_interactions():
     bind_click("btn-tab-matchup", lambda e: switch_tab("tab-matchup"))
     bind_click("btn-run-matchup", run_matchup_analysis)
     
-    # --- Dark Mode Toggle ---
     bind_click("dark-mode-btn", toggle_dark_mode)
     
-    # Populate the new dropdowns
     populate_team_dropdown(target_id="matchup-team-a")
     populate_team_dropdown(target_id="matchup-team-b")
 
@@ -172,6 +145,7 @@ def setup_interactions():
     bind_click("data-filter-wc", load_data_view)
     
     # --- Expose Global Functions ---
+    
     proxy_view_group = create_proxy(open_group_modal)
     EVENT_HANDLERS.append(proxy_view_group)
     js.window.view_group_matches = proxy_view_group
@@ -187,24 +161,15 @@ def setup_interactions():
     js.window.change_odds_format = create_proxy(render_favorites_table)
     js.window.show_team_path = create_proxy(open_team_path_modal)
 
-    # ============================================================
-    # --- NEW: EVENT DELEGATION FOR GROUPS ---
-    # ============================================================
     def handle_group_grid_click(event):
-        # We start at the element clicked (event.target)
         el = event.target
-        
-        # Traverse up the DOM until we find the container or a group card
-        # This handles clicks on the text, table, or empty space inside the card
         while el and el.id != "groups-container":
             if el.id and el.id.startswith("group-card-"):
-                # We found the card! Extract the group name (e.g., "A")
                 group_name = el.id.replace("group-card-", "")
                 open_group_modal(group_name)
                 return
             el = el.parentElement
 
-    # Bind this ONE listener to the parent container
     bind_click("groups-container", handle_group_grid_click)
     
 # =============================================================================
@@ -213,12 +178,10 @@ def setup_interactions():
 async def run_single_sim(event):
     global LAST_SIM_RESULTS
     
-    # UI Prep
     js.document.getElementById("single-start-card").style.display = "none"
     js.document.getElementById("visual-loading").style.display = "block"
     js.document.getElementById("visual-results-container").style.display = "none"
     
-    # Yield control to allow UI update
     await asyncio.sleep(0.02)
     
     try:
@@ -229,18 +192,13 @@ async def run_single_sim(event):
         groups_data = result["groups_data"]
         bracket_data = result["bracket_data"]
         
-        # Render Champion
         js.document.getElementById("visual-champion-name").innerText = champion.upper()
 
-        # Render Groups
         groups_html = ""
-
-
-        group_names = [] # List to track groups for binding clicks later
+        group_names = [] 
 
         for grp_name, team_list in groups_data.items():
             group_names.append(grp_name)
-            
             
             groups_html += f"""
             <div id="group-card-{grp_name}" class="group-box" style="cursor:pointer;" title="Click to view matches">
@@ -268,18 +226,14 @@ async def run_single_sim(event):
         
         js.document.getElementById("groups-container").innerHTML = groups_html
 
-        # Render Bracket
         bracket_html = ""
-        
         for round_data in bracket_data:
             bracket_html += f'<div class="bracket-round"><div class="round-title">{round_data["round"]}</div>'
             
             for m in round_data['matches']:
-                
                 c1 = "winner-text" if m['winner'] == m['t1'] else ""
                 c2 = "winner-text" if m['winner'] == m['t2'] else ""
                 
-                # Logic to handle Penalty text display
                 score_display = ""
                 g1_txt = str(m['g1'])
                 g2_txt = str(m['g2'])
@@ -304,8 +258,6 @@ async def run_single_sim(event):
             bracket_html += "</div>"
             
         js.document.getElementById("bracket-container").innerHTML = bracket_html
-
-        # Reveal UI
         js.document.getElementById("visual-loading").style.display = "none"
         js.document.getElementById("visual-results-container").style.display = "block"
 
@@ -313,12 +265,9 @@ async def run_single_sim(event):
         js.document.getElementById("visual-loading").innerHTML = f"Error: {e}"
         js.console.error(f"SIM ERROR: {e}")
 
-# Match Modal Logic
 def open_group_modal(grp_name):
     try:
-        # Retrieve matches from the last results
         matches = LAST_SIM_RESULTS.get("group_matches", {}).get(grp_name, [])
-        
         js.document.getElementById("modal-title").innerText = f"Group {grp_name} Results"
         
         html = ""
@@ -356,7 +305,7 @@ async def run_bulk_sim(event):
     group_mapping = {} 
     goals_tracker = {}
     matchups = {}
-    h2h_tracker = {} # NEW: Tracks Head-to-Head win rates
+    h2h_tracker = {} 
     chaos_events = 0 
     
     sorted_elos = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
@@ -366,13 +315,12 @@ async def run_bulk_sim(event):
         if t not in team_stats:
             team_stats[t] = {'apps': 0, 'grp_1st': 0, 'r32': 0, 'r16':0, 'qf':0, 'sf': 0, 'final': 0, 'win': 0}
             goals_tracker[t] = 0
-            # ADD 'Third Place Play-off' HERE:
             matchups[t] = {
                 'Round of 32': {}, 
                 'Round of 16': {}, 
                 'Quarter-finals': {}, 
                 'Semi-finals': {}, 
-                'Third Place Play-off': {}, # <--- Add this line
+                'Third Place Play-off': {}, 
                 'Final': {}
             }
             h2h_tracker[t] = {}
@@ -406,7 +354,6 @@ async def run_bulk_sim(event):
         for i in range(num):
             res = sim.run_simulation(fast_mode=False, quiet=True)
             
-            # --- A. GROUP TRACKING & H2H ---
             for grp, table in res['groups_data'].items():
                 if grp not in group_mapping: group_mapping[grp] = {'teams': {}, 'total_elo': 0}
                 
@@ -422,13 +369,11 @@ async def run_bulk_sim(event):
                     goals_tracker[t] += row['gf']
                     if i == 0: group_mapping[grp]['total_elo'] += sim.TEAM_STATS.get(t, {}).get('elo', 1200)
             
-            # Track Group Stage H2H
             for grp, matches in res['group_matches'].items():
                 for m in matches:
                     w = m['t1'] if m['g1'] > m['g2'] else (m['t2'] if m['g2'] > m['g1'] else 'draw')
                     update_h2h(m['t1'], m['t2'], w)
 
-            # --- B. KNOCKOUT & MATCHUP TRACKING ---
             bracket = res['bracket_data']
             if bracket:
                 for r in bracket:
@@ -449,7 +394,6 @@ async def run_bulk_sim(event):
                         matchups[t1][r_name][t2] = matchups[t1][r_name].get(t2, 0) + 1
                         matchups[t2][r_name][t1] = matchups[t2][r_name].get(t1, 0) + 1
                         
-                        # Track KO H2H
                         update_h2h(t1, t2, m['winner'])
 
             champ = res['champion']
@@ -458,20 +402,18 @@ async def run_bulk_sim(event):
             if champ not in top_5_teams:
                 chaos_events += 1
             
-            if i % 10 == 0: # Yield every 10 tournaments instead of every 500
+            if i % 10 == 0: 
                 pct = int((i / num) * 100)
                 pbar = js.document.getElementById("bulk-progress-bar")
                 ptext = js.document.getElementById("bulk-progress-text")
                 if pbar: pbar.style.width = f"{pct}%"
                 if ptext: ptext.innerHTML = f"{pct}% Complete"
-    
-                # This is the "magic" line that unfreezes the browser
                 await asyncio.sleep(0)
 
         BULK_STATE = {
             'num': num, 'stats': team_stats, 'matchups': matchups, 
             'goals': goals_tracker, 'groups': group_mapping, 'chaos': chaos_events,
-            'h2h': h2h_tracker # Passed to UI
+            'h2h': h2h_tracker 
         }
 
         build_bulk_dashboard()
@@ -481,20 +423,15 @@ async def run_bulk_sim(event):
         js.console.error(f"BULK SIM ERROR: {e}")
 
 def build_bulk_dashboard():
-    """Generates the main structure for the Bulk Tab."""
     state = BULK_STATE
     num = state['num']
     out_div = js.document.getElementById("bulk-results")
     
-    # 1. Calculate Summary Metrics
-    # A. Chaos Level
     chaos_pct = (state['chaos'] / num) * 100
     if chaos_pct > 40: chaos_desc, chaos_col = "High 🌋", "var(--accent-red)"
     elif chaos_pct > 20: chaos_desc, chaos_col = "Medium 🌪️", "var(--accent-gold)"
     else: chaos_desc, chaos_col = "Low (Chalk) 🧊", "var(--accent-blue)"
     
-    # B. Cinderella / Dark Horse
-    # Criteria: Rank > 15, highest chance to reach Quarter-finals
     sorted_teams_elo = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
     eligible_underdogs = [t[0] for i, t in enumerate(sorted_teams_elo) if i > 14 and t[0] in state['stats']]
     cinderella = "None"
@@ -502,17 +439,14 @@ def build_bulk_dashboard():
         cinderella = max(eligible_underdogs, key=lambda t: state['stats'][t]['qf'])
     cind_pct = (state['stats'][cinderella]['qf'] / num * 100) if cinderella != "None" else 0
     
-    # C. Golden Boot Team
     avg_goals = {t: (g / num) for t, g in state['goals'].items()}
     top_scorer = max(avg_goals, key=avg_goals.get) if avg_goals else "None"
     
-    # D. Group of Death
     group_elos = {g: data['total_elo'] for g, data in state['groups'].items()}
     group_of_death = max(group_elos, key=group_elos.get) if group_elos else "A"
 
-    # --- CALCULATE TOURNAMENT TRIVIA ---
     ko_counts = {}
-    giant_killer = ("None", "None", 0, 0) # team, victim, wins, total
+    giant_killer = ("None", "None", 0, 0) 
 
     for t1, opps in state['h2h'].items():
         elo1 = sim.TEAM_STATS.get(t1, {}).get('elo', 1200)
@@ -530,9 +464,7 @@ def build_bulk_dashboard():
     rivalry_matches = ko_counts.get(top_rivalry, 0)
     gk_text = f"{giant_killer[0].title()} beats {giant_killer[1].title()} ({giant_killer[2]*100:.1f}%)" if giant_killer[0] != "None" else "None"
 
-    # 2. Build HTML String
     html = f"""
-    <!-- SUMMARY DASHBOARD -->
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
         <div class="dashboard-card" style="margin:0; border-left:4px solid {chaos_col};">
             <div style="font-size:0.75em; text-transform:uppercase; color:var(--text-light); font-weight:700;">Chaos Index</div>
@@ -551,7 +483,6 @@ def build_bulk_dashboard():
         </div>
     </div>
 
-    <!-- FUN INSIGHTS / TRIVIA -->
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:30px;">
         <div class="dashboard-card" style="margin:0; background:rgba(139, 92, 246, 0.05); border:1px solid rgba(139, 92, 246, 0.2);">
             <div style="font-size:0.75em; text-transform:uppercase; color:#8b5cf6; font-weight:700;">⚔️ Most Frequent Knockout Matchup</div>
@@ -606,7 +537,6 @@ def build_bulk_dashboard():
     render_favorites_table()
 
 def render_favorites_table(event=None):
-    """Renders the favorites table with perfect alignment and R32 data."""
     state = BULK_STATE
     if not state: return
     
@@ -622,13 +552,11 @@ def render_favorites_table(event=None):
         if fmt == "pct": return f"{p*100:.1f}%"
         if fmt == "dec": return f"{1/p:.2f}"
         if fmt == "amer":
-            # Correct American Odds Formula
             if p > 0.5: 
                 return f"{int((p / (1 - p)) * -100)}"
             else: 
                 return f"+{int(((1 - p) / p) * 100)}"
     
-    # Updated Headers with explicit text-align:right to match the data cells
     html = f"""<table class="favorites-table">
         <tr style="text-align:left;">
             <th style="text-align:left; width: 25%;">Team</th>
@@ -643,7 +571,6 @@ def render_favorites_table(event=None):
     all_teams_sorted = sorted(team_stats.items(), key=lambda x: x[1]['win'], reverse=True)
     
     for team, s in all_teams_sorted:
-        # Hide teams that don't even make the R32 1% of the time
         if (s['r32'] / num) < 0.01: continue
         
         html += f"""
@@ -686,8 +613,6 @@ def open_team_path_modal(team):
             </div>"""
         return out
 
-    # --- EXTRACT BEST AND WORST MATCHUPS ---
-    # Only consider teams they played reasonably often (at least 1% of tournaments)
     min_matches = max(5, state['num'] * 0.01)
     
     valid_opps = []
@@ -703,7 +628,7 @@ def open_team_path_modal(team):
         return "".join([f"<div style='display:flex; justify-content:space-between; font-size:0.85em; margin-bottom:4px;'><span style='font-weight:600;'>{x[0].title()}</span> <b>{x[1]:.1f}%</b></div>" for x in data_list])
 
     best_opps_html = render_h2h(valid_opps[:3])
-    worst_opps_html = render_h2h(valid_opps[-3:][::-1]) # Reverse so lowest is first
+    worst_opps_html = render_h2h(valid_opps[-3:][::-1]) 
 
     html = f"""
     <div id="path-modal-overlay" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center; backdrop-filter:blur(3px);" onclick="document.getElementById('path-modal-overlay').remove()">
@@ -734,7 +659,6 @@ def open_team_path_modal(team):
                 {get_top_opponents('Third Place Play-off')}
             </div>
             
-            <!-- NEW: BEST & WORST MATCHUPS -->
             <div style="display:flex; gap:15px; margin-top:20px; border-top:2px solid var(--sidebar-border); padding-top:15px; background:rgba(0,0,0,0.02); border-radius:8px; padding:15px;">
                 <div style="flex:1;">
                     <h4 style="margin:0 0 8px 0; color:#10b981; font-size:0.8em; text-transform:uppercase;">🟢 High Win Rate Vs.</h4>
@@ -755,7 +679,6 @@ async def run_matchup_analysis(event):
     team_b = js.document.getElementById("matchup-team-b").value
     out_div = js.document.getElementById("matchup-results-container")
     
-    # Safely get the user's requested sim count (Default to 10000, cap at 100,000 to prevent freezing)
     try:
         sim_count = int(js.document.getElementById("matchup-sim-count").value)
         sim_count = max(1, min(100000, sim_count)) 
@@ -767,16 +690,14 @@ async def run_matchup_analysis(event):
         return
 
     out_div.innerHTML = f"<div style='text-align:center; padding:50px;'><div class='loader-circle' style='border-top-color:var(--accent-blue); margin: 0 auto 20px;'></div>Simulating {sim_count:,} Matches...</div>"
-    await asyncio.sleep(0.05) # Yield to UI
+    await asyncio.sleep(0.05) 
 
     try:
         a_wins, b_wins, draws = 0, 0, 0
         a_goals, b_goals = 0, 0
         scorelines = {}
 
-        # 1. Run the Micro-Sim
         for _ in range(sim_count):
-            # sim_match returns (winner, g1, g2) or ('draw', g1, g2)
             res, g1, g2 = sim.sim_match(team_a, team_b, knockout=False)
             
             if res == team_a: a_wins += 1
@@ -789,12 +710,10 @@ async def run_matchup_analysis(event):
             score_str = f"{g1}-{g2}"
             scorelines[score_str] = scorelines.get(score_str, 0) + 1
 
-        # 2. Process Data
         p_a = (a_wins / sim_count) * 100
         p_d = (draws / sim_count) * 100
         p_b = (b_wins / sim_count) * 100
         
-        # Calculate confidence intervals
         ci_a = calculate_ci(a_wins, sim_count)
         ci_d = calculate_ci(draws, sim_count)
         ci_b = calculate_ci(b_wins, sim_count)
@@ -802,21 +721,17 @@ async def run_matchup_analysis(event):
         avg_ga = a_goals / sim_count
         avg_gb = b_goals / sim_count
 
-        # Get Top 3 Scorelines
         sorted_scores = sorted(scorelines.items(), key=lambda x: x[1], reverse=True)[:3]
 
-        # 3. Get Stats & Styles
         sa = sim.TEAM_STATS.get(team_a, {})
         sb = sim.TEAM_STATS.get(team_b, {})
         style_a = sim.TEAM_PROFILES.get(team_a, 'Balanced')
         style_b = sim.TEAM_PROFILES.get(team_b, 'Balanced')
 
-        # Generate Tactical Narrative
         tactical_clash = "This is a balanced matchup where individual brilliance or a single mistake will likely decide the outcome."
-        if hasattr(sim, 'STYLE_MATRIX'):
-            # Check if either team has a stylistic advantage based on the STYLE_MATRIX
-            mod_a = sim.STYLE_MATRIX.get((style_a, style_b), 1.0)
-            mod_b = sim.STYLE_MATRIX.get((style_b, style_a), 1.0)
+        if hasattr(sim, 'STYLE_MATCHUPS'):
+            mod_a = sim.STYLE_MATCHUPS.get((style_a, style_b), 1.0)
+            mod_b = sim.STYLE_MATCHUPS.get((style_b, style_a), 1.0)
             
             if mod_a > 1.0:
                 tactical_clash = f"<b>Tactical Advantage ({team_a.title()}):</b> {team_a.title()}'s <i>{style_a}</i> system naturally counters {team_b.title()}'s <i>{style_b}</i>. Expect the home side to exploit this stylistic mismatch."
@@ -827,21 +742,15 @@ async def run_matchup_analysis(event):
             elif style_a != style_b:
                 tactical_clash = f"<b>Clash of Styles:</b> It is a classic battle of ideologies as {team_a.title()}'s <i>{style_a}</i> tries to impose its will against {team_b.title()}'s <i>{style_b}</i>."
 
-        # 4. Build Output HTML
-        # First, add tactical weakness/strength analysis
         sa_elo = int(sa.get('elo', 1200))
         sb_elo = int(sb.get('elo', 1200))
         elo_diff = abs(sa_elo - sb_elo)
-        stronger_team = team_a if sa_elo > sb_elo else team_b
         
-        # Calculate matchup dimension scores (0-10 scale) using log scale for better sensitivity
         import math
         def calc_tactical_score(attacking, defending):
-            """Convert off/def ratio to 0-10 scale with better sensitivity. Center at 5 when equal."""
             ratio = attacking / defending if defending > 0 else 1.0
-            # Use logarithmic scale: log(2) * 3 ≈ 2.08, so dominant teams reach ~7-9
             score = 5 + 2.5 * math.log(ratio)
-            return max(0.5, min(9.5, score))  # Clamp to [0.5, 9.5] for visibility
+            return max(0.5, min(9.5, score)) 
         
         atk_a = calc_tactical_score(sa.get('off', 1.0), sb.get('def', 1.0))
         atk_b = calc_tactical_score(sb.get('off', 1.0), sa.get('def', 1.0))
@@ -850,13 +759,8 @@ async def run_matchup_analysis(event):
         consistency_a = min(10, (7.5 - (sa.get('btts_pct', 50) - 50) / 10))
         consistency_b = min(10, (7.5 - (sb.get('btts_pct', 50) - 50) / 10))
         
-        # Determine key tactical mismatches
-        atk_mismatch = "Strong Possession" if atk_a > atk_b + 1.5 else ("Leaky Defense" if atk_b > atk_a + 1.5 else "Balanced Midfield")
-        
         html = f"""
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
-            
-            <!-- Left Column: Win Probabilities -->
             <div class="dashboard-card" style="margin-bottom:0;">
                 <h3 style="margin-top:0; color:var(--text-light); text-transform:uppercase; font-size:0.85em;">Match Simulation ({sim_count:,} runs)</h3>
                 
@@ -884,13 +788,12 @@ async def run_matchup_analysis(event):
                 </div>
             </div>
 
-            <!-- Right Column: Scorelines -->
             <div class="dashboard-card" style="margin-bottom:0;">
                 <h3 style="margin-top:0; color:var(--text-light); text-transform:uppercase; font-size:0.85em;">Most Likely Scorelines</h3>
                 <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
         """
         
-        colors = ['#f59e0b', '#94a3b8', '#b45309'] # Gold, Silver, Bronze
+        colors = ['#f59e0b', '#94a3b8', '#b45309'] 
         for i, (score, count) in enumerate(sorted_scores):
             pct = (count/sim_count)*100
             html += f"""
@@ -910,7 +813,6 @@ async def run_matchup_analysis(event):
             </div>
         </div>
 
-        <!-- Bottom Row: Tale of the Tape & Analysis -->
         <div class="dashboard-card" style="border-top:4px solid #8b5cf6;">
             <h3 style="margin-top:0; color:#8b5cf6; font-size:1.2em;">🔭 Matchup Analysis: {style_a} vs {style_b}</h3>
             <p style="font-size:1.05em; line-height:1.6; color:var(--text-main);">{tactical_clash}</p>
@@ -948,13 +850,11 @@ async def run_matchup_analysis(event):
             </table>
         </div>
 
-        <!-- EXPANDED: Tactical Dimensions Comparison -->
         <div class="dashboard-card" style="border-left:4px solid #f59e0b; margin-top:20px;">
             <h3 style="margin-top:0; color:#f59e0b;">⚔️ Tactical Comparison (Head-to-Head Edge)</h3>
             <p style="color:var(--text-light); font-size:0.85em; margin-bottom:15px;">Scale: 0-10 shows who has the advantage in each area. 5 = evenly matched. Higher = advantage to that team.</p>
             
             <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:15px;">
-                <!-- Attacking Power -->
                 <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #ef4444;">
                     <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px; color:#b45309;">Attacking Power ⚽</div>
                     <div style="font-size:0.7em; color:var(--text-light); margin-bottom:10px;">Who scores more easily?</div>
@@ -972,7 +872,6 @@ async def run_matchup_analysis(event):
                     </div>
                 </div>
                 
-                <!-- Defensive Solidity -->
                 <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #10b981;">
                     <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px; color:#059669;">Defensive Solidity 🛡️</div>
                     <div style="font-size:0.7em; color:var(--text-light); margin-bottom:10px;">Who prevents goals better?</div>
@@ -990,7 +889,6 @@ async def run_matchup_analysis(event):
                     </div>
                 </div>
                 
-                <!-- Consistency -->
                 <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #8b5cf6;">
                     <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px; color:#6d28d9;">Consistency 📊</div>
                     <div style="font-size:0.7em; color:var(--text-light); margin-bottom:10px;">Who plays more predictably?</div>
@@ -1010,7 +908,6 @@ async def run_matchup_analysis(event):
             </div>
         </div>
 
-        <!-- KEY STRATEGIC INSIGHTS -->
         <div class="dashboard-card" style="background:linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%); border-left:4px solid #3b82f6; margin-top:20px;">
             <h3 style="margin-top:0; color:#0f172a;">💡 Strategic Insights</h3>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
@@ -1043,15 +940,7 @@ async def run_matchup_analysis(event):
         out_div.innerHTML = f"<div style='color:red; padding:20px;'>Error running matchup: {e}</div>"
         js.console.error(f"MATCHUP ERROR: {e}")
 
-# =============================================================================
-# --- 4. DATA VIEW ---
-# =============================================================================
-
 def build_dashboard_shell():
-    """
-    Injects the dashboard layout safely, preserving the containers 
-    needed for both History and Style Map modes.
-    """
     container = js.document.getElementById("tab-history")
     
     container.innerHTML = """
@@ -1150,7 +1039,6 @@ def load_data_view(event):
 
         rank_counter += 1
 
-        # 1. Reverse-Engineer True Totals
         reg_gf_avg = stats.get('gf_avg', 0)
         reg_ga_avg = stats.get('ga_avg', 0)
         
@@ -1160,7 +1048,6 @@ def load_data_view(event):
         total_gf = max(0, int(round(true_gf)))
         total_ga = max(0, int(round(true_ga)))
 
-        # 2. Form Formatting
         raw_form = stats.get('form', '-----')
         formatted_form = ""
         for char in raw_form:
@@ -1169,12 +1056,9 @@ def load_data_view(event):
             else: color = "#bdc3c7"
             formatted_form += f"<span style='color:{color}; font-weight:bold;'>{char}</span>"
 
-        # 3. Get Counts & Percentages
         cs = stats.get('clean_sheets', 0)
         btts = stats.get('btts', 0)
         
-        # We use the PERCENTAGES calculated in initialize_engine
-        # These are accurate even if the raw count is low
         fh_pct = int(stats.get('fh_pct', 0))
         late_pct = int(stats.get('late_pct', 0))
         pen_pct = int(stats.get('pen_pct', 0))
@@ -1200,15 +1084,9 @@ def load_data_view(event):
     container.innerHTML = html
 
 def generate_scout_report(stats):
-    """
-    Generates a smart, multi-line report.
-    Uses 'covered_concepts' to ensure subsequent lines do not repeat 
-    information already implied by the main headline.
-    """
     bullets = []
-    covered_concepts = set() # Tracks what we have already said
+    covered_concepts = set() 
     
-    # Extract values
     gf = stats.get('gf_avg', 0)
     ga = stats.get('ga_avg', 0)
     cs = stats.get('cs_pct', 0)
@@ -1217,35 +1095,27 @@ def generate_scout_report(stats):
     fh = stats.get('fh_pct', 0)
     pen = stats.get('pen_pct', 0)
 
-    # --- 1. THE HEADLINE (The Core Identity) ---
-    
     if gf > 2.2 and cs > 50:
         bullets.append("🌟 <b>World Class:</b> Elite at both scoring and defending. A title contender.")
         covered_concepts.add("good_attack")
         covered_concepts.add("good_defense")
-        
     elif gf > 2.0 and ga > 1.4:
         bullets.append("🍿 <b>Entertainers:</b> High-octane offense that leaves gaps at the back.")
         covered_concepts.add("good_attack")
         covered_concepts.add("bad_defense")
-        
     elif gf < 1.0 and cs > 45:
         bullets.append("🧱 <b>The Rock:</b> Extremely difficult to break down, but struggles to score.")
         covered_concepts.add("good_defense")
         covered_concepts.add("bad_attack")
-        
     elif btts > 60 and late > 25:
         bullets.append("🎢 <b>Chaos Agents:</b> Their games are unpredictable and often decided late.")
         covered_concepts.add("chaos")
         covered_concepts.add("late_goals")
-
     elif btts < 30 and ga < 1.0:
         bullets.append("📏 <b>Disciplined:</b> Organized, low-event football. They rarely make mistakes.")
         covered_concepts.add("boring")
         covered_concepts.add("good_defense")
-
     else:
-        # Fallbacks
         if gf > 1.8: 
             bullets.append("⚔️ <b>Attacking Threat:</b> Consistently poses a danger to opponents.")
             covered_concepts.add("good_attack")
@@ -1255,110 +1125,69 @@ def generate_scout_report(stats):
         else: 
             bullets.append("⚖️ <b>Balanced Setup:</b> No glaring weaknesses, but lacks a 'superpower'.")
 
-    # --- 2. TACTICAL QUIRKS (Add only if not redundant) ---
-
-    # Timing: Fast Starters
     if fh > 55:
         bullets.append("⚡ <b>Fast Starters:</b> They tend to blitz opponents in the first half.")
-
-    # Timing: Late Surge (Skip if we already called them 'Chaos Agents' who win late)
     if late > 30 and "late_goals" not in covered_concepts:
         bullets.append("⏱️ <b>Late Surge:</b> Fitness is a strength; they score heavily in the final 15 mins.")
-
-    # Set Pieces
     if pen > 18:
         bullets.append("🎯 <b>Set-Piece Specialists:</b> A suspiciously high % of goals come from penalties.")
-
-    # Volatility (BTTS) - Skip if we already said they have bad defense or are chaos agents
     if btts > 65 and "bad_defense" not in covered_concepts and "chaos" not in covered_concepts:
         bullets.append("👐 <b>Open Games:</b> They rarely keep clean sheets, but rarely get shut out.")
-
-    # Defense Strength - Skip if we already said they are World Class or The Rock
     if cs > 50 and "good_defense" not in covered_concepts:
         bullets.append("🔒 <b>Clean Sheet Machine:</b> They shut out opponents in over half their games.")
-
-    # --- 3. RED FLAGS (Only if extreme) ---
     
     if ga > 1.8 and "bad_defense" not in covered_concepts:
          bullets.append("⚠️ <b>Leaky Defense:</b> Conceding nearly 2 goals per game on average.")
-         
     if gf < 0.8 and "bad_attack" not in covered_concepts:
         bullets.append("⚠️ <b>Goal Shy:</b> Major struggles creating chances in open play.")
 
     return "<br><br>".join(bullets)
 
-# =============================================================================
-# --- 5. HISTORY & ANALYSIS  ---
-# =============================================================================
-
-# Global flag to track if we have injected the dashboard HTML yet
 DASHBOARD_BUILT = False
 
 def populate_team_dropdown(target_id="team-select-dashboard", wc_only=False):
-    """
-    Populates a team dropdown/select element with sorted teams by Elo rating.
-    """
     select = js.document.getElementById(target_id)
-    
     if not select:
-        # Fallback if standard ID isn't used
         select = js.document.getElementById("team-select")
-        
-    if not select:
-        return # Exit if element doesn't exist
+    if not select: return 
 
     current_val = select.value
-    select.innerHTML = ""  # Clear existing options
+    select.innerHTML = "" 
 
-    # Sort teams by ELO
-    sorted_teams = sorted(
-        sim.TEAM_STATS.items(),
-        key=lambda x: x[1]['elo'],
-        reverse=True
-    )
+    sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
 
-    # Create Options
     for team, stats in sorted_teams:
         if wc_only and team not in sim.WC_TEAMS:
             continue
-
         opt = js.document.createElement("option")
         opt.value = team
         opt.text = team.title()
         select.appendChild(opt)
 
-    # Restore selection or default to first option
     if current_val:
         select.value = current_val
-    
     if not select.value and select.options.length > 0:
         select.selectedIndex = 0
         select.value = select.options[0].value
 
-
 def handle_history_filter_change(event):
     is_checked = js.document.getElementById("hist-filter-wc").checked
-    # Refresh the active view
     populate_team_dropdown(wc_only=is_checked)
     load_data_view(None)
 
 async def view_team_history(event=None):
     global DASHBOARD_BUILT
 
-    # 1. Build the HTML shell if it doesn't exist
     if not DASHBOARD_BUILT:
         build_dashboard_shell()
         populate_team_dropdown(target_id="team-select-dashboard")
         DASHBOARD_BUILT = True
     
-    # 2. Ensure Profile View is visible
     js.document.getElementById("view-profile").style.display = "block"
     js.document.getElementById("view-style-map").style.display = "none"
 
-    # 3. Update the Data
-    await asyncio.sleep(0.01) # Yield to let DOM update
+    await asyncio.sleep(0.01) 
     update_dashboard_data()
-
 
 def update_dashboard_data(event=None):
     select = js.document.getElementById("team-select-dashboard")
@@ -1375,55 +1204,43 @@ def update_dashboard_data(event=None):
     history = sim.TEAM_HISTORY.get(team)
     confed = sim.TEAM_CONFEDS.get(team.lower(), 'OFC')
     
-    # --- 1. CALCULATE WORLD RANK & PERCENTILES ---
     sorted_teams = sorted(sim.TEAM_STATS.keys(), key=lambda t: sim.TEAM_STATS[t]['elo'], reverse=True)
     global_rank = sorted_teams.index(team) + 1
     
-    # Confederation Multiplier Impact
     reg_mult = sim.CONFED_MULTIPLIERS.get(confed, 1.0)
     
-    # SOS Adjusted Power
     atk_index = stats.get('off', 1.0)
     def_index = stats.get('def', 1.0)
     
-    # Final adjusted power for display
     atk_power = atk_index * reg_mult
     def_power = def_index
     
-    # Percentile Logic (Casual Friendly)
     if atk_power > 1.45: atk_desc, atk_color = "Elite 🔥", "var(--accent-green)"
     elif atk_power > 1.10: atk_desc, atk_color = "Strong ⚔️", "var(--accent-blue)"
     else: atk_desc, atk_color = "Average ⚖️", "var(--text-light)"
 
-    # Stricter Defensive UI Thresholds
     if def_power < 0.65: def_desc, def_color = "Iron Wall 🧱", "var(--accent-green)"
     elif def_power < 0.95: def_desc, def_color = "Solid 🛡️", "var(--accent-blue)"
     else: def_desc, def_color = "Leaky ⚠️", "var(--accent-red)"
 
     form_html = "".join([f"<span class='form-dot {'form-'+c if c in ['W','L','D'] else ''}'>{c if c != '-' else ''}</span>" for c in stats.get('form', '-----')[-5:]])
 
-    # Use the vs_elite tracking
     s_w, s_d, s_l = stats.get('vs_elite', [0,0,0])
     upset_pct = (s_w / (s_w+s_d+s_l) * 100) if (s_w+s_d+s_l) > 0 else 0
     
-    # Accurate Identity Tags based on Global Rank
     if global_rank > 15 and upset_pct > 30: clutch_label, clutch_color = "Giant Killer ⚔️", "var(--accent-gold)"
     elif global_rank <= 15 and upset_pct > 40: clutch_label, clutch_color = "Big Game Player 🏆", "#8b5cf6"
     elif stats.get('upsets_major_won', 0) > 0: clutch_label, clutch_color = "Upset Threat 🃏", "#8b5cf6"
     else: clutch_label, clutch_color = "Standard ⚖️", "var(--text-light)"
 
-    # --- 2. DATA-DRIVEN IDENTITY METRICS ---
     t_vol = stats.get('volatility', 0.15)
     t_pace = stats.get('pace_factor', 1.0)
     t_mom = stats.get('momentum', 0.0)
 
-    # Scale to 0-100% for progress bars
     pace_pct = max(0, min(100, ((t_pace - 0.8) / 0.4) * 100))
     vol_pct = max(0, min(100, ((t_vol - 0.10) / 0.30) * 100))
     mom_pct = max(0, min(100, ((t_mom + 1.5) / 3.0) * 100))
     
-    # Calculate All-Time Pedigree Score
-    # Top nations (Brazil, Germany) have played 110+ WC matches, scoring ~130 pts all time.
     heritage_pts = stats.get('pedigree_pts', 0)
     heritage_rating = max(0, min(100, int((heritage_pts / 120.0) * 100)))
     
@@ -1433,7 +1250,6 @@ def update_dashboard_data(event=None):
     elif heritage_rating >= 10: her_tier = "Occasional Contender ⚽"
     else: her_tier = "Tournament Novice 🌱"
 
-    # --- 3. UPSET PROFILE & ELO RANGE RECORDS ---
     def format_rec(rec):
         w, d, l = rec
         total = w + d + l
@@ -1446,7 +1262,6 @@ def update_dashboard_data(event=None):
     rec_stronger = stats.get('rec_stronger', [0,0,0])
     rec_similar = stats.get('rec_similar', [0,0,0])
     
-    # Find their biggest scalp
     notable = stats.get('notable_results', [])
     best_win = "None Recorded"
     if notable:
@@ -1455,7 +1270,6 @@ def update_dashboard_data(event=None):
             best = max(wins, key=lambda x: x['diff'])
             best_win = f"{best['opp'].title()} ({best['score']})"
 
-    # --- 4. TACTICAL MATCHUPS (Kryptonite & Prey) ---
     style = sim.TEAM_PROFILES.get(team, 'Balanced')
     matchups = getattr(sim, 'STYLE_MATCHUPS', {})
     
@@ -1468,7 +1282,6 @@ def update_dashboard_data(event=None):
     strong_html = "".join([f"<span style='display:inline-block; background:rgba(16, 185, 129, 0.15); color:#10b981; padding:4px 8px; border-radius:4px; font-size:0.8em; margin:2px;'>{s}</span>" for s in strong_against]) if strong_against else "<span style='color:var(--text-light); font-size:0.8em;'>None specific</span>"
     weak_html = "".join([f"<span style='display:inline-block; background:rgba(239, 68, 68, 0.15); color:#ef4444; padding:4px 8px; border-radius:4px; font-size:0.8em; margin:2px;'>{s}</span>" for s in weak_against]) if weak_against else "<span style='color:var(--text-light); font-size:0.8em;'>None specific</span>"
 
-    # --- 5. RENDER HEADER ---
     header = js.document.getElementById("dashboard-header")
     header.innerHTML = f"""
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
@@ -1489,7 +1302,6 @@ def update_dashboard_data(event=None):
     </div>
     """
 
-    # --- Helper for Progress Bars ---
     def make_bar(label, val, color):
         return f"""
         <div style="margin-bottom:8px;">
@@ -1502,7 +1314,6 @@ def update_dashboard_data(event=None):
         </div>
         """
 
-    # --- 6. PULL IN BULK SIMULATION HEAD-TO-HEAD DATA ---
     sim_h2h_html = ""
     
     if BULK_STATE and 'h2h' in BULK_STATE and team in BULK_STATE['h2h']:
@@ -1562,9 +1373,7 @@ def update_dashboard_data(event=None):
         </div>
         """
 
-    # --- 7. RENDER THE FINAL HTML GRID ---
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
-    <!-- TOP ROW: Power Ratings & Matchups -->
     <div style="display:grid; grid-template-columns: 1fr 1fr 1.3fr; gap:20px; margin-bottom:20px;">
         <div class="stat-pill" title="Expected goals scored per match vs. average team">
             <div class="stat-pill-title">Offensive Power 💪</div>
@@ -1577,7 +1386,6 @@ def update_dashboard_data(event=None):
             <div style="font-size:0.75em; font-weight:600; color:{def_color}; margin-top:4px;">{def_desc}</div>
         </div>
         
-        <!-- NEW: ELO WIN RATE BRACKETS -->
         <div class="dashboard-card" style="margin:0; padding:15px; border-left:4px solid var(--accent-gold);">
             <div style="font-size:0.75em; font-weight:bold; color:var(--text-light); margin-bottom:8px; text-transform:uppercase;">All-Time Record by Matchup</div>
             <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.9em;">
@@ -1598,9 +1406,7 @@ def update_dashboard_data(event=None):
         </div>
     </div>
 
-    <!-- MIDDLE ROW: Data-Driven Identity & AI Report -->
     <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:20px; margin-bottom:20px;">
-        <!-- Left: Stat Bars -->
         <div class="dashboard-card" style="margin:0; padding:20px;">
             <h4 style="margin:0 0 15px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">Data-Driven Identity</h4>
             {make_bar("Match Openness (Pace)", pace_pct, "#3b82f6")}
@@ -1609,7 +1415,6 @@ def update_dashboard_data(event=None):
             {make_bar("Current Momentum", mom_pct, "#10b981")}
         </div>
         
-        <!-- Right: AI Report -->
         <div class="dashboard-card" style="margin:0; padding:20px; background:rgba(59, 130, 246, 0.05); border-left:4px solid var(--accent-blue);">
             <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">🔭 AI Scout Report</h4>
             <div style="font-size:0.95em; line-height:1.6; color:var(--text-main); font-weight:500;">
@@ -1618,7 +1423,6 @@ def update_dashboard_data(event=None):
         </div>
     </div>
 
-    <!-- BOTTOM ROW: Standard Quirk Stats -->
     <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:15px;">
         <div class="stat-pill" style="padding:10px;">
             <div class="stat-pill-title" style="font-size:0.65em;">Clean Sheets</div>
@@ -1638,18 +1442,15 @@ def update_dashboard_data(event=None):
         </div>
     </div>
 
-    <!-- SIMULATED HEAD-TO-HEAD INJECTION -->
     {sim_h2h_html}
     """
     
-    # --- 7. RE-RENDER CHARTS ---
     render_elo_chart(history, team)
     render_power_chart(atk_index, def_index, team)
 
 def render_elo_chart(history, team):
     js.document.getElementById("dashboard_chart_elo").innerHTML = ""
     
-    # Detect dark mode
     is_dark = js.document.documentElement.classList.contains("dark-mode")
     text_color = "#e2e8f0" if is_dark else "#64748b"
     grid_color = "#334155" if is_dark else "#cbd5e1"
@@ -1671,7 +1472,6 @@ def render_elo_chart(history, team):
 def render_power_chart(atk, dfe, team):
     js.document.getElementById("dashboard_chart_radar").innerHTML = ""
     
-    # Detect dark mode
     is_dark = js.document.documentElement.classList.contains("dark-mode")
     text_color = "#e2e8f0" if is_dark else "#64748b"
     line_color = "#475569" if is_dark else "#94a3b8"
@@ -1703,31 +1503,9 @@ def render_power_chart(atk, dfe, team):
     display(fig, target="dashboard_chart_radar")
     plt.close(fig)
 
-def _generate_notable_results_html(team, notable_results):
-    """Generate HTML for notable results section."""
-    if not notable_results:
-        return '<div style="color:var(--text-light); font-size:0.9em;">Recent match data being processed...</div>'
-    
-    html = ""
-    for result in notable_results[:4]:  # Show top 4
-        result_type = result.get('type', '')
-        icon = {'WON_MAJOR': '🌟', 'WON_MINOR': '✓', 'LOST_MAJOR': '💔', 'LOST_MINOR': '⚠️'}.get(result_type, '•')
-        color = {'WON_MAJOR': '#22c55e', 'WON_MINOR': '#86efac', 'LOST_MAJOR': '#ef4444', 'LOST_MINOR': '#fca5a5'}.get(result_type, '#94a3b8')
-        
-        html += f"""<div style="display:flex; align-items:center; gap:10px; padding:8px; background:white; border-radius:6px; border-left:3px solid {color};">
-            <div style="font-size:1.4em;">{icon}</div>
-            <div style="flex:1;">
-                <div style="font-weight:600; font-size:0.9em;">{result.get('opp', 'Unknown').title()}</div>
-                <div style="font-size:0.75em; color:var(--text-light);">{result.get('score', 'N/A')}</div>
-            </div>
-        </div>"""
-    
-    return html
-
 def generate_dynamic_report(team, atk, dfe, upset, stats):
     report_paragraphs =[]
     
-    # --- 1. Base Info ---
     confed = getattr(sim, 'TEAM_CONFEDS', {}).get(team, 'Unknown')
     style = getattr(sim, 'TEAM_PROFILES', {}).get(team, 'Balanced')
     
@@ -1741,7 +1519,6 @@ def generate_dynamic_report(team, atk, dfe, upset, stats):
     
     report_paragraphs.append(f"<b>Overview:</b> Ranked #{rank} globally, {team.title()} is {tier_text} out of {confed}. Their overall system is classified as <b>{style}</b>.")
     
-    # --- 2. Data-Driven Tactical Identity ---
     tactical =[]
     pace = stats.get('pace_factor', 1.0)
     ko_exp = stats.get('ko_exp_weighted', 0)
@@ -1764,17 +1541,14 @@ def generate_dynamic_report(team, atk, dfe, upset, stats):
     
     report_paragraphs.append("<b>Identity:</b> " + " ".join(tactical))
     
-    # --- 3. Tournament Readiness & Quirks ---
     quirks =[]
     vol = stats.get('volatility', 0.15)
     
-    # Volatility Check
     if vol >= 0.25: 
         quirks.append("⚠️ <b>High Volatility:</b> Their matches are wildly unpredictable. They are entirely capable of pulling off a massive tournament-altering upset on any given day, but are equally vulnerable to shocking defeats.")
     elif vol <= 0.10:
         quirks.append("🔒 <b>Highly Consistent:</b> They perform exactly to their mathematical expectations with minimal variance. They reliably dispatch weaker teams but rarely pull off miracles against top-tier favorites.")
         
-    # Pedigree & Form
     if ko_exp > 15:
         quirks.append("They boast immense tournament pedigree and vast experience navigating high-pressure knockout scenarios.")
     if momentum > 0.5:
@@ -1785,7 +1559,6 @@ def generate_dynamic_report(team, atk, dfe, upset, stats):
     if quirks: 
         report_paragraphs.append("<b>Tournament Readiness:</b> " + " ".join(quirks))
 
-    # Wrap paragraphs in clean HTML divs
     return "".join([f"<div style='margin-bottom:12px;'>{p}</div>" for p in report_paragraphs])
 
 async def refresh_team_analysis(event=None):
@@ -1804,7 +1577,6 @@ async def plot_style_map(event):
     target_div.innerHTML = "<div style='text-align:center; padding:50px;'><div class='loader-circle' style='border-top-color:var(--accent-blue); margin: 0 auto 20px;'></div>Generating Tactical Landscape...</div>"
     await asyncio.sleep(0.1)
     
-    # 1. WIDER ASPECT RATIO (Changed from 11,8 to 14,7)
     fig, ax = plt.subplots(figsize=(14, 7), dpi=100)
     fig.patch.set_alpha(0.0)
     ax.patch.set_alpha(0.0)
@@ -1826,18 +1598,14 @@ async def plot_style_map(event):
         colors.append(confed_colors.get(sim.TEAM_CONFEDS.get(team, 'OFC'), '#cbd5e1'))
         labels.append(team.title())
 
-    # Add quadrant dividing lines
     ax.axhline(mean_ga, color='#cbd5e1', linestyle='--', zorder=1)
     ax.axvline(mean_gf, color='#cbd5e1', linestyle='--', zorder=1)
 
-    # Plot points
     ax.scatter(x_vals, y_vals, s=sizes, c=colors, alpha=0.7, edgecolors='white', linewidth=1, zorder=3)
 
-    # Place text directly onto graph
     for i, label in enumerate(labels):
         ax.text(x_vals[i], y_vals[i] + 0.04, label, fontsize=8, ha='center', va='bottom', color='#334155', fontweight='600', zorder=4, bbox=dict(facecolor='white', alpha=0.5, edgecolor='none', pad=0.5))
 
-    # Background Labels
     ax.text(0.98, 0.98, "Elite Offense / Elite Defense", transform=ax.transAxes, fontsize=14, color='#10b981', alpha=0.4, ha='right', va='top', fontweight='bold', zorder=2)
     ax.text(0.02, 0.02, "Struggling / Leaky", transform=ax.transAxes, fontsize=14, color='#ef4444', alpha=0.4, ha='left', va='bottom', fontweight='bold', zorder=2)
     ax.text(0.98, 0.02, "Entertainers (All Attack, No Def)", transform=ax.transAxes, fontsize=12, color='#f59e0b', alpha=0.4, ha='right', va='bottom', fontweight='bold', zorder=2)
@@ -1846,7 +1614,7 @@ async def plot_style_map(event):
     ax.set_title("Tactical DNA Landscape (Expected Goals For vs. Against)", fontsize=16, fontweight='800', color='#0f172a', pad=20)
     ax.set_xlabel("Attacking Power (Expected Goals For)", fontsize=12, fontweight='bold', color='#64748b')
     ax.set_ylabel("Defensive Solidity (Expected Goals Against)", fontsize=12, fontweight='bold', color='#64748b')
-    ax.invert_yaxis() # Defense is inverted so top-right is the best place to be
+    ax.invert_yaxis() 
     
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
@@ -1854,7 +1622,6 @@ async def plot_style_map(event):
     ax.spines['bottom'].set_color('#cbd5e1')
     ax.grid(True, linestyle=':', alpha=0.4, color='#cbd5e1', zorder=0)
 
-    # 2. MOVED LEGEND TO THE BOTTOM CENTER HORIZONTALLY
     import matplotlib.patches as mpatches
     ax.legend(
         handles=[mpatches.Patch(color=c, label=conf) for conf, c in confed_colors.items()], 
@@ -1871,10 +1638,4 @@ async def plot_style_map(event):
     display(fig, target="main-chart-container")
     plt.close(fig)
 
-
-
-# =============================================================================
-# --- 6. BOOTSTRAP APP ---
-# =============================================================================
-# Start the engine
 asyncio.ensure_future(initialize_app())

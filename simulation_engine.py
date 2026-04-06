@@ -1,9 +1,9 @@
+### `simulation_engine.py`
 import pandas as pd
 import numpy as np
 import random
 import math
 import js
-from pyodide.http import open_url
 
 def calculate_recency_weight(match_date, latest_date):
     """
@@ -11,7 +11,6 @@ def calculate_recency_weight(match_date, latest_date):
     Matches from 4 years ago (full WC cycle) now retain ~60% importance.
     """
     days_old = (latest_date - match_date).days
-    # Changed from 0.00065 to 0.00035
     return math.exp(-0.00035 * max(0, days_old))
 
 # =============================================================================
@@ -20,7 +19,6 @@ def calculate_recency_weight(match_date, latest_date):
 
 DATA_DIR = "." 
 
-# Global Vars
 TEAM_STATS = {}
 TEAM_PROFILES = {}
 TEAM_HISTORY = {}
@@ -56,163 +54,6 @@ WC_TEAMS = [
     'england', 'croatia', 'ghana', 'panama'
 ]
 
-# =============================================================================
-# --- ADVANCED TACTICAL METRICS & VOLATILITY DATA ---
-# =============================================================================
-# ADVANCED_TEAM_DATA = {
-#     'france': {'type': 'Vertical Control', 'poss': 0.72, 'press': 0.58, 'dir': 0.52, 'vol': 0.04},
-#     'spain': {'type': 'Vertical Control', 'poss': 0.92, 'press': 0.68, 'dir': 0.35, 'vol': 0.03},
-#     'argentina': {'type': 'Vertical Control', 'poss': 0.78, 'press': 0.64, 'dir': 0.48, 'vol': 0.05},
-#     'england': {'type': 'Vertical Control', 'poss': 0.88, 'press': 0.62, 'dir': 0.38, 'vol': 0.04},
-#     'portugal': {'type': 'Vertical Control', 'poss': 0.84, 'press': 0.65, 'dir': 0.44, 'vol': 0.06},
-#     'brazil': {'type': 'Vertical Control', 'poss': 0.74, 'press': 0.62, 'dir': 0.55, 'vol': 0.07},
-#     'netherlands': {'type': 'Vertical Control', 'poss': 0.71, 'press': 0.64, 'dir': 0.52, 'vol': 0.07},
-#     'morocco': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.52, 'dir': 0.84, 'vol': 0.06},
-#     'belgium': {'type': 'Vertical Control', 'poss': 0.68, 'press': 0.58, 'dir': 0.58, 'vol': 0.08},
-#     'germany': {'type': 'Vertical Control', 'poss': 0.82, 'press': 0.75, 'dir': 0.60, 'vol': 0.11},
-#     'croatia': {'type': 'Vertical Control', 'poss': 0.71, 'press': 0.52, 'dir': 0.42, 'vol': 0.05},
-#     'italy': {'type': 'Vertical Control', 'poss': 0.70, 'press': 0.65, 'dir': 0.45, 'vol': 0.09},
-#     'colombia': {'type': 'Vertical Control', 'poss': 0.64, 'press': 0.71, 'dir': 0.62, 'vol': 0.10},
-#     'senegal': {'type': 'Chaos & Intensity', 'poss': 0.52, 'press': 0.78, 'dir': 0.79, 'vol': 0.13},
-#     'mexico': {'type': 'Vertical Control', 'poss': 0.62, 'press': 0.65, 'dir': 0.58, 'vol': 0.12},
-#     'united states': {'type': 'Chaos & Intensity', 'poss': 0.59, 'press': 0.82, 'dir': 0.68, 'vol': 0.14},
-#     'uruguay': {'type': 'Chaos & Intensity', 'poss': 0.55, 'press': 0.94, 'dir': 0.84, 'vol': 0.12},
-#     'japan': {'type': 'Vertical Control', 'poss': 0.63, 'press': 0.75, 'dir': 0.68, 'vol': 0.06},
-#     'switzerland': {'type': 'Vertical Control', 'poss': 0.64, 'press': 0.55, 'dir': 0.48, 'vol': 0.05},
-#     'denmark': {'type': 'Vertical Control', 'poss': 0.65, 'press': 0.70, 'dir': 0.55, 'vol': 0.08},
-#     'iran': {'type': 'Compact Block', 'poss': 0.36, 'press': 0.35, 'dir': 0.88, 'vol': 0.04},
-#     'turkey': {'type': 'Vertical Control', 'poss': 0.61, 'press': 0.68, 'dir': 0.64, 'vol': 0.11},
-#     'ecuador': {'type': 'Direct-Physical', 'poss': 0.46, 'press': 0.68, 'dir': 0.78, 'vol': 0.09},
-#     'austria': {'type': 'Chaos & Intensity', 'poss': 0.51, 'press': 0.88, 'dir': 0.76, 'vol': 0.12},
-#     'south korea': {'type': 'Chaos & Intensity', 'poss': 0.51, 'press': 0.78, 'dir': 0.82, 'vol': 0.09},
-#     'nigeria': {'type': 'Chaos & Intensity', 'poss': 0.50, 'press': 0.80, 'dir': 0.75, 'vol': 0.15},
-#     'australia': {'type': 'Direct-Physical', 'poss': 0.48, 'press': 0.62, 'dir': 0.72, 'vol': 0.07},
-#     'algeria': {'type': 'Vertical Control', 'poss': 0.58, 'press': 0.62, 'dir': 0.62, 'vol': 0.12},
-#     'egypt': {'type': 'Compact Block', 'poss': 0.43, 'press': 0.42, 'dir': 0.82, 'vol': 0.08},
-#     'canada': {'type': 'Vertical Control', 'poss': 0.58, 'press': 0.72, 'dir': 0.64, 'vol': 0.13},
-#     'norway': {'type': 'Chaos & Intensity', 'poss': 0.58, 'press': 0.72, 'dir': 0.91, 'vol': 0.11},
-#     'ukraine': {'type': 'Vertical Control', 'poss': 0.62, 'press': 0.60, 'dir': 0.50, 'vol': 0.09},
-#     'panama': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.42, 'dir': 0.75, 'vol': 0.10},
-#     'ivory coast': {'type': 'Chaos & Intensity', 'poss': 0.54, 'press': 0.71, 'dir': 0.74, 'vol': 0.14},
-#     'poland': {'type': 'Direct-Physical', 'poss': 0.44, 'press': 0.55, 'dir': 0.80, 'vol': 0.11},
-#     'russia': {'type': 'Vertical Control', 'poss': 0.55, 'press': 0.58, 'dir': 0.62, 'vol': 0.16},
-#     'wales': {'type': 'Direct-Physical', 'poss': 0.42, 'press': 0.65, 'dir': 0.78, 'vol': 0.09},
-#     'sweden': {'type': 'Chaos & Intensity', 'poss': 0.52, 'press': 0.72, 'dir': 0.86, 'vol': 0.12},
-#     'serbia': {'type': 'Direct-Physical', 'poss': 0.45, 'press': 0.55, 'dir': 0.78, 'vol': 0.14},
-#     'paraguay': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.55, 'dir': 0.79, 'vol': 0.09},
-#     'czech republic': {'type': 'Chaos & Intensity', 'poss': 0.48, 'press': 0.85, 'dir': 0.75, 'vol': 0.11},
-#     'hungary': {'type': 'Compact Block', 'poss': 0.40, 'press': 0.45, 'dir': 0.70, 'vol': 0.07},
-#     'scotland': {'type': 'Direct-Physical', 'poss': 0.45, 'press': 0.58, 'dir': 0.76, 'vol': 0.08},
-#     'tunisia': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.48, 'dir': 0.71, 'vol': 0.09},
-#     'cameroon': {'type': 'Direct-Physical', 'poss': 0.45, 'press': 0.60, 'dir': 0.75, 'vol': 0.17},
-#     'dr congo': {'type': 'Direct-Physical', 'poss': 0.42, 'press': 0.52, 'dir': 0.74, 'vol': 0.16},
-#     'greece': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.40, 'dir': 0.72, 'vol': 0.06},
-#     'slovakia': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.50, 'dir': 0.70, 'vol': 0.08},
-#     'venezuela': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.55, 'dir': 0.78, 'vol': 0.12},
-#     'uzbekistan': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.44, 'dir': 0.78, 'vol': 0.15},
-#     'costa rica': {'type': 'Compact Block', 'poss': 0.35, 'press': 0.48, 'dir': 0.76, 'vol': 0.11},
-#     'mali': {'type': 'Direct-Physical', 'poss': 0.46, 'press': 0.62, 'dir': 0.70, 'vol': 0.16},
-#     'peru': {'type': 'Vertical Control', 'poss': 0.55, 'press': 0.60, 'dir': 0.60, 'vol': 0.14},
-#     'chile': {'type': 'Chaos & Intensity', 'poss': 0.52, 'press': 0.85, 'dir': 0.72, 'vol': 0.15},
-#     'qatar': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.31, 'dir': 0.68, 'vol': 0.14},
-#     'romania': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.48, 'dir': 0.74, 'vol': 0.10},
-#     'iraq': {'type': 'Compact Block', 'poss': 0.31, 'press': 0.38, 'dir': 0.82, 'vol': 0.17},
-#     'slovenia': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.45, 'dir': 0.78, 'vol': 0.08},
-#     'ireland': {'type': 'Direct-Physical', 'poss': 0.43, 'press': 0.52, 'dir': 0.76, 'vol': 0.09},
-#     'south africa': {'type': 'Direct-Physical', 'poss': 0.44, 'press': 0.48, 'dir': 0.72, 'vol': 0.15},
-#     'saudi arabia': {'type': 'Vertical Control', 'poss': 0.58, 'press': 0.52, 'dir': 0.54, 'vol': 0.14},
-#     'burkina faso': {'type': 'Chaos & Intensity', 'poss': 0.48, 'press': 0.70, 'dir': 0.75, 'vol': 0.18},
-#     'jordan': {'type': 'Compact Block', 'poss': 0.33, 'press': 0.31, 'dir': 0.84, 'vol': 0.19},
-#     'albania': {'type': 'Compact Block', 'poss': 0.36, 'press': 0.42, 'dir': 0.80, 'vol': 0.10},
-#     'bosnia and herzegovina': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.35, 'dir': 0.80, 'vol': 0.14},
-#     'honduras': {'type': 'Direct-Physical', 'poss': 0.40, 'press': 0.55, 'dir': 0.74, 'vol': 0.13},
-#     'north macedonia': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.44, 'dir': 0.79, 'vol': 0.12},
-#     'uae': {'type': 'Vertical Control', 'poss': 0.54, 'press': 0.48, 'dir': 0.58, 'vol': 0.14},
-#     'cape verde': {'type': 'Compact Block', 'poss': 0.34, 'press': 0.41, 'dir': 0.76, 'vol': 0.18},
-#     'northern ireland': {'type': 'Compact Block', 'poss': 0.32, 'press': 0.50, 'dir': 0.82, 'vol': 0.07},
-#     'jamaica': {'type': 'Direct-Physical', 'poss': 0.41, 'press': 0.64, 'dir': 0.78, 'vol': 0.17},
-#     'georgia': {'type': 'Compact Block', 'poss': 0.35, 'press': 0.40, 'dir': 0.86, 'vol': 0.15},
-#     'finland': {'type': 'Vertical Control', 'poss': 0.51, 'press': 0.45, 'dir': 0.64, 'vol': 0.09},
-#     'ghana': {'type': 'Chaos & Intensity', 'poss': 0.48, 'press': 0.68, 'dir': 0.78, 'vol': 0.19},
-#     'iceland': {'type': 'Compact Block', 'poss': 0.33, 'press': 0.45, 'dir': 0.85, 'vol': 0.08},
-#     'bolivia': {'type': 'Compact Block', 'poss': 0.34, 'press': 0.38, 'dir': 0.79, 'vol': 0.12},
-#     'israel': {'type': 'Vertical Control', 'poss': 0.53, 'press': 0.52, 'dir': 0.58, 'vol': 0.13},
-#     'kosovo': {'type': 'Chaos & Intensity', 'poss': 0.47, 'press': 0.65, 'dir': 0.74, 'vol': 0.16},
-#     'oman': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.35, 'dir': 0.72, 'vol': 0.12},
-#     'guinea': {'type': 'Direct-Physical', 'poss': 0.43, 'press': 0.55, 'dir': 0.74, 'vol': 0.15},
-#     'montenegro': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.42, 'dir': 0.78, 'vol': 0.10},
-#     'curaçao': {'type': 'Compact Block', 'poss': 0.32, 'press': 0.28, 'dir': 0.85, 'vol': 0.19},
-#     'haiti': {'type': 'Direct-Physical', 'poss': 0.35, 'press': 0.45, 'dir': 0.78, 'vol': 0.20},
-#     'syria': {'type': 'Compact Block', 'poss': 0.34, 'press': 0.32, 'dir': 0.80, 'vol': 0.13},
-#     'new zealand': {'type': 'Direct-Physical', 'poss': 0.40, 'press': 0.55, 'dir': 0.81, 'vol': 0.11},
-#     'bulgaria': {'type': 'Compact Block', 'poss': 0.41, 'press': 0.38, 'dir': 0.70, 'vol': 0.14},
-#     'gabon': {'type': 'Chaos & Intensity', 'poss': 0.46, 'press': 0.62, 'dir': 0.79, 'vol': 0.18},
-#     'uganda': {'type': 'Compact Block', 'poss': 0.35, 'press': 0.40, 'dir': 0.76, 'vol': 0.15},
-#     'angola': {'type': 'Compact Block', 'poss': 0.39, 'press': 0.42, 'dir': 0.74, 'vol': 0.14},
-#     'benin': {'type': 'Compact Block', 'poss': 0.37, 'press': 0.35, 'dir': 0.78, 'vol': 0.14},
-#     'bahrain': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.32, 'dir': 0.70, 'vol': 0.13},
-#     'zambia': {'type': 'Chaos & Intensity', 'poss': 0.45, 'press': 0.65, 'dir': 0.76, 'vol': 0.19},
-#     'thailand': {'type': 'Vertical Control', 'poss': 0.52, 'press': 0.55, 'dir': 0.68, 'vol': 0.13},
-#     'el salvador': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.45, 'dir': 0.74, 'vol': 0.14},
-#     'luxembourg': {'type': 'Compact Block', 'poss': 0.42, 'press': 0.40, 'dir': 0.68, 'vol': 0.09},
-#     'armenia': {'type': 'Compact Block', 'poss': 0.36, 'press': 0.38, 'dir': 0.79, 'vol': 0.14},
-#     'palestine': {'type': 'Compact Block', 'poss': 0.31, 'press': 0.35, 'dir': 0.82, 'vol': 0.18},
-#     'equatorial guinea': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.48, 'dir': 0.72, 'vol': 0.16},
-#     'vietnam': {'type': 'Compact Block', 'poss': 0.38, 'press': 0.45, 'dir': 0.79, 'vol': 0.15},
-#     'kazakhstan': {'type': 'Compact Block', 'poss': 0.33, 'press': 0.42, 'dir': 0.84, 'vol': 0.16}
-# }
-
-# =============================================================================
-# --- TACTICAL MATCHUP MATRIX (The Rock-Paper-Scissors of Football) ---
-# =============================================================================
-# Format: ('Team 1 Style', 'Team 2 Style'): Attacking Multiplier for Team 1
-# > 1.0 means Team 1 has a tactical advantage and generates more expected goals.
-# < 1.0 means Team 1 is tactically countered and generates fewer expected goals.
-
-# STYLE_MATCHUPS = {
-#     # High Press disrupts teams that try to build from the back
-#     ('High Press', 'Ball Control'): 1.08,
-#     ('Ball Control', 'High Press'): 0.95,
-    
-#     # Direct Play bypasses the High Press completely
-#     ('Direct Play', 'High Press'): 1.08,
-#     ('High Press', 'Direct Play'): 0.92,
-    
-#     # Fast Build-up beats the press by moving the ball before the trap closes
-#     ('Fast Build-up', 'High Press'): 1.06,
-#     ('High Press', 'Fast Build-up'): 0.94,
-
-#     # Counter-Attack exploits high lines and possession teams
-#     ('Counter-Attack', 'Ball Control'): 1.08,
-#     ('Ball Control', 'Counter-Attack'): 0.96,
-#     ('Counter-Attack', 'High Risk'): 1.10,
-#     ('High Risk', 'Counter-Attack'): 0.90,
-    
-#     # Deep Block starves Counter-Attack and Fast Build-up of running space
-#     ('Deep Block', 'Counter-Attack'): 1.05,
-#     ('Counter-Attack', 'Deep Block'): 0.85,
-#     ('Deep Block', 'Fast Build-up'): 1.05,
-#     ('Fast Build-up', 'Deep Block'): 0.90,
-
-#     # Technical Play (Individual Brilliance) unlocks the Deep Block
-#     ('Technical Play', 'Deep Block'): 1.10,
-#     ('Deep Block', 'Technical Play'): 0.90,
-    
-#     # Disciplined structure neutralizes Technical flair and High Risk chaos
-#     ('Disciplined', 'Technical Play'): 1.08,
-#     ('Technical Play', 'Disciplined'): 0.92,
-#     ('Disciplined', 'High Risk'): 1.08,
-#     ('High Risk', 'Disciplined'): 0.92,
-
-#     # Ball Control starves Direct Play and grinds down Deep Blocks over 90 mins
-#     ('Ball Control', 'Direct Play'): 1.08,
-#     ('Direct Play', 'Ball Control'): 0.94,
-#     ('Ball Control', 'Deep Block'): 1.05,
-#     ('Deep Block', 'Ball Control'): 0.95
-# }
-
-# Map teams to Confederations
-# UEFA (Europe), CONMEBOL (S. America), CONCACAF (N. America), CAF (Africa), AFC (Asia), OFC (Oceania)
 TEAM_CONFEDS = {
     # UEFA
     'france': 'UEFA', 'germany': 'UEFA', 'england': 'UEFA', 'spain': 'UEFA', 
@@ -257,25 +98,32 @@ TEAM_CONFEDS = {
 # Where we will store the calculated multipliers
 CONFED_MULTIPLIERS = {}
 
-# Finalized 2026 World Cup Playoff Results (As of April 1, 2026)
 FINALIZED_SLOTS = {
-    'Path A': 'bosnia and herzegovina',  # Winner of Italy/Northern Ireland vs Wales
-    'Path B': 'sweden',                  # Winner of Ukraine vs Poland/Albania
-    'Path C': 'turkey',                  # Winner of Turkey vs Slovakia/Kosovo
-    'Path D': 'czech republic',          # Winner of Czech Republic/Republic of Ireland vs Denmark/North Macedonia
-    'ICP1': 'dr congo',                  # Winner of Jamaica vs OFC winner
-    'ICP2': 'iraq'                       # Winner of Iraq vs CONMEBOL playoffs
+    'Path A': 'bosnia and herzegovina',
+    'Path B': 'sweden',                  
+    'Path C': 'turkey',                  
+    'Path D': 'czech republic',          
+    'ICP1': 'dr congo',                  
+    'ICP2': 'iraq'                       
 }
 
+# --- ROBUST DATA LOADING ---
 def load_data():
-    try:
-        former_names_df = pd.read_csv("former_names.csv")
-        results_df = pd.read_csv("results.csv") 
-        goalscorers_df = pd.read_csv("goalscorers.csv")
-        return results_df, goalscorers_df, former_names_df
-    except Exception as e:
-        js.console.error(f"CRITICAL ERROR LOADING DATA: {e}")
-        return None, None, None
+    def load_csv(filename):
+        try:
+            df = pd.read_csv(filename)
+            # Make columns lowercase and strip whitespace to prevent KeyErrors
+            df.columns = df.columns.str.strip().str.lower()
+            return df
+        except Exception as e:
+            js.console.warn(f"Warning: Could not load {filename}: {e}")
+            return None
+
+    results_df = load_csv("results.csv") 
+    goalscorers_df = load_csv("goalscorers.csv")
+    former_names_df = load_csv("former_names.csv")
+    
+    return results_df, goalscorers_df, former_names_df
 
 # =============================================================================
 # --- PART 2: INITIALIZATION (OPTIMIZED) ---
@@ -305,8 +153,7 @@ def get_match_importance(tourney, match_date):
 
 def get_k_factor(tourney, goal_diff, home_team, away_team):
     t_str = str(tourney)
-
-    # --- CONFEDERATION LOOKUP
+     # --- CONFEDERATION LOOKUP
     tier_map = { 'UEFA': 1.0, 'CONMEBOL': 1.0, 'CAF': 0.9, 'AFC': 0.8, 'CONCACAF': 0.8, 'OFC': 0.7 }
     
     h_conf = TEAM_CONFEDS.get(home_team, 'OFC') 
@@ -372,15 +219,21 @@ def get_k_factor(tourney, goal_diff, home_team, away_team):
     return k * gd_factor
 
 def initialize_engine():
+    results_df, scorers_df, df_names = load_data()
+    
     try:
-        df_names = pd.read_csv(open_url("former_names.csv"))
-        NAME_MAP = dict(zip(df_names['old_name'], df_names['new_name']))
+        if df_names is not None and 'old_name' in df_names.columns and 'new_name' in df_names.columns:
+            NAME_MAP = dict(zip(df_names['old_name'], df_names['new_name']))
+        else:
+            NAME_MAP = {}
     except:
         NAME_MAP = {}
 
-    results_df, scorers_df, _ = load_data()
-    
-    if results_df is None: return {}, {}, 2.5
+    if results_df is None: return {}, {}, 2.5, None
+
+    # CRASH PROTECTION
+    if 'date' not in results_df.columns:
+        raise ValueError(f"CRITICAL: 'date' column missing in results.csv. Check if your URL returns a 404 HTML page instead of CSV. Columns found: {list(results_df.columns)}")
 
     results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
     results_df = results_df.dropna(subset=['date', 'home_score', 'away_score', 'neutral'])
@@ -397,6 +250,7 @@ def initialize_engine():
     if total_non_neutral > 0:
         h_win_prob = h_wins / total_non_neutral
         h_win_prob = max(0.01, min(0.99, h_win_prob))
+        global calculated_hfa
         calculated_hfa = round(-400 * math.log10(1/h_win_prob - 1))
     else:
         calculated_hfa = 100 
@@ -404,7 +258,6 @@ def initialize_engine():
     js.console.log(f"Data-Driven HFA: {calculated_hfa}")
     elo_df = results_df.sort_values('date')
 
-    # PHASE 1
     team_elo = {}
     INITIAL_RATING = 1200
     RELEVANCE_CUTOFF = pd.to_datetime('2021-01-01') 
@@ -437,7 +290,6 @@ def initialize_engine():
         elif hs == as_: res_h, res_a = 1, 1
         else:          res_h, res_a = 2, 0
         
-        # --- 1. ALL-TIME PEDIGREE TRACKING ---
         t_str = str(tourney).lower()
         is_wc_finals = 'world cup' in t_str and 'qualification' not in t_str
         is_continental_finals = any(x in t_str for x in ['copa américa', 'euro', 'african cup', 'asian cup', 'gold cup']) and 'qualification' not in t_str
@@ -447,8 +299,6 @@ def initialize_engine():
             TEAM_STATS[h]['pedigree_pts'] = TEAM_STATS[h].get('pedigree_pts', 0) + ped_val
             TEAM_STATS[a]['pedigree_pts'] = TEAM_STATS[a].get('pedigree_pts', 0) + ped_val
 
-        # --- 2. ALL-TIME ELO RECORD TRACKING ---
-        # "Elite" means opponent is 1800+ Elo. "Stronger" means opponent is +75 Elo higher.
         diff_h = ra - rh 
         if ra >= 1800: TEAM_STATS[h]['rec_elite'][res_h] += 1
         elif diff_h > 75: TEAM_STATS[h]['rec_stronger'][res_h] += 1
@@ -461,9 +311,7 @@ def initialize_engine():
         elif diff_a < -75: TEAM_STATS[a]['rec_weaker'][res_a] += 1
         else: TEAM_STATS[a]['rec_similar'][res_a] += 1
 
-        # --- 3. RECENT TRACKING (Last 4 Years) ---
         if date > RELEVANCE_CUTOFF:
-            # Recent Knockout Experience Decay
             if is_wc_finals or is_continental_finals:
                 w = calculate_recency_weight(date, LATEST_DATE) 
                 TEAM_STATS[h]['ko_exp_weighted'] = TEAM_STATS[h].get('ko_exp_weighted', 0) + w
@@ -474,7 +322,6 @@ def initialize_engine():
                     'opp': opp, 'score': score_str, 'diff': abs(int(elo_diff)), 'date': match_date, 'type': type_code
                 })
             
-            # Record Giant Killings
             score_h = f"{hs}-{as_}"
             if res_h == 0: 
                 if diff_h > 300:   
@@ -529,7 +376,6 @@ def initialize_engine():
     for t in all_teams_set:
         TEAM_STATS[t]['elo'] = team_elo.get(t, INITIAL_RATING)
 
-    # PHASE 2
     recent_df = elo_df[elo_df['date'] > RELEVANCE_CUTOFF]
     if len(recent_df) > 0:
         LATEST_DATE = recent_df['date'].max()
@@ -578,10 +424,9 @@ def initialize_engine():
             if hs == 0: TEAM_STATS[a]['clean_sheets'] += 1
             if hs > 0 and as_ > 0: TEAM_STATS[a]['btts'] += 1
 
-    # PHASE 3
-    if scorers_df is not None:
+    if scorers_df is not None and 'team' in scorers_df.columns and 'date' in scorers_df.columns:
         scorers_df['team'] = scorers_df['team'].str.lower().str.strip().replace(NAME_MAP)
-        scorers_df['date'] = pd.to_datetime(scorers_df['date'])
+        scorers_df['date'] = pd.to_datetime(scorers_df['date'], errors='coerce')
         modern_scorers = scorers_df[scorers_df['date'] > RELEVANCE_CUTOFF]
         
         for _, row in modern_scorers.iterrows():
@@ -589,17 +434,17 @@ def initialize_engine():
             if t in TEAM_STATS:
                 weight = calculate_recency_weight(row['date'], LATEST_DATE)
                 TEAM_STATS[t]['total_goals_recorded'] += weight
-                if row['penalty']: TEAM_STATS[t]['penalties'] += weight
+                if 'penalty' in row and row['penalty']: TEAM_STATS[t]['penalties'] += weight
                 try:
-                    minute = float(str(row['minute']).split('+')[0])
-                    if minute <= 45: TEAM_STATS[t]['first_half'] += weight
-                    if minute >= 75: TEAM_STATS[t]['late_goals'] += weight
+                    if 'minute' in row and pd.notnull(row['minute']):
+                        minute = float(str(row['minute']).split('+')[0])
+                        if minute <= 45: TEAM_STATS[t]['first_half'] += weight
+                        if minute >= 75: TEAM_STATS[t]['late_goals'] += weight
                 except: pass
 
     active_elos = [s['elo'] for s in TEAM_STATS.values()]
     GLOBAL_ELO_MEAN = sum(active_elos) / len(active_elos) if active_elos else 1500
 
-    # PHASE 4
     global TEAM_PROFILES
     TEAM_PROFILES = {}
     REGRESSION_DUMMY_GAMES = 6
@@ -629,10 +474,9 @@ def initialize_engine():
         sos_weight_def = difficulty_ratio ** 1.1 
         adjusted_def = (raw_ga_avg / avg_goals_global) / sos_weight_def
 
-        # --- ELO BLENDING (NERFED ELITE BOOST) ---
         elo_ratio = s['elo'] / GLOBAL_ELO_MEAN
-        elo_off = elo_ratio ** 0.95  # Flattens the offensive gap for mid-tier
-        elo_def = 1.0 / (elo_ratio ** 0.95) # Flattens the defensive gap
+        elo_off = elo_ratio ** 0.95 
+        elo_def = 1.0 / (elo_ratio ** 0.95) 
         
         elo_off = np.clip(elo_off, 0.6, 2.0)
         elo_def = np.clip(elo_def, 0.6, 2.0)
@@ -640,7 +484,7 @@ def initialize_engine():
         elo_off_log = np.log(elo_off)
         elo_def_log = np.log(elo_def)
 
-        STAT_WEIGHT = 0.35  # Shifted to respect actual output more
+        STAT_WEIGHT = 0.35  
         ELO_WEIGHT  = 0.65  
 
         final_off_log = STAT_WEIGHT * np.log(adjusted_off) + ELO_WEIGHT * elo_off_log
@@ -649,8 +493,8 @@ def initialize_engine():
         final_def_log = STAT_WEIGHT * np.log(adjusted_def) + ELO_WEIGHT * elo_def_log
         s['def'] = np.exp(final_def_log)
         
-        s['off'] = np.clip(s['off'], 0.5, 2.2) # Tightened
-        s['def'] = np.clip(s['def'], 0.5, 2.2) # Tightened
+        s['off'] = np.clip(s['off'], 0.5, 2.2) 
+        s['def'] = np.clip(s['def'], 0.5, 2.2) 
 
         s['adj_gf'] = s['off'] * avg_goals_global
         s['adj_ga'] = s['def'] * avg_goals_global
@@ -669,7 +513,6 @@ def initialize_engine():
         if t in recent_residuals and recent_residuals[t]:
             num = sum(w * r for w, r in recent_residuals[t])
             den = sum(w for w, r in recent_residuals[t])
-            # Raised floor from 0.05 to 0.10. Prevents top teams from having mathematically 0 variance.
             s['volatility'] = np.clip(num / den, 0.10, 0.40) 
         else:
             s['volatility'] = 0.15
@@ -684,17 +527,22 @@ def initialize_engine():
 # =============================================================================
 # --- PART 3: SIMULATION ---
 # =============================================================================
-def calculate_confed_strength():
+def calculate_confed_strength(results_df=None):
     global CONFED_MULTIPLIERS
-    results_df, _, _ = load_data()
     
-    # Filter for modern era (last 10 years) to get current confederation parity
+    if results_df is None:
+        results_df, _, _ = load_data()
+        if results_df is not None and 'date' in results_df.columns:
+            results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
+            
+    if results_df is None or 'date' not in results_df.columns:
+        for confed in set(TEAM_CONFEDS.values()):
+            CONFED_MULTIPLIERS[confed] = 0.85
+        return
+
     recent_cutoff = pd.to_datetime('2014-01-01')
-    results_df['date'] = pd.to_datetime(results_df['date'])
     modern_df = results_df[results_df['date'] > recent_cutoff]
     
-    # Track cross-confederation performance
-    # We look at how often teams from Confed A beat teams from Confed B
     confed_performance = {c: {'pts': 0, 'matches': 0} for c in set(TEAM_CONFEDS.values())}
     
     for _, row in modern_df.iterrows():
@@ -712,21 +560,28 @@ def calculate_confed_strength():
                 confed_performance[h_conf]['pts'] += 0.5
                 confed_performance[a_conf]['pts'] += 0.5
 
-    # Calculate multiplier based on win percentage against other regions
     for confed, data in confed_performance.items():
         if data['matches'] > 0:
             win_rate = data['pts'] / data['matches']
-            # Baseline is 0.5 (equal). We scale around that.
-            # This reflects actual historical dominance (UEFA/CONMEBOL usually ~0.65)
             CONFED_MULTIPLIERS[confed] = round(0.8 + (win_rate * 0.4), 3)
         else:
-            CONFED_MULTIPLIERS[confed] = 0.85 # Default for isolated regions
+            CONFED_MULTIPLIERS[confed] = 0.85 
+
 def engineer_team_signatures(results_df):
     global TEAM_PROFILES, ADVANCED_TEAM_DATA
     TEAM_PROFILES = {}
     ADVANCED_TEAM_DATA = {} 
     
-    modern_df = results_df[results_df['date'] > '2012-01-01'].copy()
+    if results_df is None or 'date' not in results_df.columns:
+        for team in TEAM_STATS.keys():
+            true_vol = TEAM_STATS[team].get('volatility', 0.15)
+            TEAM_PROFILES[team] = "Balanced"
+            ADVANCED_TEAM_DATA[team] = {'type': 'Balanced', 'poss': 0.5, 'press': 0.5, 'dir': 0.5, 'vol': true_vol}
+            TEAM_STATS[team]['engineered_xg'] = 1.25
+            TEAM_STATS[team]['pace_factor'] = 1.0
+        return
+
+    modern_df = results_df[results_df['date'] > pd.to_datetime('2012-01-01')].copy()
     global_avg = (modern_df['home_score'].mean() + modern_df['away_score'].mean()) / 2
 
     for team in TEAM_STATS.keys():
@@ -757,7 +612,6 @@ def engineer_team_signatures(results_df):
             def_res.append(conceded / (opp_gf + 0.5))
             pace_res.append((scored + conceded) / (global_avg * 2))
 
-        # --- B. MAP MATH TO UI NAMES ---
         avg_off = np.mean(off_res)
         avg_def = np.mean(def_res)
         avg_pace = np.mean(pace_res)
@@ -770,27 +624,18 @@ def engineer_team_signatures(results_df):
 
         TEAM_PROFILES[team] = style
         
-        # We don't have possession data, so we map real statistical concepts 
-        # to a 0.0 - 1.0 scale for the UI to use safely.
-        
-        # 'poss' -> Match Control (Higher Elo teams dictate the game state)
         control_index = np.clip((stats.get('elo', 1500) - 1000) / 1000.0, 0.2, 0.95)
-        
-        # 'press' -> Match Openness/Pace (How many total goals happen in their games)
         openness_index = np.clip(avg_pace * 0.45, 0.2, 0.95)
-        
-        # 'dir' -> Efficiency (How well they score relative to how much they concede)
         efficiency_index = np.clip((avg_off / (avg_def + 0.1)) * 0.35, 0.2, 0.95)
 
         ADVANCED_TEAM_DATA[team] = {
             'type': style,
-            'poss': control_index,   # Acts as "Dominance"
-            'press': openness_index, # Acts as "Pace"
-            'dir': efficiency_index, # Acts as "Efficiency"
-            'vol': true_vol          # Actual calculated variance
+            'poss': control_index,   
+            'press': openness_index, 
+            'dir': efficiency_index, 
+            'vol': true_vol          
         }
         
-        # Store the "Signature" for the Match Engine
         stats['engineered_xg'] = avg_off
         stats['pace_factor'] = avg_pace
 
@@ -1047,16 +892,14 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
         "group_matches": group_matches_log
     }
 
-# =============================================================================
-# --- 6. HISTORICAL BACKTESTING UTILS ---
-# =============================================================================
 def get_historical_elo(cutoff_date='2022-11-20'):
     results_df, _, _ = load_data()
-    if results_df is None: return {}
+    if results_df is None or 'date' not in results_df.columns: return {}
 
-    results_df['date'] = pd.to_datetime(results_df['date'])
+    results_df['date'] = pd.to_datetime(results_df['date'], errors='coerce')
+    results_df = results_df.dropna(subset=['date'])
     results_df = results_df.sort_values('date')
-    historic_df = results_df[results_df['date'] < cutoff_date]
+    historic_df = results_df[results_df['date'] < pd.to_datetime(cutoff_date)]
 
     team_elo = {}
     INITIAL_RATING = 1200
@@ -1082,7 +925,6 @@ def get_historical_elo(cutoff_date='2022-11-20'):
 
     return team_elo
 
-# The 32 Teams of Qatar 2022 (Correct Groups)
 WC_2022_GROUPS = {
     'A': ['qatar', 'ecuador', 'senegal', 'netherlands'],
     'B': ['england', 'iran', 'united states', 'wales'],
