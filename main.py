@@ -1,5 +1,4 @@
 ### `main.py`
-```python
 import js
 import asyncio
 import gc
