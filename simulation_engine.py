@@ -157,67 +157,56 @@ def load_data():
         raise RuntimeError(f"Could not load CSV files: {e}")
 
 def calculate_squad_ratings(player_df, formation_df):
-    if player_df is None: return {}
+    if player_df is None: 
+        return {}
+        
     import re, unicodedata
     
     # 1. CLEANING
     player_df.columns = [c.strip().lower() for c in player_df.columns]
     pos_col = next((c for c in player_df.columns if 'position' in c), None)
-    if not pos_col: return {}
+    if not pos_col: 
+        return {}
 
-    # Standardize ratings and handle "74?" or "80 "
+    # Standardize ratings
     player_df['rat'] = pd.to_numeric(player_df['rat'].astype(str).str.extract(r'(\d+)')[0], errors='coerce').fillna(70)
 
     # 2. SMART POSITION MAPPING
     def get_unit(pos_str):
         p = str(pos_str).upper()
         if 'GK' in p: return 'GK'
-        # DEF: Central, Wingbacks, Fullbacks
         if any(x in p for x in ['CB', 'RB', 'LB', 'RWB', 'LWB', 'DC', 'DR', 'DL', 'SW', 'DF']): return 'DEF'
-        # ATT: Strikers, Wingers, Forwards
         if any(x in p for x in ['ST', 'CF', 'FW', 'LW', 'RW', 'AMR', 'AML', 'WF']): return 'ATT'
-        # MID: Everything else (CM, DM, AM, M)
         return 'MID'
 
     player_df['unit'] = player_df[pos_col].apply(get_unit)
     
-    def create_slug(text):
-        t = unicodedata.normalize('NFKD', str(text)).encode('ascii', 'ignore').decode('utf-8')
-        return re.sub(r'[^a-z0-9]', '', t.lower())
-
     team_ratings = {}
     
     for nation, group in player_df.groupby('nation'):
-        nation_key = get_slug(nation)
+        n_key = get_slug(nation)
         
-        # SQUAD-WIDE BASELINE (Top 15)
+        # SQUAD-WIDE BASELINE
         squad_top_15 = group.sort_values('rat', ascending=False).head(15)
         squad_avg = squad_top_15['rat'].mean() if not squad_top_15.empty else 70
 
         # UNIT CALCULATION
-        # We try to find a balanced "Starting Unit" based on a generic 4-3-3 / 4-4-2
         targets = {'GK': 1, 'DEF': 4, 'MID': 3, 'ATT': 3}
         final_units = {}
 
         for unit, count in targets.items():
-            # A: Try to find players naturally in this unit
             natural_players = group[group['unit'] == unit].sort_values('rat', ascending=False)
             
-            if len(natural_players) >= 1:
-                # We have at least one natural player!
-                # Take up to 'count' players, but if we have fewer, just take what we have.
+            if not natural_players.empty:
                 final_units[unit] = natural_players.head(count)['rat'].mean()
             else:
-                # B: Unit is EMPTY. Fallback to best available squad players with a "positional penalty"
-                # This ensures nations like 'Senegal' get a score even if no GK is listed.
                 final_units[unit] = max(45, squad_avg - 5)
 
-        # 3. OVERALL TALENT SCORE (The "OVR" used for the 55/45 blend)
-        # We take the top 18 players to represent the full tournament squad depth
+        # 3. OVERALL TALENT SCORE
         overall_talent = group['rat'].sort_values(ascending=False).head(18).mean()
         
-        # 4. STORE RESULTS
-         team_ratings[nation_key] = {
+        # 4. STORE RESULTS (Line 220 - Watch Indentation Here)
+        team_ratings[n_key] = {
             'talent_score': overall_talent,
             'talent_weight': np.clip(overall_talent / 75.0, 0.85, 1.25),
             'rating_gk': final_units['GK'],
