@@ -1694,4 +1694,4 @@ async def plot_style_map(event):
     display(fig, target="main-chart-container")
     plt.close(fig)
 
-await initialize_app()
+asyncio.ensure_future(initialize_app())
