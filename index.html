@@ -1096,15 +1096,25 @@
     </div>
 
     <py-config>
-        packages =["pandas", "numpy", "matplotlib", "mplcursors"]
+        packages = ["pandas", "numpy", "matplotlib", "mplcursors"]
         [[fetch]]
-        files =["main.py", "simulation_engine.py", "analysis.py"]
+        # This ensures the files are actually placed in a /data/ subfolder inside the browser
+        from = "data"
+        files = ["results.csv", "goalscorers.csv", "former_names.csv", "FM 26 Player Data.csv", "FM 26 Player Data - Formations.csv"]
+        dest = "data"
         [[fetch]]
-        files =["data/results.csv", "data/goalscorers.csv", "data/former_names.csv", "data/FM 26 Player Data.csv", "data/FM 26 Player Data - Formations.csv"]
+        files = ["main.py", "simulation_engine.py", "analysis.py"]
     </py-config>
 
-    <py-script src="./main.py"></py-script>
-    <py-script src="./analysis.py"></py-script>
+    <py-script>
+    import asyncio
+    from analysis import init_analysis
+    # Wait a second for main.py to finish initializing
+    async def setup_analysis():
+        await asyncio.sleep(2)
+        init_analysis()
+    asyncio.ensure_future(setup_analysis())
+    </py-script>
 
 </body>
 

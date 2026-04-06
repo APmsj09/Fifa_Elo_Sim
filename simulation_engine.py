@@ -140,10 +140,13 @@ def load_data():
     return results_df, goalscorers_df, former_names_df, player_df, formation_df
 
 def calculate_squad_ratings(player_df, formation_df):
-    """
-    Calculates team overall and positional unit ratings based on preferred formation.
-    """
-    if player_df is None or 'position(s)' not in player_df.columns: return {}
+    if player_df is None: return {}
+    # Force column names to be clean
+    player_df.columns = [c.strip().lower() for c in player_df.columns]
+    
+    if 'rat' not in player_df.columns:
+        js.console.warn("Column 'rat' missing from Player Data. Using default ratings.")
+        return {}
     
     def get_primary_pos(pos_str):
         p = str(pos_str).upper()
