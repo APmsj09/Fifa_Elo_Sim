@@ -61,6 +61,7 @@ async def initialize_app():
         
         sim.DATA_DIR = "."
         
+        # This calls initialize_engine which now handles all data loading
         stats, profiles, avg_goals, results_df = sim.initialize_engine()
         sim.TEAM_STATS = stats
         sim.TEAM_PROFILES = profiles
@@ -79,21 +80,16 @@ async def initialize_app():
         setup_interactions()
         populate_team_dropdown(wc_only=False)
 
+    except Exception as e:
+        js.console.error(f"CRITICAL ERROR DURING STARTUP: {e}")
+        # Display the error to the user instead of a blank screen
+        js.document.getElementById("loading-screen").innerHTML = f"<div style='padding:20px; color:white;'><h3>Startup Error</h3><p>{str(e)}</p></div>"
+    
+    finally:
+        # ALWAYS hide the loading screen if we get this far
         js.document.getElementById("loading-screen").style.display = "none"
         js.document.getElementById("main-dashboard").style.display = "grid"
-        
-        js.console.log("Engine Ready.")
-
-    except Exception as e:
-        js.document.getElementById("loading-screen").innerHTML = f"""
-        <div style='color:#e74c3c; text-align:center; padding:20px; width: 80%; margin: 0 auto;'>
-            <h1>Startup Error</h1>
-            <p>The AI Engine crashed during initialization.</p>
-            <pre style='background:#1e293b; padding:15px; border-radius:5px; text-align:left; font-size: 0.85em; overflow:auto;'>{str(e)}</pre>
-            <p style="color: #cbd5e1; font-size:0.9em; margin-top:20px;">If the error mentions a missing column like 'date', your raw GitHub URL for the dataset might be broken and returning a 404 HTML page instead of the CSV file. Check your &lt;py-config&gt; setup.</p>
-        </div>
-        """
-        js.console.error(f"CRITICAL ERROR: {e}")
+        js.console.log("Engine initialization sequence complete.")
 
 def switch_tab(tab_id):
     for t in ["tab-single", "tab-bulk", "tab-data", "tab-history", "tab-analysis", "tab-matchup"]:
@@ -1350,12 +1346,14 @@ def update_dashboard_data(event=None):
         """
 
     # --- THIS IS THE NEW PLAYER LOGIC SECTION ---
+    import math
+    
     talent_info = sim.TEAM_TALENT.get(team, {}) if hasattr(sim, 'TEAM_TALENT') else {}
     formation_info = sim.TEAM_FORMATIONS.get(team, {}) if hasattr(sim, 'TEAM_FORMATIONS') else {}
     
+    # 1. Build Playmakers List
     playmakers_html = ""
     if 'top_players' in talent_info:
-        import math
         for p in talent_info['top_players'][:4]:
             club = p.get('club', 'Unknown')
             try:
@@ -1369,6 +1367,41 @@ def update_dashboard_data(event=None):
                 <span style="color:var(--accent-blue); font-weight:bold;">{rating}</span>
             </div>"""
 
+    # 2. Build Positional Unit Strengths
+    r_att = int(talent_info.get('rating_att', 0))
+    r_mid = int(talent_info.get('rating_mid', 0))
+    r_def = int(talent_info.get('rating_def', 0))
+    r_gk  = int(talent_info.get('rating_gk', 0))
+    
+    def make_unit_bar(label, val):
+        if val == 0: return ""
+        # Dynamic color mapping based on how strong the unit is
+        color = "#10b981" if val >= 83 else ("#3b82f6" if val >= 77 else ("#f59e0b" if val >= 72 else "#ef4444"))
+        return f"""
+        <div style="margin-bottom:8px;">
+            <div style="display:flex; justify-content:space-between; font-size:0.75em; font-weight:700; color:var(--text-light); text-transform:uppercase; margin-bottom:4px;">
+                <span>{label}</span>
+                <span style="color:{color};">{val}</span>
+            </div>
+            <div style="height:6px; background:var(--sidebar-border); border-radius:3px; overflow:hidden;">
+                <div style="height:100%; width:{val}%; background:{color};"></div>
+            </div>
+        </div>
+        """
+
+    unit_bars_html = ""
+    if r_att > 0:
+        unit_bars_html = f"""
+        <div style="margin-top:15px; padding-top:15px; border-top:1px dashed #cbd5e1;">
+            <h5 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">📊 Unit Strengths</h5>
+            {make_unit_bar('Attack', r_att)}
+            {make_unit_bar('Midfield', r_mid)}
+            {make_unit_bar('Defense', r_def)}
+            {make_unit_bar('Goalkeeper', r_gk)}
+        </div>
+        """
+
+    # 3. Inject Everything
     js.document.getElementById("dashboard-metrics").innerHTML = f"""
     <div style="display:grid; grid-template-columns: 1fr 1fr 1.3fr; gap:20px; margin-bottom:20px;">
         <div class="stat-pill" title="Expected goals scored per match vs. average team">
@@ -1402,7 +1435,7 @@ def update_dashboard_data(event=None):
         </div>
     </div>
 
-    <!-- NEW: PLAYER TALENT AND SQUAD OVERVIEW BLOCK -->
+    <!-- PLAYER TALENT AND SQUAD OVERVIEW BLOCK -->
     <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:20px; margin-bottom:20px;">
         <div class="dashboard-card" style="margin:0; padding:20px;">
             <h4 style="margin:0 0 12px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">🌟 Key Playmakers</h4>
@@ -1423,6 +1456,7 @@ def update_dashboard_data(event=None):
                     <b style="color:var(--accent-red);">Missing/Retired:</b> {formation_info.get('notable absences / retirements', 'None noted.')}
                 </div>
             </div>
+            {unit_bars_html}
         </div>
     </div>
 

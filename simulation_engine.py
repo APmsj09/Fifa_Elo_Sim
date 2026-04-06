@@ -138,16 +138,12 @@ def load_data():
 
 def calculate_squad_ratings(player_df, formation_df):
     """
-    Calculates team overall based on preferred formation, going up to 3 deep
-    at each position requirement (2 deep for GKs). Ratings on a 1-100 scale.
-    Scans the entire "AMR, AML, AMC" string to find the best fit.
+    Calculates team overall and positional unit ratings based on preferred formation.
     """
     if player_df is None or 'position(s)' not in player_df.columns: return {}
     
-    # 1. Smart Position Scanner
     def get_primary_pos(pos_str):
         p = str(pos_str).upper()
-        # Scan the entire string and prioritize specialized roles
         if 'GK' in p: return 'GK'
         if 'ST' in p or 'FW' in p: return 'ST'
         if 'DC' in p or 'CB' in p: return 'MID_DEF'
@@ -156,17 +152,15 @@ def calculate_squad_ratings(player_df, formation_df):
         if 'DM' in p or 'MC' in p: return 'MID_CEN'
         if 'DR' in p or 'DL' in p or 'WBR' in p or 'WBL' in p: return 'WIDE_DEF'
         if 'MR' in p or 'ML' in p: return 'MID_WIDE'
-        return 'MID_CEN' # Fallback
+        return 'MID_CEN'
 
     player_df['category'] = player_df['position(s)'].apply(get_primary_pos)
     
-    # 2. Extract preferred formations
     pref_formations = {}
     if formation_df is not None and 'nation' in formation_df.columns:
         for _, row in formation_df.iterrows():
             pref_formations[str(row['nation']).lower().strip()] = str(row.get('formation 1', '4-3-3')).strip()
 
-    # 3. Define depth blueprints (Starting Slots x 3 deep, GK x 2 deep)
     blueprints = {
         '4-3-3':   {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 6, 'MID_CEN': 9, 'MID_WIDE': 0, 'ATT_CEN': 0, 'ATT_WIDE': 6, 'ST': 3},
         '4-2-3-1': {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 6, 'MID_CEN': 6, 'MID_WIDE': 0, 'ATT_CEN': 3, 'ATT_WIDE': 6, 'ST': 3},
@@ -179,36 +173,49 @@ def calculate_squad_ratings(player_df, formation_df):
         '4-1-4-1': {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 6, 'MID_CEN': 9, 'MID_WIDE': 0, 'ATT_CEN': 0, 'ATT_WIDE': 6, 'ST': 3},
     }
 
+    # Map tactical buckets to 4 broad field positions
+    unit_map = {
+        'GK': 'GK',
+        'WIDE_DEF': 'DEF', 'MID_DEF': 'DEF',
+        'MID_CEN': 'MID', 'MID_WIDE': 'MID', 'ATT_CEN': 'MID',
+        'ATT_WIDE': 'ATT', 'ST': 'ATT'
+    }
+
     team_ratings = {}
     
     for nation, group in player_df.groupby('nation'):
         nation_key = str(nation).lower().strip()
-        
         formation = pref_formations.get(nation_key, '4-3-3')
         blueprint = blueprints.get(formation, blueprints['4-3-3'])
         
         selected_ratings = []
+        unit_scores = {'GK': [], 'DEF': [], 'MID': [], 'ATT': []}
         
-        # 4. Fill the squad based on blueprint
         for bucket, depth_needed in blueprint.items():
             if depth_needed > 0:
                 bucket_players = group[group['category'] == bucket].sort_values('rat', ascending=False)
                 selected = bucket_players.head(depth_needed)['rat'].tolist()
+                
                 selected_ratings.extend(selected)
+                unit_scores[unit_map[bucket]].extend(selected)
         
-        # 5. Fallback if positional mapping yields no players
         if len(selected_ratings) == 0:
             selected_ratings = group.sort_values('rat', ascending=False).head(23)['rat'].tolist()
             
         if selected_ratings:
             avg_rat = np.mean(selected_ratings)
+            talent_weight = np.clip(avg_rat / 78.0, 0.85, 1.20)
             
-            # Normalize to an Elo-like weight (Assume 65 is avg WC team)
-            talent_weight = np.clip(avg_rat / 65.0, 0.80, 1.20)
+            # Safely average the unit scores
+            def safe_mean(lst): return np.mean(lst) if len(lst) > 0 else 0
             
             team_ratings[nation_key] = {
                 'talent_score': avg_rat,
                 'talent_weight': talent_weight,
+                'rating_gk': safe_mean(unit_scores['GK']),
+                'rating_def': safe_mean(unit_scores['DEF']),
+                'rating_mid': safe_mean(unit_scores['MID']),
+                'rating_att': safe_mean(unit_scores['ATT']),
                 'top_players': group.sort_values('rat', ascending=False).head(4).to_dict('records')
             }
             
@@ -311,7 +318,7 @@ def initialize_engine():
     results_df, scorers_df, df_names, player_df, formation_df = load_data()
     
     global TEAM_TALENT, TEAM_FORMATIONS
-    TEAM_TALENT = calculate_squad_ratings(player_df)
+    TEAM_TALENT = calculate_squad_ratings(player_df, formation_df) 
     
     TEAM_FORMATIONS = {}
     if formation_df is not None and 'nation' in formation_df.columns:
@@ -738,17 +745,18 @@ def engineer_team_signatures(results_df):
 
 TEAM_PRECOMPUTE = {}
 
-def precompute_match_data(talent_data=None):
+def precompute_match_data():
     global TEAM_PRECOMPUTE
     TEAM_PRECOMPUTE = {}
     for t, s in TEAM_STATS.items():
         clean_name = str(t).lower().strip()
-        talent = talent_data.get(clean_name, {'talent_weight': 1.0}) if talent_data else {'talent_weight': 1.0}
+        # Use the global TEAM_TALENT populated during initialize_engine
+        talent = TEAM_TALENT.get(clean_name, {'talent_weight': 1.0})
         
         # BLENDING: 70% Elo Performance / 30% Squad Talent
         base_elo = s.get('elo', 1200)
-        # Convert talent weight back to an Elo-delta (e.g., 1.1 weight = +100 Elo)
-        talent_bonus = (talent['talent_weight'] - 1.0) * 800 
+        # Convert talent weight back to an Elo-delta (e.g., 1.1 weight = +80 Elo)
+        talent_bonus = (talent.get('talent_weight', 1.0) - 1.0) * 800 
         blended_elo = base_elo + talent_bonus
 
         pen_skill = s.get('pen_pct', 5) / 100.0 
@@ -756,8 +764,8 @@ def precompute_match_data(talent_data=None):
 
         TEAM_PRECOMPUTE[clean_name] = {
             'elo': blended_elo,
-            'xg_coeff': s.get('off', 1.0) * talent['talent_weight'], # Talent boosts finishing
-            'xga_coeff': s.get('def', 1.0) / talent['talent_weight'], # Talent boosts defending
+            'xg_coeff': s.get('off', 1.0) * talent.get('talent_weight', 1.0),
+            'xga_coeff': s.get('def', 1.0) / talent.get('talent_weight', 1.0),
             'pace': s.get('pace_factor', 1.0),
             'vol': s.get('volatility', 0.15),
             'composure': np.clip(s.get('ko_exp_weighted', 0) / 10.0, 0, 1.0),
