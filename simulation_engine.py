@@ -139,103 +139,74 @@ def load_data():
     except Exception as e:
         js.console.error(f"DATA LOAD ERROR: {e}")
         raise RuntimeError(f"Could not load CSV files: {e}")
-        
+
 def calculate_squad_ratings(player_df, formation_df):
-    """Calculates team ratings with safety checks for missing columns."""
     if player_df is None: return {}
-    
-    # Ensure columns are cleaned
     player_df.columns = [c.strip().lower() for c in player_df.columns]
     
-    # CRASH PROTECTION: Check for required columns
     required = ['nation', 'rat']
-    # FM sometimes calls it 'position' or 'position(s)'
     pos_col = next((c for c in player_df.columns if 'position' in c), None)
-    
     if not all(col in player_df.columns for col in required) or not pos_col:
-        js.console.warn("Player Data missing required columns (nation, rat, position). Skipping squad ratings.")
         return {}
 
-    # FORCE RATINGS TO BE NUMBERS, default to 70 if missing/corrupt
-    player_df['rat'] = pd.to_numeric(player_df['rat'], errors='coerce').fillna(70)
+    # Clean the ratings column
+    player_df['rat'] = pd.to_numeric(player_df['rat'].astype(str).str.extract(r'(\d+)')[0], errors='coerce').fillna(70)
 
     def get_primary_pos(pos_str):
-
         p = str(pos_str).upper()
+        # GK
         if 'GK' in p: return 'GK'
-        if 'ST' in p or 'FW' in p: return 'ST'
-        if 'DC' in p or 'CB' in p: return 'MID_DEF'
-        if 'AMC' in p: return 'ATT_CEN'
-        if 'AMR' in p or 'AML' in p: return 'ATT_WIDE'
-        if 'DM' in p or 'MC' in p: return 'MID_CEN'
-        if 'DR' in p or 'DL' in p or 'WBR' in p or 'WBL' in p: return 'WIDE_DEF'
-        if 'MR' in p or 'ML' in p: return 'MID_WIDE'
-        return 'MID_CEN'
+        # ATT
+        if any(x in p for x in ['ST', 'FW', 'CF', 'LW', 'RW', 'AMR', 'AML']): return 'ATT'
+        # MID
+        if any(x in p for x in ['MC', 'DM', 'AM', 'ML', 'MR', 'AMC']): return 'MID'
+        # DEF
+        if any(x in p for x in ['CB', 'DC', 'DR', 'DL', 'RB', 'LB', 'WB', 'SW']): return 'DEF'
+        return 'MID' # Default fallback
 
-    player_df['category'] = player_df[pos_col].apply(get_primary_pos)
+    player_df['unit'] = player_df[pos_col].apply(get_primary_pos)
     
-    pref_formations = {}
-    if formation_df is not None and 'nation' in formation_df.columns:
-        for _, row in formation_df.iterrows():
-            pref_formations[str(row['nation']).lower().strip()] = str(row.get('formation 1', '4-3-3')).strip()
-
-    blueprints = {
-        '4-3-3':   {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 6, 'MID_CEN': 9, 'MID_WIDE': 0, 'ATT_CEN': 0, 'ATT_WIDE': 6, 'ST': 3},
-        '4-2-3-1': {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 6, 'MID_CEN': 6, 'MID_WIDE': 0, 'ATT_CEN': 3, 'ATT_WIDE': 6, 'ST': 3},
-        '3-4-2-1': {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 9, 'MID_CEN': 6, 'MID_WIDE': 0, 'ATT_CEN': 6, 'ATT_WIDE': 0, 'ST': 3},
-        '4-4-2':   {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 6, 'MID_CEN': 6, 'MID_WIDE': 6, 'ATT_CEN': 0, 'ATT_WIDE': 0, 'ST': 6},
-        '3-5-2':   {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 9, 'MID_CEN': 9, 'MID_WIDE': 0, 'ATT_CEN': 0, 'ATT_WIDE': 0, 'ST': 6},
-        '5-3-2':   {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 9, 'MID_CEN': 9, 'MID_WIDE': 0, 'ATT_CEN': 0, 'ATT_WIDE': 0, 'ST': 6},
-        '3-4-3':   {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 9, 'MID_CEN': 6, 'MID_WIDE': 0, 'ATT_CEN': 0, 'ATT_WIDE': 6, 'ST': 3},
-        '4-5-1':   {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 6, 'MID_CEN': 9, 'MID_WIDE': 6, 'ATT_CEN': 0, 'ATT_WIDE': 0, 'ST': 3},
-        '4-1-4-1': {'GK': 2, 'WIDE_DEF': 6, 'MID_DEF': 6, 'MID_CEN': 9, 'MID_WIDE': 0, 'ATT_CEN': 0, 'ATT_WIDE': 6, 'ST': 3},
-    }
-
-    # Map tactical buckets to 4 broad field positions
-    unit_map = {
-        'GK': 'GK',
-        'WIDE_DEF': 'DEF', 'MID_DEF': 'DEF',
-        'MID_CEN': 'MID', 'MID_WIDE': 'MID', 'ATT_CEN': 'MID',
-        'ATT_WIDE': 'ATT', 'ST': 'ATT'
-    }
-
     team_ratings = {}
     
+    # Pre-process nations to slugs
+    import re, unicodedata
+    def create_slug(text):
+        text = unicodedata.normalize('NFKD', str(text)).encode('ascii', 'ignore').decode('utf-8')
+        return re.sub(r'[^a-z0-9]', '', text.lower())
+
     for nation, group in player_df.groupby('nation'):
-        nation_key = str(nation).lower().strip()
-        formation = pref_formations.get(nation_key, '4-3-3')
-        blueprint = blueprints.get(formation, blueprints['4-3-3'])
+        nation_key = create_slug(nation)
         
-        selected_ratings = []
-        unit_scores = {'GK': [], 'DEF': [], 'MID': [], 'ATT': []}
+        # Calculate Unit Averages
+        unit_stats = group.groupby('unit')['rat'].apply(lambda x: x.sort_values(ascending=False).head(5).mean()).to_dict()
         
-        for bucket, depth_needed in blueprint.items():
-            if depth_needed > 0:
-                bucket_players = group[group['category'] == bucket].sort_values('rat', ascending=False)
-                selected = bucket_players.head(depth_needed)['rat'].tolist()
-                
-                selected_ratings.extend(selected)
-                unit_scores[unit_map[bucket]].extend(selected)
+        # Team Overall (Top 18 players)
+        overall_avg = group['rat'].sort_values(ascending=False).head(18).mean()
         
-        if len(selected_ratings) == 0:
-            selected_ratings = group.sort_values('rat', ascending=False).head(23)['rat'].tolist()
+        # Fallback Logic: If a unit is missing, use overall_avg - 5 (penalty for no natural players)
+        def get_unit_val(unit_name):
+            val = unit_stats.get(unit_name, 0)
+            if val == 0 or pd.isna(val):
+                return max(40, overall_avg - 5)
+            return val
+
+        r_gk = get_unit_val('GK')
+        r_def = get_unit_val('DEF')
+        r_mid = get_unit_val('MID')
+        r_att = get_unit_val('ATT')
+        
+        # Calculate Talent Weight (Standardization)
+        talent_weight = np.clip(overall_avg / 75.0, 0.80, 1.25)
             
-        if selected_ratings:
-            avg_rat = np.mean(selected_ratings)
-            talent_weight = np.clip(avg_rat / 78.0, 0.85, 1.20)
-            
-            # Safely average the unit scores
-            def safe_mean(lst): return np.mean(lst) if len(lst) > 0 else 0
-            
-            team_ratings[nation_key] = {
-                'talent_score': avg_rat,
-                'talent_weight': talent_weight,
-                'rating_gk': safe_mean(unit_scores['GK']),
-                'rating_def': safe_mean(unit_scores['DEF']),
-                'rating_mid': safe_mean(unit_scores['MID']),
-                'rating_att': safe_mean(unit_scores['ATT']),
-                'top_players': group.sort_values('rat', ascending=False).head(4).to_dict('records')
-            }
+        team_ratings[nation_key] = {
+            'talent_score': overall_avg,
+            'talent_weight': talent_weight,
+            'rating_gk': r_gk,
+            'rating_def': r_def,
+            'rating_mid': r_mid,
+            'rating_att': r_att,
+            'top_players': group.sort_values('rat', ascending=False).head(4).to_dict('records')
+        }
             
     return team_ratings
 
