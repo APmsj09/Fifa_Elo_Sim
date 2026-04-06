@@ -1184,37 +1184,39 @@ def generate_scout_report(stats):
 DASHBOARD_BUILT = False
 
 def populate_team_dropdown(target_id="team-select-dashboard", wc_only=False):
-    select = js.document.getElementById(target_id)
-    if not select: 
-        # Fallback if the specific ID isn't found
-        select = js.document.getElementById("team-select")
-    if not select: return 
-
-    # 1. ADD THIS LINE: Remember what is currently selected
-    current_val = select.value
+    # 1. Explicitly define it at the very beginning to prevent NameError
+    current_val = None 
     
-    # 2. Clear the existing list
+    select = js.document.getElementById(target_id)
+    if not select:
+        select = js.document.getElementById("team-select")
+        
+    if not select: 
+        return 
+
+    # 2. Try to grab the existing value if the dropdown already has one
+    try:
+        current_val = select.value
+    except Exception:
+        current_val = None
+
     select.innerHTML = "" 
 
-    # Sort teams by Elo (using the slug keys)
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
 
     for slug, stats in sorted_teams:
-        # Check if we should only show World Cup teams
         if wc_only and slug not in [sim.get_slug(t) for t in sim.WC_TEAMS]:
             continue
             
         opt = js.document.createElement("option")
         opt.value = slug
-        # Use the "Pretty" name (e.g. 'Curaçao') from our map
         opt.text = sim.PRETTY_NAMES.get(slug, slug.title())
         select.appendChild(opt)
 
-    # 3. Restore the selection if it still exists in the new list
+    # 3. Safely re-apply the value
     if current_val:
         select.value = current_val
-    
-    # 4. If nothing is selected, default to the first team
+        
     if not select.value and select.options.length > 0:
         select.selectedIndex = 0
         select.value = select.options[0].value
