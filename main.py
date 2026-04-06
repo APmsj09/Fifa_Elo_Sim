@@ -1374,6 +1374,13 @@ def update_dashboard_data(event=None):
 
     history = sim.TEAM_HISTORY.get(team)
     confed = sim.TEAM_CONFEDS.get(team.lower(), 'OFC')
+    formation = stats.get('preferred_formation', 'N/A')
+    team_rating = stats.get('team_rating', 0.0)
+    squad_rating = stats.get('squad_rating', 0.0)
+    squad_potential = stats.get('squad_potential', 0.0)
+    key_players = stats.get('key_players', [])
+    watchlist = stats.get('watchlist', [])
+    notable_absences = stats.get('notable_absences', '')
     
     # --- 1. CALCULATE WORLD RANK & PERCENTILES ---
     sorted_teams = sorted(sim.TEAM_STATS.keys(), key=lambda t: sim.TEAM_STATS[t]['elo'], reverse=True)
@@ -1467,6 +1474,9 @@ def update_dashboard_data(event=None):
         
     strong_html = "".join([f"<span style='display:inline-block; background:rgba(16, 185, 129, 0.15); color:#10b981; padding:4px 8px; border-radius:4px; font-size:0.8em; margin:2px;'>{s}</span>" for s in strong_against]) if strong_against else "<span style='color:var(--text-light); font-size:0.8em;'>None specific</span>"
     weak_html = "".join([f"<span style='display:inline-block; background:rgba(239, 68, 68, 0.15); color:#ef4444; padding:4px 8px; border-radius:4px; font-size:0.8em; margin:2px;'>{s}</span>" for s in weak_against]) if weak_against else "<span style='color:var(--text-light); font-size:0.8em;'>None specific</span>"
+    key_html = "".join([f"<span style='display:inline-block; background:rgba(59,130,246,0.1); color:#2563eb; padding:6px 10px; border-radius:8px; font-size:0.8em; margin:3px;'>{p}</span>" for p in key_players]) if key_players else "<span style='color:var(--text-light); font-size:0.85em;'>No key players available</span>"
+    watch_html = "".join([f"<span style='display:inline-block; background:rgba(16,185,129,0.12); color:#047857; padding:6px 10px; border-radius:8px; font-size:0.8em; margin:3px;'>{p}</span>" for p in watchlist]) if watchlist else "<span style='color:var(--text-light); font-size:0.85em;'>No emerging prospects found</span>"
+    abs_html = f"<div style='font-size:0.85em; color:var(--text-light); margin-top:6px; line-height:1.4;'>{notable_absences}</div>" if notable_absences else ""
 
     # --- 5. RENDER HEADER ---
     header = js.document.getElementById("dashboard-header")
@@ -1477,8 +1487,10 @@ def update_dashboard_data(event=None):
                 <h1 style="margin:0; font-size:2.4em; font-weight:800; color:var(--text-main); letter-spacing:-1px;">{team.title()}</h1>
                 <span class="rank-badge">RANK #{global_rank}</span>
             </div>
-            <div style="display:flex; gap:15px; font-size:0.9em; color:var(--text-light); font-weight:500;">
+            <div style="display:flex; gap:15px; flex-wrap:wrap; font-size:0.9em; color:var(--text-light); font-weight:500;">
                 <span>ELO: <b style="color:var(--text-main);">{int(stats['elo'])}</b></span>
+                <span>Formation: <b style="color:var(--accent-blue);">{formation}</b></span>
+                <span>Team Rating: <b style="color:var(--accent-green);">{team_rating:.1f}</b></span>
                 <span>HERITAGE: <b style="color:var(--accent-gold);">{her_tier}</b></span>
             </div>
         </div>
@@ -1595,6 +1607,24 @@ def update_dashboard_data(event=None):
             <div style="font-size:0.8em; color:var(--text-light); margin-top:8px; border-top:1px solid var(--sidebar-border); padding-top:6px;">
                 <b>Biggest Recent Scalp:</b> <span style="color:var(--text-main); font-weight:bold;">{best_win}</span>
             </div>
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap:20px; margin-bottom:20px;">
+        <div class="dashboard-card" style="padding:18px; border-left:4px solid #8b5cf6;">
+            <h4 style="margin-top:0; color:var(--text-light); font-size:0.75em; text-transform:uppercase; letter-spacing:1px;">Preferred Squad</h4>
+            <div style="font-size:0.95em; color:var(--text-main); font-weight:600; margin-bottom:10px;">{formation}</div>
+            <div style="font-size:0.9em; color:var(--text-light);">Average Rating: <b>{squad_rating:.1f}</b></div>
+            <div style="font-size:0.9em; color:var(--text-light);">Projected Pot.: <b>{squad_potential:.1f}</b></div>
+        </div>
+        <div class="dashboard-card" style="padding:18px; border-left:4px solid #10b981;">
+            <h4 style="margin-top:0; color:var(--text-light); font-size:0.75em; text-transform:uppercase; letter-spacing:1px;">Key Players</h4>
+            <div style="margin-top:10px;">{key_html}</div>
+        </div>
+        <div class="dashboard-card" style="padding:18px; border-left:4px solid #f59e0b;">
+            <h4 style="margin-top:0; color:var(--text-light); font-size:0.75em; text-transform:uppercase; letter-spacing:1px;">Watchlist</h4>
+            <div style="margin-top:10px;">{watch_html}</div>
+            {abs_html}
         </div>
     </div>
 
