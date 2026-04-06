@@ -1122,7 +1122,6 @@ def load_data_view(event):
                 <th>Rank</th>
                 <th>Team</th>
                 <th>Elo</th>
-                <th title="Projected average team rating from the best 26 players">Team Rating</th>
                 <th>Form</th>
                 <th>Matches</th>
                 <th>Gls For</th>
@@ -1179,14 +1178,12 @@ def load_data_view(event):
         fh_pct = int(stats.get('fh_pct', 0))
         late_pct = int(stats.get('late_pct', 0))
         pen_pct = int(stats.get('pen_pct', 0))
-        projected_rating = stats.get('team_rating', stats.get('squad_rating', 0.0))
         
         html += f"""
         <tr>
             <td style="font-weight:bold;">#{rank_counter}</td>
             <td style="font-weight:600">{team.title()}</td>
             <td style="font-weight:bold; color:#2c3e50;">{int(stats['elo'])}</td>
-            <td style="font-weight:bold; color:#10b981;">{projected_rating:.1f}</td>
             <td style="font-family:monospace; letter-spacing:2px;">{formatted_form}</td>
             <td style="text-align:center;">{matches}</td>
             <td style="color:#2980b9; font-weight:bold;">{total_gf}</td>
@@ -1377,18 +1374,6 @@ def update_dashboard_data(event=None):
 
     history = sim.TEAM_HISTORY.get(team)
     confed = sim.TEAM_CONFEDS.get(team.lower(), 'OFC')
-    formation = stats.get('preferred_formation', 'N/A')
-    secondary_formation = stats.get('secondary_formation')
-    formation_display = formation if not secondary_formation else f"{formation} / {secondary_formation}"
-    team_rating = stats.get('team_rating', 0.0)
-    squad_rating = stats.get('squad_rating', 0.0)
-    squad_potential = stats.get('squad_potential', 0.0)
-    key_players = stats.get('key_players', [])
-    watchlist = stats.get('watchlist', [])
-    notable_absences = stats.get('notable_absences', '')
-
-    if not key_players and stats.get('squad'):
-        key_players = [p.get('Name', 'Unknown') for p in stats['squad'][:3]]
     
     # --- 1. CALCULATE WORLD RANK & PERCENTILES ---
     sorted_teams = sorted(sim.TEAM_STATS.keys(), key=lambda t: sim.TEAM_STATS[t]['elo'], reverse=True)
@@ -1482,9 +1467,6 @@ def update_dashboard_data(event=None):
         
     strong_html = "".join([f"<span style='display:inline-block; background:rgba(16, 185, 129, 0.15); color:#10b981; padding:4px 8px; border-radius:4px; font-size:0.8em; margin:2px;'>{s}</span>" for s in strong_against]) if strong_against else "<span style='color:var(--text-light); font-size:0.8em;'>None specific</span>"
     weak_html = "".join([f"<span style='display:inline-block; background:rgba(239, 68, 68, 0.15); color:#ef4444; padding:4px 8px; border-radius:4px; font-size:0.8em; margin:2px;'>{s}</span>" for s in weak_against]) if weak_against else "<span style='color:var(--text-light); font-size:0.8em;'>None specific</span>"
-    key_html = "".join([f"<span style='display:inline-block; background:rgba(59,130,246,0.1); color:#2563eb; padding:6px 10px; border-radius:8px; font-size:0.8em; margin:3px;'>{p}</span>" for p in key_players]) if key_players else "<span style='color:var(--text-light); font-size:0.85em;'>No key players available</span>"
-    watch_html = "".join([f"<span style='display:inline-block; background:rgba(16,185,129,0.12); color:#047857; padding:6px 10px; border-radius:8px; font-size:0.8em; margin:3px;'>{p}</span>" for p in watchlist]) if watchlist else "<span style='color:var(--text-light); font-size:0.85em;'>No emerging prospects found</span>"
-    abs_html = f"<div style='font-size:0.85em; color:var(--text-light); margin-top:6px; line-height:1.4;'>{notable_absences}</div>" if notable_absences else ""
 
     # --- 5. RENDER HEADER ---
     header = js.document.getElementById("dashboard-header")
@@ -1495,10 +1477,8 @@ def update_dashboard_data(event=None):
                 <h1 style="margin:0; font-size:2.4em; font-weight:800; color:var(--text-main); letter-spacing:-1px;">{team.title()}</h1>
                 <span class="rank-badge">RANK #{global_rank}</span>
             </div>
-            <div style="display:flex; gap:15px; flex-wrap:wrap; font-size:0.9em; color:var(--text-light); font-weight:500;">
+            <div style="display:flex; gap:15px; font-size:0.9em; color:var(--text-light); font-weight:500;">
                 <span>ELO: <b style="color:var(--text-main);">{int(stats['elo'])}</b></span>
-                <span>Formation: <b style="color:var(--accent-blue);">{formation_display}</b></span>
-                <span>Team Rating: <b style="color:var(--accent-green);">{team_rating:.1f}</b></span>
                 <span>HERITAGE: <b style="color:var(--accent-gold);">{her_tier}</b></span>
             </div>
         </div>
@@ -1615,24 +1595,6 @@ def update_dashboard_data(event=None):
             <div style="font-size:0.8em; color:var(--text-light); margin-top:8px; border-top:1px solid var(--sidebar-border); padding-top:6px;">
                 <b>Biggest Recent Scalp:</b> <span style="color:var(--text-main); font-weight:bold;">{best_win}</span>
             </div>
-        </div>
-    </div>
-
-    <div style="display:grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap:20px; margin-bottom:20px;">
-        <div class="dashboard-card" style="padding:18px; border-left:4px solid #8b5cf6;">
-            <h4 style="margin-top:0; color:var(--text-light); font-size:0.75em; text-transform:uppercase; letter-spacing:1px;">Preferred Squad</h4>
-            <div style="font-size:0.95em; color:var(--text-main); font-weight:600; margin-bottom:10px;">{formation_display}</div>
-            <div style="font-size:0.9em; color:var(--text-light);">Average Rating: <b>{squad_rating:.1f}</b></div>
-            <div style="font-size:0.9em; color:var(--text-light);">Projected Pot.: <b>{squad_potential:.1f}</b></div>
-        </div>
-        <div class="dashboard-card" style="padding:18px; border-left:4px solid #10b981;">
-            <h4 style="margin-top:0; color:var(--text-light); font-size:0.75em; text-transform:uppercase; letter-spacing:1px;">Key Players</h4>
-            <div style="margin-top:10px;">{key_html}</div>
-        </div>
-        <div class="dashboard-card" style="padding:18px; border-left:4px solid #f59e0b;">
-            <h4 style="margin-top:0; color:var(--text-light); font-size:0.75em; text-transform:uppercase; letter-spacing:1px;">Watchlist</h4>
-            <div style="margin-top:10px;">{watch_html}</div>
-            {abs_html}
         </div>
     </div>
 
@@ -1763,109 +1725,68 @@ def _generate_notable_results_html(team, notable_results):
     return html
 
 def generate_dynamic_report(team, atk, dfe, upset, stats):
-    report_paragraphs = []
+    report_paragraphs =[]
     
     # --- 1. Base Info ---
     confed = getattr(sim, 'TEAM_CONFEDS', {}).get(team, 'Unknown')
     style = getattr(sim, 'TEAM_PROFILES', {}).get(team, 'Balanced')
-    formation = stats.get('preferred_formation', 'Unknown')
-    secondary_formation = stats.get('secondary_formation')
-    formation_desc = formation if not secondary_formation else f"{formation} with {secondary_formation} as a fallback"
-    key_players = stats.get('key_players', [])
-    watchlist = stats.get('watchlist', [])
-    squad_rating = stats.get('squad_rating', 0.0)
-    team_rating = stats.get('team_rating', 0.0)
-
+    
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
     rank = next((i+1 for i, t in enumerate(sorted_teams) if t[0] == team), 0)
     
-    if rank <= 10:
-        tier_text = "a global powerhouse"
-    elif rank <= 30:
-        tier_text = "a formidable contender"
-    elif rank <= 60:
-        tier_text = "a highly competitive dark horse"
-    else:
-        tier_text = "an emerging underdog"
+    if rank <= 10: tier_text = "a global powerhouse"
+    elif rank <= 30: tier_text = "a formidable contender"
+    elif rank <= 60: tier_text = "a highly competitive dark horse"
+    else: tier_text = "an emerging underdog"
     
-    report_paragraphs.append(
-        f"<b>Overview:</b> Ranked #{rank} globally, {team.title()} is {tier_text} out of {confed}. "
-        f"They operate primarily from a <b>{formation_desc}</b> shape and carry a projected squad rating of <b>{squad_rating:.1f}</b>."
-    )
-
+    report_paragraphs.append(f"<b>Overview:</b> Ranked #{rank} globally, {team.title()} is {tier_text} out of {confed}. Their overall system is classified as <b>{style}</b>.")
+    
     # --- 2. Data-Driven Tactical Identity ---
-    tactical = []
+    tactical =[]
     pace = stats.get('pace_factor', 1.0)
     ko_exp = stats.get('ko_exp_weighted', 0)
     momentum = stats.get('momentum', 0.0)
-    depth = stats.get('depth_score', 0.0)
-
-    if pace > 1.15:
-        tactical.append("Their matches are often open and high-tempo, forcing opponents to defend in transition.")
-    elif pace < 0.90:
-        tactical.append("They prefer a measured approach, patiently probing spaces and trying to force mistakes.")
-    else:
-        tactical.append("They strike a middle ground between control and tempo, adapting to the opponent.")
-
-    if atk > 1.10:
-        tactical.append("They are dangerous in the final third, attacking with clear purpose.")
-    elif atk < 0.90:
-        tactical.append("They can struggle to generate consistent chances against compact defenses.")
-    else:
-        tactical.append("Their offense is efficient without being explosive.")
-
-    if dfe < 0.85:
-        tactical.append("Defensively, they are one of the more difficult sides to break down.")
-    elif dfe > 1.10:
-        tactical.append("Their defense can be brittle, leaving them open to quick counters.")
-    else:
-        tactical.append("Their defensive shape is generally dependable.")
-
+    
+    if pace > 1.15: 
+        tactical.append("Their games are typically open and played at a frantic pace, frequently resulting in end-to-end action.")
+    elif pace < 0.90: 
+        tactical.append("They prefer to control the tempo, systematically dragging opponents into tight, low-scoring tactical battles.")
+    
+    if atk > 1.10: 
+        tactical.append("Offensively, they consistently create high-quality chances and punish mistakes.")
+    elif atk < 0.90: 
+        tactical.append("Goal-scoring can be a severe struggle for them in open play.")
+    
+    if dfe < 0.85: 
+        tactical.append("Defensively, they are incredibly disciplined and notoriously difficult to break down.")
+    elif dfe > 1.10: 
+        tactical.append("Their backline is prone to leaks, heavily relying on outscoring their opponents to secure results.")
+    
     report_paragraphs.append("<b>Identity:</b> " + " ".join(tactical))
-
-    # --- 3. Formation & Player Context ---
-    player_sentences = []
-    if key_players:
-        top_keys = key_players[:2]
-        player_sentences.append(
-            f"Key players such as <b>{top_keys[0]}</b>{'' if len(top_keys) == 1 else ' and <b>' + top_keys[1] + '</b>'} provide the spine of this team.")
-    if watchlist:
-        player_sentences.append(
-            f"Keep an eye on emerging prospects like <b>{watchlist[0]}</b> who could become a match-winner if they reach their upside.")
-    if player_sentences:
-        report_paragraphs.append("<b>Key Personnel:</b> " + " ".join(player_sentences))
-
-    # --- 4. Tournament Readiness & Quirks ---
-    quirks = []
+    
+    # --- 3. Tournament Readiness & Quirks ---
+    quirks =[]
     vol = stats.get('volatility', 0.15)
-
-    if vol >= 0.25:
-        quirks.append("⚠️ <b>High Variance:</b> They are capable of giant-killing upsets but can also collapse unexpectedly.")
+    
+    # Volatility Check
+    if vol >= 0.25: 
+        quirks.append("⚠️ <b>High Volatility:</b> Their matches are wildly unpredictable. They are entirely capable of pulling off a massive tournament-altering upset on any given day, but are equally vulnerable to shocking defeats.")
     elif vol <= 0.10:
-        quirks.append("🔒 <b>Steady Performer:</b> The team tends to produce consistent results and avoids wild swings.")
-
+        quirks.append("🔒 <b>Highly Consistent:</b> They perform exactly to their mathematical expectations with minimal variance. They reliably dispatch weaker teams but rarely pull off miracles against top-tier favorites.")
+        
+    # Pedigree & Form
     if ko_exp > 15:
-        quirks.append("They bring strong knockout experience, which is valuable in later rounds.")
+        quirks.append("They boast immense tournament pedigree and vast experience navigating high-pressure knockout scenarios.")
     if momentum > 0.5:
-        quirks.append("Their current form is very positive, suggesting they could overperform their baseline rating.")
+        quirks.append("They are currently riding a massive wave of positive form, surging up the global power rankings.")
     elif momentum < -0.5:
-        quirks.append("Their recent trend is downward, raising questions about how they handle pressure matches.")
-    if depth > 10:
-        quirks.append("They have a deeper bench than most, which helps through congested tournament schedules.")
-
-    if quirks:
+        quirks.append("They enter the current cycle struggling for form, bleeding Elo rating over their last 10 matches.")
+    
+    if quirks: 
         report_paragraphs.append("<b>Tournament Readiness:</b> " + " ".join(quirks))
 
-    # --- 5. Final Verdict ---
-    if team_rating >= 88:
-        report_paragraphs.append("<b>Verdict:</b> This team is built for the latter stages and has the firepower to challenge for the title.")
-    elif team_rating >= 80:
-        report_paragraphs.append("<b>Verdict:</b> A serious contender with the kind of balance that can carry them deep.")
-    else:
-        report_paragraphs.append("<b>Verdict:</b> They are competitive but likely to need perfect execution to upset the elite.")
-
+    # Wrap paragraphs in clean HTML divs
     return "".join([f"<div style='margin-bottom:12px;'>{p}</div>" for p in report_paragraphs])
-
 
 async def refresh_team_analysis(event=None):
     update_dashboard_data()
