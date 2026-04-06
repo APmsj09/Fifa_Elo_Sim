@@ -81,11 +81,9 @@ async def initialize_app():
         # Step 2: Engineer team signatures
         try:
             status_el.innerHTML = "Analyzing Team Signatures..."
-            if results_df is not None:
-                sim.engineer_team_signatures(results_df) 
-            else:
-                sim.engineer_team_signatures(None)
-            js.console.log("Team signatures engineered")
+            sim.engineer_team_signatures(results_df) 
+        except Exception as e:
+            js.console.error(f"Signature Error: {e}") # Log error but don't stop
         except Exception as e:
             js.console.error(f"Error in engineer_team_signatures: {e}")
             raise

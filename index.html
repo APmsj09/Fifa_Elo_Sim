@@ -1097,11 +1097,12 @@
 
     <py-config>
         packages = ["pandas", "numpy", "matplotlib", "mplcursors"]
+    
         [[fetch]]
-        # This ensures the files are actually placed in a /data/ subfolder inside the browser
         from = "data"
-        files = ["results.csv", "goalscorers.csv", "former_names.csv", "FM 26 Player Data.csv", "FM 26 Player Data - Formations.csv"]
+        files = ["results.csv", "goalscorers.csv", "former_names.csv", "Player_Data.csv", "Formations.csv"]
         dest = "data"
+
         [[fetch]]
         files = ["main.py", "simulation_engine.py", "analysis.py"]
     </py-config>

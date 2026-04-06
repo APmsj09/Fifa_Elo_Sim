@@ -112,42 +112,43 @@ TEAM_TALENT = {}
 TEAM_FORMATIONS = {}
 
 def load_data():
-    def load_csv(paths):
-        """Try to load CSV from multiple possible paths"""
-        if isinstance(paths, str):
-            paths = [paths]
-        
-        for path in paths:
-            try:
-                df = pd.read_csv(path)
-                df.columns = df.columns.str.strip().str.lower()
-                js.console.log(f"Successfully loaded {path}")
-                return df
-            except Exception as e:
-                js.console.warn(f"Could not load {path}: {e}")
-        
-        return None
+    def load_csv(filename):
+        path = f"data/{filename}"
+        try:
+            # Use latin1 encoding to handle player name accents safely
+            df = pd.read_csv(path, encoding='latin1', on_bad_lines='skip')
+            # Clean headers to ensure they are lowercase and trimmed
+            df.columns = df.columns.str.strip().str.lower()
+            js.console.log(f"Successfully loaded {path}")
+            return df
+        except Exception as e:
+            js.console.warn(f"Could not load {path}: {e}")
+            return None
 
-    # Load core files locally - try multiple paths for Pyodide compatibility
-    results_df = load_csv(["data/results.csv", "results.csv"]) 
-    goalscorers_df = load_csv(["data/goalscorers.csv", "goalscorers.csv"])
-    former_names_df = load_csv(["data/former_names.csv", "former_names.csv"])
-    
-    # Load FM files locally (they are fetched by py-config)
-    player_df = load_csv(["data/FM 26 Player Data.csv", "FM 26 Player Data.csv"])
-    formation_df = load_csv(["data/FM 26 Player Data - Formations.csv", "FM 26 Player Data - Formations.csv"])
+    results_df = load_csv("results.csv") 
+    goalscorers_df = load_csv("goalscorers.csv")
+    former_names_df = load_csv("former_names.csv")
+    player_df = load_csv("Player_Data.csv")
+    formation_df = load_csv("Formations.csv")
         
     return results_df, goalscorers_df, former_names_df, player_df, formation_df
 
 def calculate_squad_ratings(player_df, formation_df):
+    """Calculates team ratings with safety checks for missing columns."""
     if player_df is None: return {}
-    # Force column names to be clean
+    
+    # Ensure columns are cleaned
     player_df.columns = [c.strip().lower() for c in player_df.columns]
     
-    if 'rat' not in player_df.columns:
-        js.console.warn("Column 'rat' missing from Player Data. Using default ratings.")
-        return {}
+    # CRASH PROTECTION: Check for required columns
+    required = ['nation', 'rat']
+    # FM sometimes calls it 'position' or 'position(s)'
+    pos_col = next((c for c in player_df.columns if 'position' in c), None)
     
+    if not all(col in player_df.columns for col in required) or not pos_col:
+        js.console.warn("Player Data missing required columns (nation, rat, position). Skipping squad ratings.")
+        return {}
+
     def get_primary_pos(pos_str):
         p = str(pos_str).upper()
         if 'GK' in p: return 'GK'
@@ -160,7 +161,7 @@ def calculate_squad_ratings(player_df, formation_df):
         if 'MR' in p or 'ML' in p: return 'MID_WIDE'
         return 'MID_CEN'
 
-    player_df['category'] = player_df['position(s)'].apply(get_primary_pos)
+    player_df['category'] = player_df[pos_col].apply(get_primary_pos)
     
     pref_formations = {}
     if formation_df is not None and 'nation' in formation_df.columns:
