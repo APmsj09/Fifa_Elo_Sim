@@ -1075,12 +1075,22 @@ def load_data_view(event):
             formatted_form += f"<span style='color:{color}; font-weight:bold;'>{char}</span>"
 
         # Fetch Player/Talent Data
-        talent = getattr(sim, 'TEAM_TALENT', {}).get(team, {})
-        ovr = int(talent.get('talent_score', 0)) if talent.get('talent_score') else '--'
-        t_att = int(talent.get('rating_att', 0)) if talent.get('rating_att') else '--'
-        t_mid = int(talent.get('rating_mid', 0)) if talent.get('rating_mid') else '--'
-        t_def = int(talent.get('rating_def', 0)) if talent.get('rating_def') else '--'
-        t_gk = int(talent.get('rating_gk', 0)) if talent.get('rating_gk') else '--'
+        import re, unicodedata
+        def get_slug(text):
+            t = unicodedata.normalize('NFKD', str(text)).encode('ascii', 'ignore').decode('utf-8')
+            return re.sub(r'[^a-z0-9]', '', t.lower())
+        
+        talent = sim.TEAM_TALENT.get(get_slug(team), {})
+        
+        def fmt(key):
+            v = talent.get(key, 0)
+            return int(round(v)) if v > 0 else '--'
+
+        ovr = fmt('talent_score')
+        t_att = fmt('rating_att')
+        t_mid = fmt('rating_mid')
+        t_def = fmt('rating_def')
+        t_gk = fmt('rating_gk')
 
         cs_pct = int(stats.get('cs_pct', 0))
         btts_pct = int(stats.get('btts_pct', 0))
