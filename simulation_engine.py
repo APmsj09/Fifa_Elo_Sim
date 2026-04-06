@@ -122,17 +122,13 @@ def load_data():
             return None
 
     # Load core files locally
-    results_df = load_csv("results.csv") 
-    goalscorers_df = load_csv("goalscorers.csv")
-    former_names_df = load_csv("former_names.csv")
+    results_df = load_csv("data/results.csv") 
+    goalscorers_df = load_csv("data/goalscorers.csv")
+    former_names_df = load_csv("data/former_names.csv")
     
-    # Safely fetch FM files with spaces directly from GitHub via open_url
-    base_url = "https://raw.githubusercontent.com/APmsj09/Fifa_Elo_Sim/main/data/"
-    try:
-        player_df = load_csv(open_url(base_url + "FM%2026%20Player%20Data.csv"))
-        formation_df = load_csv(open_url(base_url + "FM%2026%20Player%20Data%20-%20Formations.csv"))
-    except:
-        player_df, formation_df = None, None
+    # Load FM files locally (they are fetched by py-config)
+    player_df = load_csv("data/FM 26 Player Data.csv")
+    formation_df = load_csv("data/FM 26 Player Data - Formations.csv")
         
     return results_df, goalscorers_df, former_names_df, player_df, formation_df
 
