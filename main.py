@@ -751,10 +751,10 @@ async def run_matchup_analysis(event):
             return int(round(val)) if val > 0 else "--"
 
         # Squad talent variables
-        att_a, att_b = get_rat(ta, 'rating_att'), get_rat(tb, 'rating_att')
-        mid_a, mid_b = get_rat(ta, 'rating_mid'), get_rat(tb, 'rating_mid')
-        def_a, def_b = get_rat(ta, 'rating_def'), get_rat(tb, 'rating_def')
-        gk_a, gk_b   = get_rat(ta, 'rating_gk'),  get_rat(tb, 'rating_gk')
+        talent_att_a, talent_att_b = get_rat(ta, 'rating_att'), get_rat(tb, 'rating_att')
+        talent_mid_a, talent_mid_b = get_rat(ta, 'rating_mid'), get_rat(tb, 'rating_mid')
+        talent_def_a, talent_def_b = get_rat(ta, 'rating_def'), get_rat(tb, 'rating_def')
+        talent_gk_a,  talent_gk_b  = get_rat(ta, 'rating_gk'),  get_rat(tb, 'rating_gk')
 
         style_a = sim.TEAM_PROFILES.get(team_a, 'Balanced')
         style_b = sim.TEAM_PROFILES.get(team_b, 'Balanced')
@@ -765,10 +765,10 @@ async def run_matchup_analysis(event):
             score = 5 + 2.5 * math.log(ratio)
             return max(0.5, min(9.5, score)) 
         
-        atk_a = calc_tactical_score(sa.get('off', 1.0), sb.get('def', 1.0))
-        atk_b = calc_tactical_score(sb.get('off', 1.0), sa.get('def', 1.0))
-        def_a = calc_tactical_score(sa.get('def', 1.0), sb.get('off', 1.0))
-        def_b = calc_tactical_score(sb.get('def', 1.0), sa.get('off', 1.0))
+        tac_atk_a = calc_tactical_score(sa.get('off', 1.0), sb.get('def', 1.0))
+        tac_atk_b = calc_tactical_score(sb.get('off', 1.0), sa.get('def', 1.0))
+        tac_def_a = calc_tactical_score(sa.get('def', 1.0), sb.get('off', 1.0))
+        tac_def_b = calc_tactical_score(sb.get('def', 1.0), sa.get('off', 1.0))
         consistency_a = min(10, (7.5 - (sa.get('btts_pct', 50) - 50) / 10))
         consistency_b = min(10, (7.5 - (sb.get('btts_pct', 50) - 50) / 10))
 
@@ -846,24 +846,24 @@ async def run_matchup_analysis(event):
                         <td style="text-align:left; font-weight:bold;">{sb_elo}</td>
                     </tr>
                     <tr style="background: rgba(59, 130, 246, 0.03);">
-                        <td style="text-align:right; font-weight:bold; color:var(--accent-blue);">{att_a}</td>
-                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; font-weight:bold;">ATTACK UNIT</td>
-                        <td style="text-align:left; font-weight:bold; color:var(--accent-red);">{att_b}</td>
+                        <td style="text-align:right;">{talent_att_a}</td>
+                        <td style="text-align:center;">ATTACK UNIT</td>
+                        <td style="text-align:left;">{talent_att_b}</td>
                     </tr>
                     <tr style="background: rgba(59, 130, 246, 0.03);">
-                        <td style="text-align:right; font-weight:bold; color:var(--accent-blue);">{mid_a}</td>
-                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; font-weight:bold;">MIDFIELD UNIT</td>
-                        <td style="text-align:left; font-weight:bold; color:var(--accent-red);">{mid_b}</td>
+                        <td style="text-align:right;">{talent_mid_a}</td>
+                        <td style="text-align:center;">MIDFIELD UNIT</td>
+                        <td style="text-align:left;">{talent_mid_b}</td>
                     </tr>
                     <tr style="background: rgba(59, 130, 246, 0.03);">
-                        <td style="text-align:right; font-weight:bold; color:var(--accent-blue);">{def_a}</td>
-                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; font-weight:bold;">DEFENSE UNIT</td>
-                        <td style="text-align:left; font-weight:bold; color:var(--accent-red);">{def_b}</td>
+                        <td style="text-align:right;">{talent_def_a}</td>
+                        <td style="text-align:center;">DEFENSE UNIT</td>
+                        <td style="text-align:left;">{talent_def_b}</td>
                     </tr>
                     <tr style="background: rgba(59, 130, 246, 0.03);">
-                        <td style="text-align:right; font-weight:bold; color:var(--accent-blue);">{gk_a}</td>
-                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; font-weight:bold;">GOALKEEPER</td>
-                        <td style="text-align:left; font-weight:bold; color:var(--accent-red);">{gk_b}</td>
+                        <td style="text-align:right;">{talent_gk_a}</td>
+                        <td style="text-align:center;">GOALKEEPER</td>
+                        <td style="text-align:left;">{talent_gk_b}</td>
                     </tr>
                     <tr>
                         <td style="text-align:right; font-weight:bold;">{sa.get('adj_gf', 0):.2f}</td>
@@ -888,10 +888,12 @@ async def run_matchup_analysis(event):
             <h3 style="margin-top:0; color:#f59e0b;">⚔️ Tactical Comparison</h3>
             <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:15px;">
                 <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #ef4444;">
-                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px;">Attacking Power ⚽</div>
-                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;"><div style="background:#3b82f6; height:100%; width:{(atk_a/10)*100:.0f}%;"></div></div>
-                        <div style="font-weight:bold; font-size:0.9em; width:20px;">{atk_a:.1f}</div>
+                    <<div style="font-weight:bold; font-size:0.85em;">Attacking Power ⚽</div>
+                    <div style="display:flex; align-items:center;">
+                        <div style="flex:1; background:#f0f0f0;">
+                            <div style="background:#3b82f6; width:{(tac_atk_a/10)*100:.0f}%;"></div>
+                        </div>
+                        <div style="font-weight:bold;">{tac_atk_a:.1f}</div>
                     </div>
                     <div style="display:flex; align-items:center; gap:8px;">
                         <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;"><div style="background:#ef4444; height:100%; width:{(atk_b/10)*100:.0f}%;"></div></div>
@@ -900,10 +902,12 @@ async def run_matchup_analysis(event):
                 </div>
                 
                 <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #10b981;">
-                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px;">Defensive Solidity 🛡️</div>
-                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;"><div style="background:#3b82f6; height:100%; width:{(def_a/10)*100:.0f}%;"></div></div>
-                        <div style="font-weight:bold; font-size:0.9em; width:20px;">{def_a:.1f}</div>
+                    <div style="font-weight:bold; font-size:0.85em;">Defensive Solidity 🛡️</div>
+                    <div style="display:flex; align-items:center;">
+                        <div style="flex:1; background:#f0f0f0;">
+                            <div style="background:#3b82f6; width:{(tac_def_a/10)*100:.0f}%;"></div>
+                        </div>
+                        <div style="font-weight:bold;">{tac_def_a:.1f}</div>
                     </div>
                     <div style="display:flex; align-items:center; gap:8px;">
                         <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;"><div style="background:#ef4444; height:100%; width:{(def_b/10)*100:.0f}%;"></div></div>
