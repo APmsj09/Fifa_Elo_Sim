@@ -1,0 +1,111 @@
+If you want to become the "God" of this simulation, you have four main "Dials" you can turn in simulation_engine.py. Changing these will completely shift who wins, how many goals are scored, and how often "Cinderella" stories happen.
+Here is your guide to the most impactful tweaks:
+1. The "Talent vs. History" Dial
+What it does: Decides if a team wins because they have good players today (FIFA ratings) or because they have a winning culture (Elo history).
+Location: precompute_match_data()
+The Code:
+code
+Python
+blended_elo = (base_elo * 0.55) + (talent_elo * 0.45)
+The Tweak:
+Want more Realism/History? Change it to 0.80 and 0.20. This ensures giants like Brazil and Argentina stay on top even if their current squad is aging.
+Want a "New Era" (The Norway/USA Buff)? Change it to 0.30 and 0.70. This will make teams with high-rated young stars (like Norway, USA, or France) almost unstoppable.
+2. The "Chaos Dial" (Upset Frequency)
+What it does: Decides how much a gap in Elo actually matters.
+Location: sim_match()
+The Code:
+code
+Python
+active_divisor = 580 if knockout else 500
+The Tweak:
+Want a "Chalk" Tournament (No Upsets)? Lower the numbers (e.g., 300). This makes a 100-point Elo difference feel like a mountain. The favorites will win almost every time.
+Want "Pure Chaos" (March Madness style)? Raise the numbers (e.g., 1000). This flattens the advantage of the top teams, making every game feel like a 50/50 toss-up.
+3. The "Goal Scoring" Dial
+What it does: Sets the baseline for how many goals happen per game.
+Location: sim_match()
+The Code:
+code
+Python
+total_match_goals = 2.70 * pace * intensity
+The Tweak:
+Want the 1950s (5-4 scores everywhere)? Change 2.70 to 4.0.
+Want "Tactical Slogs" (Italian Catenaccio)? Change 2.70 to 1.8.
+Bonus: Change the intensity = 0.82 (line 351). If you set this to 1.0, knockout games will be just as high-scoring as group games (fewer penalty shootouts).
+4. The "Home Field Advantage" Dial
+What it does: Gives a boost to the 2026 hosts (USA, Mexico, Canada).
+Location: run_simulation()
+How to do it: Right now, HFA is only used to calculate historical Elos. To give the 2026 hosts a "Home Boost," find the sim_match calls inside the tournament loop and add an Elo bonus.
+The Tweak (Logic):
+code
+Python
+# Find this line in run_simulation:
+w, g1, g2 = sim_match(t1, t2)
+
+# Add this logic above it:
+if t1 in ['unitedstates', 'mexico', 'canada']:
+    # Temporarily boost the host's Elo for this match
+    TEAM_PRECOMPUTE[t1]['elo'] += 150
+5. The "Volatility" Multiplier
+What it does: Controls how "lucky" or "unlucky" a team can get in a single game.
+Location: sim_match() -> roll() function
+The Code:
+code
+Python
+active_vol = v * (1.25 - (c * 0.35))
+The Tweak:
+Want more "Fluke" wins? Change 1.25 to 2.0. This increases the "variance." A team might have an xG of 0.5 but suddenly score 4 goals because the "dice" are heavier.
+Want "Professionalism"? Change 1.25 to 1.0. This makes the game much more predictable based on the stats.
+Summary Checklist for Tweaking:
+More Goals: Increase total_match_goals.
+More Upsets: Increase active_divisor.
+Favor Big Names: Increase the 0.55 weight in blended_elo.
+Favor Wonderkids: Increase the 0.45 weight in blended_elo.
+Harder Knockouts: Decrease the 0.82 intensity.
+Pro-tip: After you change these numbers, run a Bulk Simulation of 10,000 matches. If your "Chaos Dial" is too high, you'll see a team like Haiti winning the World Cup! If it's too low, you'll see France winning 40% of the time.
+
+How to Tweak it if you want more goals
+Right now, your engine brilliantly simulates the fact that knockout football is tense and defensive. In simulation_engine.py, you have this line in the sim_match function:
+code
+Python
+intensity = 0.82 if knockout else 1.0
+This reduces the expected goals in knockout matches by 18%, which heavily mimics real-world tournament tension (where 1-0 and 0-0 games become much more common).
+If you want to see higher-scoring knockout stages (more 3-2 thrillers), you can simply raise that multiplier:
+code
+Python
+# Change to 0.90 to make knockout games slightly more open
+intensity = 0.90 if knockout else 1.0
+
+Yes! Your simulation engine absolutely measures Consistency, Momentum, and Volatility. In fact, the way your code handles these three concepts is the secret to why your upset mechanics and distributions look so realistic.
+Here is exactly how the engine measures and uses them in your Python code:
+1. Volatility (The "Chaos" Factor)
+How it's measured:
+In _initialize_engine_impl(), the engine tracks recent_residuals for every team. A "residual" is the mathematical difference between what the engine expected to happen (based on Elo) and what actually happened.
+If a team reliably beats bad teams 2-0 and loses to great teams 0-2, their residuals are tiny.
+If a team randomly loses to minnows but beats World Cup favorites, their residuals are massive.
+The engine calculates this variance and assigns a volatility score between 0.10 and 0.40.
+How it's used in the Sim:
+In sim_match(), goals aren't rolled using a standard bell curve; they are rolled using a Gamma-Poisson Distribution.
+If a highly volatile team (like a wildcard underdog) is expected to score 1.0 goals, their distribution is flattened out. They have a higher chance of randomly scoring 0 goals, but also a surprisingly high chance of randomly scoring 3 goals. This is what allows for "Miracle Upsets".
+2. Consistency (The "Clinical" Bonus)
+How it's measured:
+Consistency is treated as the mathematical opposite of volatility. If a team has a volatility score under 0.15, the engine considers them highly consistent.
+How it's used in the Sim:
+Look at this exact line from your sim_match() logic:
+lam1 *= (1.0 + max(0, 0.15 - p1['vol']) * 0.25)
+This acts as a "Clinical Finishing Buff." If a top-tier team is highly consistent (volatility < 0.15), the engine gives their Expected Goals (lam1) a slight percentage multiplier. It simulates the reality that elite, consistent teams are ruthless—they don't need 10 chances to score; they bury the 1 or 2 chances they get.
+3. Momentum (Form & Peak Timing)
+How it's measured:
+In the engine initialization, the code looks at a team's historical timeline and creates a specific momentum metric:
+s['momentum'] = (TEAM_HISTORY[t]['elo'][-1] - TEAM_HISTORY[t]['elo'][-10]) / 100
+It takes their exact Elo rating today and subtracts their Elo rating from 10 games ago.
+How it's used:
+This is actually handled brilliantly.
+In the Dashboard/Scouting Report: The engine uses this metric to flag teams that are "riding a massive wave of positive form" versus teams that are "bleeding Elo rating over their last 10 matches."
+In the Match Sim: The engine deliberately avoids applying a raw "momentum multiplier" to the dice roll. Why? Because Current Elo already includes momentum. If a team won their last 10 games, their Elo is already inflated to its peak. If the engine added another math bonus for "momentum", it would double-count their good form and break the model.
+Bonus: "Composure" (Tournament Experience)
+You also have a hidden 4th metric in there: Composure.
+In precompute_match_data(), composure is built based on ko_exp_weighted (how many recent high-pressure knockout matches a team has played in the World Cup/Continental cups).
+When the engine reaches a Knockout match, it applies this line:
+active_vol = v * (1.25 - (c * 0.35))
+This means when an experienced team (like France or Argentina) gets to the Quarter-Finals, their volatility is shrunk by their composure rating. They stop making silly mistakes. Underdogs without tournament experience maintain their high volatility, meaning the pressure gets to them.
+Summary: Your engine measures how wild a team is (Volatility), rewards them for being ruthless (Consistency), tracks their hot streaks (Momentum), and makes them play tighter under pressure (Composure).
