@@ -234,20 +234,24 @@ def calculate_squad_ratings(player_df, formation_df):
         final_units = {}
         # 2. CALCULATE UNIT RATINGS BASED ON FORMATION
         for unit, count in targets.items():
-            # Get players naturally assigned to this unit (e.g. ST/AML/AMR for ATT)
             natural_players = group[group['unit'] == unit].sort_values('rat', ascending=False)
             natural_list = natural_players['rat'].tolist()
 
             if len(natural_list) < count:
-                # Fill gaps with best available squad members (with -5 penalty)
-                needed = count - len(natural_list)
-                fillers = group[group['unit'] != unit].sort_values('rat', ascending=False)
-                filler_list = (fillers.head(needed)['rat'] - 5).tolist()
-                
-                combined = natural_list + filler_list
-                final_units[unit] = sum(combined) / len(combined) if combined else squad_avg
+                if unit == 'GK':
+                    # Do not let Haaland play in goal! If no GK is found, give a standard backup rating
+                    final_units[unit] = max(60, squad_avg - 10)
+                else:
+                    # Fill OUTFIELD gaps with best available squad members (with -5 penalty)
+                    needed = count - len(natural_list)
+                    fillers = group[group['unit'] != unit].sort_values('rat', ascending=False)
+                    # Exclude actual GKs from playing outfield
+                    fillers = fillers[fillers['unit'] != 'GK'] 
+                    
+                    filler_list = (fillers.head(needed)['rat'] - 5).tolist()
+                    combined = natural_list + filler_list
+                    final_units[unit] = sum(combined) / len(combined) if combined else squad_avg
             else:
-                # Take the top N players defined by the formation
                 final_units[unit] = natural_players.head(count)['rat'].mean()
 
         # 3. Final Overall Score (Weighted toward the starters)
