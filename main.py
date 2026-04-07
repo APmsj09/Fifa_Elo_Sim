@@ -476,7 +476,20 @@ def build_bulk_dashboard():
 
     top_rivalry = max(ko_counts, key=ko_counts.get) if ko_counts else ("None", "None")
     rivalry_matches = ko_counts.get(top_rivalry, 0)
-    gk_text = f"{giant_killer[0].title()} beats {giant_killer[1].title()} ({giant_killer[2]*100:.1f}%)" if giant_killer[0] != "None" else "None"
+    
+    # --- NEW NAME FORMATTING VARIABLES ---
+    cind_name = sim.PRETTY_NAMES.get(cinderella, cinderella.title()) if cinderella != "None" else "None"
+    scorer_name = sim.PRETTY_NAMES.get(top_scorer, top_scorer.title()) if top_scorer != "None" else "None"
+    riv1_name = sim.PRETTY_NAMES.get(top_rivalry[0], top_rivalry[0].title()) if top_rivalry[0] != "None" else "None"
+    riv2_name = sim.PRETTY_NAMES.get(top_rivalry[1], top_rivalry[1].title()) if top_rivalry[1] != "None" else "None"
+    
+    if giant_killer[0] != "None":
+        gk0_name = sim.PRETTY_NAMES.get(giant_killer[0], giant_killer[0].title())
+        gk1_name = sim.PRETTY_NAMES.get(giant_killer[1], giant_killer[1].title())
+        gk_text = f"{gk0_name} beats {gk1_name} ({giant_killer[2]*100:.1f}%)"
+    else:
+        gk_text = "None"
+    # --------------------------------------
 
     html = f"""
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
@@ -487,12 +500,12 @@ def build_bulk_dashboard():
         </div>
         <div class="dashboard-card" style="margin:0; border-left:4px solid var(--accent-gold);">
             <div style="font-size:0.75em; text-transform:uppercase; color:var(--text-light); font-weight:700;">Top Dark Horse</div>
-            <div style="font-size:1.6em; font-weight:900; color:var(--accent-gold); margin:5px 0;">{cinderella.title()}</div>
+            <div style="font-size:1.6em; font-weight:900; color:var(--accent-gold); margin:5px 0;">{cind_name}</div>
             <div style="font-size:0.8em; color:var(--text-light);">{cind_pct:.1f}% chance to reach QF</div>
         </div>
         <div class="dashboard-card" style="margin:0; border-left:4px solid var(--accent-green);">
             <div style="font-size:0.75em; text-transform:uppercase; color:var(--text-light); font-weight:700;">Highest Scoring Team</div>
-            <div style="font-size:1.6em; font-weight:900; color:var(--accent-green); margin:5px 0;">{top_scorer.title()}</div>
+            <div style="font-size:1.6em; font-weight:900; color:var(--accent-green); margin:5px 0;">{scorer_name}</div>
             <div style="font-size:0.8em; color:var(--text-light);">{avg_goals[top_scorer]:.1f} projected tournament goals</div>
         </div>
     </div>
@@ -501,7 +514,7 @@ def build_bulk_dashboard():
         <div class="dashboard-card" style="margin:0; background:rgba(139, 92, 246, 0.05); border:1px solid rgba(139, 92, 246, 0.2);">
             <div style="font-size:0.75em; text-transform:uppercase; color:#8b5cf6; font-weight:700;">⚔️ Most Frequent Knockout Matchup</div>
             <div style="font-size:1.1em; font-weight:700; color:var(--text-main); margin-top:5px;">
-                {top_rivalry[0].title()} vs {top_rivalry[1].title()} <span style="font-size:0.8em; color:var(--text-light); font-weight:normal;">({rivalry_matches} meetings)</span>
+                {riv1_name} vs {riv2_name} <span style="font-size:0.8em; color:var(--text-light); font-weight:normal;">({rivalry_matches} meetings)</span>
             </div>
         </div>
         <div class="dashboard-card" style="margin:0; background:rgba(239, 68, 68, 0.05); border:1px solid rgba(239, 68, 68, 0.2);">
@@ -526,8 +539,9 @@ def build_bulk_dashboard():
             s = state['stats'][t]
             adv_pct = (s['r32'] / num) * 100
             opacity = "1.0" if (s['apps']/num) > 0.5 else "0.5"
+            t_name = sim.PRETTY_NAMES.get(t, t.title())  # ADDED THIS LINE
             html += f"""<tr style='opacity:{opacity}; border-bottom:1px solid var(--sidebar-border);'>
-                <td style='padding:6px 0; font-weight:600;'>{t.title()}</td>
+                <td style='padding:6px 0; font-weight:600;'>{t_name}</td>
                 <td style='padding:6px 0; text-align:right; font-weight:bold; color:var(--accent-green);'>{adv_pct:.1f}%</td>
             </tr>"""
         html += "</table></div>"
@@ -591,7 +605,7 @@ def render_favorites_table(event=None):
         <tr>
             <td style="text-align:left;">
                 <button onclick="window.show_team_path('{team}')" style="background:transparent; border:none; color:var(--accent-blue); font-weight:bold; cursor:pointer; font-size:1em; padding:0; text-align:left;">
-                    {team.title()} 🔍
+                    {sim.PRETTY_NAMES.get(team, team.title())} 🔍
                 </button>
             </td>
             <td style="text-align:right;">{format_odds(s['r32'], num)}</td>
@@ -620,9 +634,10 @@ def open_team_path_modal(team):
         out = ""
         for opp, count in sorted_opps:
             pct = (count / total_games) * 100
+            opp_name = sim.PRETTY_NAMES.get(opp, opp.title()) # ADD THIS LINE
             out += f"""
             <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:0.9em; border-bottom:1px solid var(--sidebar-border); padding-bottom:3px;">
-                <span style="color:var(--text-main); font-weight:500;">{opp.title()}</span>
+                <span style="color:var(--text-main); font-weight:500;">{opp_name}</span>
                 <span style="color:var(--accent-blue); font-weight:bold;">{pct:.1f}%</span>
             </div>"""
         return out
@@ -639,8 +654,7 @@ def open_team_path_modal(team):
     
     def render_h2h(data_list):
         if not data_list: return "<div style='font-size:0.85em; color:var(--text-light);'>Not enough data.</div>"
-        return "".join([f"<div style='display:flex; justify-content:space-between; font-size:0.85em; margin-bottom:4px;'><span style='font-weight:600;'>{x[0].title()}</span> <b>{x[1]:.1f}%</b></div>" for x in data_list])
-
+        return "".join([f"<div style='display:flex; justify-content:space-between; font-size:0.85em; margin-bottom:4px;'><span style='font-weight:600;'>{sim.PRETTY_NAMES.get(x[0], x[0].title())}</span> <b>{x[1]:.1f}%</b></div>" for x in data_list])
     best_opps_html = render_h2h(valid_opps[:3])
     worst_opps_html = render_h2h(valid_opps[-3:][::-1]) 
 
@@ -648,7 +662,7 @@ def open_team_path_modal(team):
     <div id="path-modal-overlay" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center; backdrop-filter:blur(3px);" onclick="document.getElementById('path-modal-overlay').remove()">
         <div style="background:var(--card-bg); width:95%; max-width:500px; border-radius:12px; padding:25px; box-shadow:var(--shadow-lg); max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid var(--sidebar-border); padding-bottom:10px;">
-                <h2 style="margin:0; color:var(--text-main); font-size:1.3em;">🔮 The Path: {team.title()}</h2>
+                <h2 style="margin:0; color:var(--text-main); font-size:1.3em;">🔮 The Path: {sim.PRETTY_NAMES.get(team, team.title())}</h2>
                 <button onclick="document.getElementById('path-modal-overlay').remove()" style="background:transparent; border:none; font-size:1.5em; cursor:pointer; color:var(--text-light);">&times;</button>
             </div>
             

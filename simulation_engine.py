@@ -915,14 +915,14 @@ def sim_match(t1, t2, knockout=False):
     # 1. Match Environment 
     pace = (p1['pace'] + p2['pace']) / 2
     # Knockout matches are tighter -> fewer goals = more draws = better underdog odds
-    intensity = 0.82 if knockout else 1.0 
-    total_match_goals = 2.70 * pace * intensity 
+    intensity = 0.87 if knockout else 1.0 
+    total_match_goals = 2.82 * pace * intensity 
     
     dr = p1['elo'] - p2['elo']
     
     # 3. Elo Probability Distribution
     # Increase the divisor strictly for knockouts to simulate tournament parity
-    active_divisor = 580 if knockout else 500
+    active_divisor = 620 if knockout else 500
     win_prob = 1 / (10**(-dr/active_divisor) + 1)
     
     elo_lam1 = total_match_goals * win_prob
