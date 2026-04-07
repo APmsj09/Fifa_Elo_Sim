@@ -18,12 +18,47 @@ import re
 import unicodedata
 
 def get_slug(name):
-    """Turns 'Curaçao' or 'Turkey ' into 'curacao' or 'turkey'"""
+    """Accents, Synonyms, and Formatting handler"""
     if not name: return ""
-    # Normalize unicode (turns ç into c + cedilla) then strip the accents
-    name = unicodedata.normalize('NFKD', str(name)).encode('ascii', 'ignore').decode('utf-8')
-    # Lowercase and remove all non-alphanumeric characters
-    return re.sub(r'[^a-z0-9]', '', name.lower().strip())
+    
+    # 1. Basic Cleaning
+    name = str(name).strip().lower()
+
+    # 2. THE SYNONYM MAP (The "Fix-All" Dictionary)
+    # This maps common variations to a single 'Master Name'
+    synonyms = {
+        # CONCACAF
+        'usa': 'united states', 'u.s.a.': 'united states', 'united states of america': 'united states',
+        'curacao': 'curaçao',
+        
+        # AFC
+        'south korea': 'korea republic', 'korea': 'korea republic', 'rep of korea': 'korea republic',
+        'iran': 'ir iran', 'islamic republic of iran': 'ir iran',
+        'uae': 'united arab emirates',
+        'kyrgyzstan': 'kyrgyz republic',
+        
+        # UEFA
+        'czechia': 'czech republic',
+        'turkiye': 'turkey', 'türkiye': 'turkey',
+        'ireland': 'republic of ireland', 'eire': 'republic of ireland',
+        
+        # CAF
+        'ivory coast': "cote d'ivoire", 'cote d'ivoire': "cote d'ivoire",
+        'dr congo': 'congo dr', 'democratic republic of the congo': 'congo dr',
+        'cape verde': 'cabo verde',
+    }
+    
+    # Check if the name is a known synonym
+    if name in synonyms:
+        name = synonyms[name]
+
+    # 3. UNICODE NORMALIZATION (Turns 'ç' into 'c')
+    name = unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode('utf-8')
+    
+    # 4. FINAL SLUG (Remove all non-alphanumeric characters)
+    # This turns 'Cote d'Ivoire' into 'cotedivoire'
+    # and 'United States' into 'unitedstates'
+    return re.sub(r'[^a-z0-9]', '', name.lower())
 
 def parse_formation_to_targets(fmt_str):
     """
@@ -855,12 +890,17 @@ def precompute_match_data():
         }
 
 def sim_match(t1, t2, knockout=False):
+    # CRITICAL FIX: Convert both names to slugs immediately
     t1 = get_slug(t1) 
     t2 = get_slug(t2)
+    
     p1 = TEAM_PRECOMPUTE.get(t1)
     p2 = TEAM_PRECOMPUTE.get(t2)
 
-    if not p1 or not p2: return t1, 1, 0, 'reg'
+    # UPDATED FALLBACK: If a team is truly missing, return a draw/default 
+    # instead of a guaranteed 1-0 win for Team A.
+    if not p1 or not p2: 
+        return (t1, 0, 0, 'reg') if knockout else ('draw', 0, 0)
 
     # 1. Match Environment 
     pace = (p1['pace'] + p2['pace']) / 2

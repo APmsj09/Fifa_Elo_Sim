@@ -713,36 +713,28 @@ async def run_matchup_analysis(event):
 
         for _ in range(sim_count):
             res, g1, g2 = sim.sim_match(team_a, team_b, knockout=False)
-            
             if res == team_a: a_wins += 1
             elif res == team_b: b_wins += 1
             else: draws += 1
-            
             a_goals += g1
             b_goals += g2
-            
             score_str = f"{g1}-{g2}"
             scorelines[score_str] = scorelines.get(score_str, 0) + 1
 
         p_a = (a_wins / sim_count) * 100
         p_d = (draws / sim_count) * 100
         p_b = (b_wins / sim_count) * 100
-        
         ci_a = calculate_ci(a_wins, sim_count)
         ci_d = calculate_ci(draws, sim_count)
         ci_b = calculate_ci(b_wins, sim_count)
-        
         avg_ga = a_goals / sim_count
         avg_gb = b_goals / sim_count
-
         sorted_scores = sorted(scorelines.items(), key=lambda x: x[1], reverse=True)[:3]
 
         sa = sim.TEAM_STATS.get(team_a, {})
         sb = sim.TEAM_STATS.get(team_b, {})
         ta = sim.TEAM_TALENT.get(team_a, {})
         tb = sim.TEAM_TALENT.get(team_b, {})
-        
-        # Helper to get Pretty Names
         name_a = sim.PRETTY_NAMES.get(team_a, team_a.title())
         name_b = sim.PRETTY_NAMES.get(team_b, team_b.title())
 
@@ -750,14 +742,10 @@ async def run_matchup_analysis(event):
             val = talent_dict.get(key, 0)
             return int(round(val)) if val > 0 else "--"
 
-        # Squad talent variables
         talent_att_a, talent_att_b = get_rat(ta, 'rating_att'), get_rat(tb, 'rating_att')
         talent_mid_a, talent_mid_b = get_rat(ta, 'rating_mid'), get_rat(tb, 'rating_mid')
         talent_def_a, talent_def_b = get_rat(ta, 'rating_def'), get_rat(tb, 'rating_def')
         talent_gk_a,  talent_gk_b  = get_rat(ta, 'rating_gk'),  get_rat(tb, 'rating_gk')
-
-        style_a = sim.TEAM_PROFILES.get(team_a, 'Balanced')
-        style_b = sim.TEAM_PROFILES.get(team_b, 'Balanced')
 
         import math
         def calc_tactical_score(attacking, defending):
@@ -765,6 +753,7 @@ async def run_matchup_analysis(event):
             score = 5 + 2.5 * math.log(ratio)
             return max(0.5, min(9.5, score)) 
         
+        # Consistent tac_ prefix for all 0-10 bar calculations
         tac_atk_a = calc_tactical_score(sa.get('off', 1.0), sb.get('def', 1.0))
         tac_atk_b = calc_tactical_score(sb.get('off', 1.0), sa.get('def', 1.0))
         tac_def_a = calc_tactical_score(sa.get('def', 1.0), sb.get('off', 1.0))
@@ -772,12 +761,10 @@ async def run_matchup_analysis(event):
         consistency_a = min(10, (7.5 - (sa.get('btts_pct', 50) - 50) / 10))
         consistency_b = min(10, (7.5 - (sb.get('btts_pct', 50) - 50) / 10))
 
-        tactical_clash = f"This is a balanced matchup where individual brilliance or a single mistake will likely decide the outcome."
-        # ... (Keep your Style Matchup logic) ...
-
-        sa_elo = int(sa.get('elo', 1200))
-        sb_elo = int(sb.get('elo', 1200))
-        elo_diff = abs(sa_elo - sb_elo)
+        style_a = sim.TEAM_PROFILES.get(team_a, 'Balanced')
+        style_b = sim.TEAM_PROFILES.get(team_b, 'Balanced')
+        tactical_clash = f"Clash between {name_a}'s {style_a} and {name_b}'s {style_b}."
+        elo_diff = abs(int(sa.get('elo', 1200)) - int(sb.get('elo', 1200)))
         
         html = f"""
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
@@ -788,13 +775,11 @@ async def run_matchup_analysis(event):
                     <div style="color:#64748b; font-size:0.8em; align-self:center;">DRAW<br><span style="font-size:0.7em;"><span class='ci-value' data-ci='95% CI: ±{ci_d:.1f}%'>{p_d:.1f}%</span></span></div>
                     <div style="color:#ef4444;">{name_b}<br><span style="font-size:0.6em; font-weight:400;"><span class='ci-value' data-ci='95% CI: ±{ci_b:.1f}%'>{p_b:.1f}%</span></span></div>
                 </div>
-
-                <div style="width:100%; height:30px; display:flex; border-radius:8px; overflow:hidden; box-shadow:var(--shadow-sm);">
+                <div style="width:100%; height:30px; display:flex; border-radius:8px; overflow:hidden;">
                     <div style="width:{p_a}%; background:#3b82f6;"></div>
                     <div style="width:{p_d}%; background:#cbd5e1;"></div>
                     <div style="width:{p_b}%; background:#ef4444;"></div>
                 </div>
-                
                 <div style="display:flex; justify-content:space-between; margin-top:20px;">
                     <div class="stat-pill" style="flex:1; margin-right:10px;">
                         <div class="stat-pill-title">Exp. Goals</div>
@@ -806,129 +791,89 @@ async def run_matchup_analysis(event):
                     </div>
                 </div>
             </div>
-
             <div class="dashboard-card" style="margin-bottom:0;">
-                <h3 style="margin-top:0; color:var(--text-light); text-transform:uppercase; font-size:0.85em;">Most Likely Scorelines</h3>
+                <h3 style="margin-top:0; color:var(--text-light); text-transform:uppercase; font-size:0.85em;">Likely Scorelines</h3>
                 <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px;">
         """
-        
-        colors = ['#f59e0b', '#94a3b8', '#b45309'] 
         for i, (score, count) in enumerate(sorted_scores):
             pct = (count/sim_count)*100
             html += f"""
-            <div class="scoreline-row" style="border-left:4px solid {colors[i]};">
+            <div class="scoreline-row">
                 <div class="scoreline-label">{score}</div>
-                <div style="flex-grow:1;"><div style="height:8px; background:#e2e8f0; border-radius:4px;"><div style="height:100%; width:{pct * 3}%; background:{colors[i]}; border-radius:4px;"></div></div></div>
+                <div style="flex-grow:1;"><div style="height:8px; background:#e2e8f0; border-radius:4px;"><div style="height:100%; width:{pct * 3}%; background:#f59e0b; border-radius:4px;"></div></div></div>
                 <div class="scoreline-pct">{pct:.1f}%</div>
             </div>"""
-            
         html += f"""
                 </div>
             </div>
         </div>
-
         <div class="dashboard-card" style="border-top:4px solid #8b5cf6;">
-            <h3 style="margin-top:0; color:#8b5cf6; font-size:1.2em;">🔭 Matchup Analysis: {style_a} vs {style_b}</h3>
-            <p style="font-size:1.05em; line-height:1.6; color:var(--text-main);">{tactical_clash}</p>
-            
+            <h3 style="margin-top:0; color:#8b5cf6; font-size:1.2em;">🔭 Matchup Analysis</h3>
+            <p>{tactical_clash}</p>
             <table class="rankings-table" style="margin-top:20px;">
                 <thead>
-                    <tr>
-                        <th style="width:33%; text-align:right; color:#3b82f6; font-size:1.1em;">{name_a}</th>
-                        <th style="width:33%; text-align:center;">Squad DNA</th>
-                        <th style="width:33%; text-align:left; color:#ef4444; font-size:1.1em;">{name_b}</th>
-                    </tr>
+                    <tr><th style="width:33%; text-align:right;">{name_a}</th><th style="width:33%; text-align:center;">Squad DNA</th><th style="width:33%; text-align:left;">{name_b}</th></tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td style="text-align:right; font-weight:bold;">{sa_elo}</td>
-                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; text-transform:uppercase;">Elo Rating</td>
-                        <td style="text-align:left; font-weight:bold;">{sb_elo}</td>
-                    </tr>
-                    <tr style="background: rgba(59, 130, 246, 0.03);">
-                        <td style="text-align:right;">{talent_att_a}</td>
-                        <td style="text-align:center;">ATTACK UNIT</td>
-                        <td style="text-align:left;">{talent_att_b}</td>
-                    </tr>
-                    <tr style="background: rgba(59, 130, 246, 0.03);">
-                        <td style="text-align:right;">{talent_mid_a}</td>
-                        <td style="text-align:center;">MIDFIELD UNIT</td>
-                        <td style="text-align:left;">{talent_mid_b}</td>
-                    </tr>
-                    <tr style="background: rgba(59, 130, 246, 0.03);">
-                        <td style="text-align:right;">{talent_def_a}</td>
-                        <td style="text-align:center;">DEFENSE UNIT</td>
-                        <td style="text-align:left;">{talent_def_b}</td>
-                    </tr>
-                    <tr style="background: rgba(59, 130, 246, 0.03);">
-                        <td style="text-align:right;">{talent_gk_a}</td>
-                        <td style="text-align:center;">GOALKEEPER</td>
-                        <td style="text-align:left;">{talent_gk_b}</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align:right; font-weight:bold;">{sa.get('adj_gf', 0):.2f}</td>
-                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; text-transform:uppercase;">Attacking Power</td>
-                        <td style="text-align:left; font-weight:bold;">{sb.get('adj_gf', 0):.2f}</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align:right; font-weight:bold;">{sa.get('adj_ga', 0):.2f}</td>
-                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; text-transform:uppercase;">Defensive Leaks</td>
-                        <td style="text-align:left; font-weight:bold;">{sb.get('adj_ga', 0):.2f}</td>
-                    </tr>
-                    <tr>
-                        <td style="text-align:right; font-weight:bold;">{int(sa.get('btts_pct', 0))}%</td>
-                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; text-transform:uppercase;">BTTS %</td>
-                        <td style="text-align:left; font-weight:bold;">{int(sb.get('btts_pct', 0))}%</td>
-                    </tr>
+                    <tr><td style="text-align:right; font-weight:bold;">{int(sa.get('elo', 0))}</td><td style="text-align:center;">Elo Rating</td><td style="text-align:left; font-weight:bold;">{int(sb.get('elo', 0))}</td></tr>
+                    <tr style="background: rgba(59, 130, 246, 0.03);"><td style="text-align:right;">{talent_att_a}</td><td style="text-align:center;">ATTACK</td><td style="text-align:left;">{talent_att_b}</td></tr>
+                    <tr style="background: rgba(59, 130, 246, 0.03);"><td style="text-align:right;">{talent_mid_a}</td><td style="text-align:center;">MIDFIELD</td><td style="text-align:left;">{talent_mid_b}</td></tr>
+                    <tr style="background: rgba(59, 130, 246, 0.03);"><td style="text-align:right;">{talent_def_a}</td><td style="text-align:center;">DEFENSE</td><td style="text-align:left;">{talent_def_b}</td></tr>
+                    <tr style="background: rgba(59, 130, 246, 0.03);"><td style="text-align:right;">{talent_gk_a}</td><td style="text-align:center;">GOALKEEPER</td><td style="text-align:left;">{talent_gk_b}</td></tr>
+                    <tr><td style="text-align:right; font-weight:bold;">{sa.get('adj_gf', 0):.2f}</td><td style="text-align:center;">Attacking Power</td><td style="text-align:left; font-weight:bold;">{sb.get('adj_gf', 0):.2f}</td></tr>
                 </tbody>
             </table>
         </div>
-
         <div class="dashboard-card" style="border-left:4px solid #f59e0b; margin-top:20px;">
             <h3 style="margin-top:0; color:#f59e0b;">⚔️ Tactical Comparison</h3>
             <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:15px;">
                 <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #ef4444;">
-                    <<div style="font-weight:bold; font-size:0.85em;">Attacking Power ⚽</div>
-                    <div style="display:flex; align-items:center;">
-                        <div style="flex:1; background:#f0f0f0;">
-                            <div style="background:#3b82f6; width:{(tac_atk_a/10)*100:.0f}%;"></div>
+                    <div style="font-weight:bold; font-size:0.85em;">Attacking Power ⚽</div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
+                            <div style="background:#3b82f6; height:100%; width:{(tac_atk_a/10)*100:.0f}%;"></div>
                         </div>
                         <div style="font-weight:bold;">{tac_atk_a:.1f}</div>
                     </div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;"><div style="background:#ef4444; height:100%; width:{(atk_b/10)*100:.0f}%;"></div></div>
-                        <div style="font-weight:bold; font-size:0.9em; width:20px;">{atk_b:.1f}</div>
+                    <div style="display:flex; align-items:center; gap:8px; margin-top:5px;">
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
+                            <div style="background:#ef4444; height:100%; width:{(tac_atk_b/10)*100:.0f}%;"></div>
+                        </div>
+                        <div style="font-weight:bold;">{tac_atk_b:.1f}</div>
                     </div>
                 </div>
-                
                 <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #10b981;">
                     <div style="font-weight:bold; font-size:0.85em;">Defensive Solidity 🛡️</div>
-                    <div style="display:flex; align-items:center;">
-                        <div style="flex:1; background:#f0f0f0;">
-                            <div style="background:#3b82f6; width:{(tac_def_a/10)*100:.0f}%;"></div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
+                            <div style="background:#3b82f6; height:100%; width:{(tac_def_a/10)*100:.0f}%;"></div>
                         </div>
                         <div style="font-weight:bold;">{tac_def_a:.1f}</div>
                     </div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;"><div style="background:#ef4444; height:100%; width:{(def_b/10)*100:.0f}%;"></div></div>
-                        <div style="font-weight:bold; font-size:0.9em; width:20px;">{def_b:.1f}</div>
+                    <div style="display:flex; align-items:center; gap:8px; margin-top:5px;">
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
+                            <div style="background:#ef4444; height:100%; width:{(tac_def_b/10)*100:.0f}%;"></div>
+                        </div>
+                        <div style="font-weight:bold;">{tac_def_b:.1f}</div>
                     </div>
                 </div>
-                
                 <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #8b5cf6;">
-                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px;">Consistency 📊</div>
-                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;"><div style="background:#3b82f6; height:100%; width:{(consistency_a/10)*100:.0f}%;"></div></div>
-                        <div style="font-weight:bold; font-size:0.9em; width:20px;">{consistency_a:.1f}</div>
-                    </div>
+                    <div style="font-weight:bold; font-size:0.85em;">Consistency 📊</div>
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;"><div style="background:#ef4444; height:100%; width:{(consistency_b/10)*100:.0f}%;"></div></div>
-                        <div style="font-weight:bold; font-size:0.9em; width:20px;">{consistency_b:.1f}</div>
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
+                            <div style="background:#3b82f6; height:100%; width:{(consistency_a/10)*100:.0f}%;"></div>
+                        </div>
+                        <div style="font-weight:bold;">{consistency_a:.1f}</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; margin-top:5px;">
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
+                            <div style="background:#ef4444; height:100%; width:{(consistency_b/10)*100:.0f}%;"></div>
+                        </div>
+                        <div style="font-weight:bold;">{consistency_b:.1f}</div>
                     </div>
                 </div>
             </div>
         </div>
-
         <div class="dashboard-card" style="background:linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%); border-left:4px solid #3b82f6; margin-top:20px;">
             <h3 style="margin-top:0; color:#0f172a;">💡 Strategic Insights</h3>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
@@ -954,7 +899,6 @@ async def run_matchup_analysis(event):
             </div>
         </div>
         """
-        
         out_div.innerHTML = html
 
     except Exception as e:
