@@ -259,7 +259,9 @@ def calculate_squad_ratings(player_df, formation_df):
         # 1. GET THE FORMATION TARGETS
         # Look up Norway in the FORMATIONS dict we loaded from CSV
         fmt_data = TEAM_FORMATIONS.get(n_key, {})
-        fmt_str = fmt_data.get('formation 1', '4-4-2') # Default to 4-4-2 if missing
+        fmt_str = fmt_data.get('formation 1', '4-4-2') 
+        if pd.isna(fmt_str) or not fmt_str:
+            fmt_str = '4-4-2'
         targets = parse_formation_to_targets(fmt_str)
         
         # Calculate baseline squad average for fallbacks

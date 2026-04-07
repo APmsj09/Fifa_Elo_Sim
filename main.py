@@ -1144,7 +1144,6 @@ def generate_scout_report(stats):
 DASHBOARD_BUILT = False
 
 def populate_team_dropdown(target_id="team-select-dashboard", wc_only=False):
-    # 1. Explicitly define it at the very beginning to prevent NameError
     current_val = None 
     
     select = js.document.getElementById(target_id)
@@ -1154,7 +1153,6 @@ def populate_team_dropdown(target_id="team-select-dashboard", wc_only=False):
     if not select: 
         return 
 
-    # 2. Try to grab the existing value if the dropdown already has one
     try:
         current_val = select.value
     except Exception:
@@ -1162,21 +1160,21 @@ def populate_team_dropdown(target_id="team-select-dashboard", wc_only=False):
 
     select.innerHTML = "" 
 
+    # 1. Prepare the WC slug list ONCE (not inside the loop)
+    wc_team_slugs = [sim.get_slug(t) for t in sim.WC_TEAMS]
+    
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
 
     for slug, stats in sorted_teams:
-        if wc_only:
-            # Slugify the WC list on the fly for the comparison
-            wc_slugs = [sim.get_slug(t) for t in sim.WC_TEAMS]
-            if team not in wc_slugs:
-                continue
+        # 2. FIX: Changed 'team' to 'slug' to match the loop variable
+        if wc_only and slug not in wc_team_slugs:
+            continue
             
         opt = js.document.createElement("option")
         opt.value = slug
         opt.text = sim.PRETTY_NAMES.get(slug, slug.title())
         select.appendChild(opt)
 
-    # 3. Safely re-apply the value
     if current_val:
         select.value = current_val
         
