@@ -1099,7 +1099,7 @@ def load_data_view(event):
         html += f"""
         <tr>
             <td style="font-weight:bold;">#{rank_counter}</td>
-            <td style="font-weight:600">{team.title()}</td>
+            <td style="font-weight:600">{sim.PRETTY_NAMES.get(team, team.title())}</td>
             <td style="font-weight:bold; color:var(--text-main); font-size:1.1em;">{int(stats['elo'])}</td>
             
             <td style="font-weight:bold; color:var(--accent-blue); background:rgba(59, 130, 246, 0.05); text-align:center;">{ovr}</td>
@@ -1205,8 +1205,11 @@ def populate_team_dropdown(target_id="team-select-dashboard", wc_only=False):
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
 
     for slug, stats in sorted_teams:
-        if wc_only and slug not in [sim.get_slug(t) for t in sim.WC_TEAMS]:
-            continue
+        if wc_only:
+            # Slugify the WC list on the fly for the comparison
+            wc_slugs = [sim.get_slug(t) for t in sim.WC_TEAMS]
+            if team not in wc_slugs:
+                continue
             
         opt = js.document.createElement("option")
         opt.value = slug

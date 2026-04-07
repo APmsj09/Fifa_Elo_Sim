@@ -797,8 +797,8 @@ def precompute_match_data():
         }
 
 def sim_match(t1, t2, knockout=False):
-    t1 = t1.lower().strip() 
-    t2 = t2.lower().strip()
+    t1 = get_slug(t1) 
+    t2 = get_slug(t2)
     p1 = TEAM_PRECOMPUTE.get(t1)
     p2 = TEAM_PRECOMPUTE.get(t2)
 
