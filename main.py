@@ -546,6 +546,138 @@ def build_bulk_dashboard():
             </tr>"""
         html += "</table></div>"
     
+    # --- PROJECTIONS: GOLDEN BOOT & GOLDEN BALL ---
+    boot_candidates = []
+    ball_candidates =[]
+    
+    for t, s in state['stats'].items():
+        if t not in sim.TEAM_TALENT or not sim.TEAM_TALENT[t].get('top_players'):
+            continue
+            
+        top_players = sim.TEAM_TALENT[t]['top_players']
+        
+        # 1. Golden Ball Candidate (Best overall player on the team)
+        ball_player = top_players[0]
+        try: ball_rat = float(ball_player.get('rat', 70))
+        except: ball_rat = 70.0
+        
+        win_pct = s['win'] / num
+        final_pct = s['final'] / num
+        sf_pct = s['sf'] / num
+        
+        # Golden Ball heavily favors players who make the semi-finals or further
+        team_success = (win_pct * 1.5) + (final_pct * 1.0) + (sf_pct * 0.5)
+        ball_score = team_success * (ball_rat ** 1.5)
+        
+        ball_candidates.append({
+            'player': ball_player['name'], 'team': t, 'score': ball_score, 'win_pct': win_pct * 100
+        })
+        
+        # 2. Golden Boot Candidate (Player with highest 'Threat Score')
+        best_threat_score = -1
+        boot_player = None
+        boot_mult = 0.5
+        boot_rat = 70.0
+        
+        for p in top_players:
+            try: rat = float(p.get('rat', 70))
+            except: rat = 70.0
+            
+            # Identify position to determine goalscoring likelihood
+            pos_str = str(p.get('position', p.get('pos', ''))).upper()
+            unit_str = str(p.get('unit', '')).upper()
+            
+            if any(x in pos_str for x in ['ST', 'CF', 'FW', 'STRIKER']):
+                mult = 1.0
+            elif any(x in pos_str for x in['LW', 'RW', 'AML', 'AMR', 'WF', 'WING']):
+                mult = 0.85
+            elif any(x in pos_str for x in ['AMC', 'CAM', 'AM']):
+                mult = 0.75
+            elif any(x in pos_str for x in['MC', 'CM', 'LM', 'RM']):
+                mult = 0.40
+            elif any(x in pos_str for x in['CB', 'LB', 'RB', 'LWB', 'RWB', 'DC', 'DL', 'DR']):
+                mult = 0.15
+            elif 'GK' in pos_str:
+                mult = 0.02
+            else:
+                # Fallback if position string is missing
+                if 'ATT' in unit_str: mult = 0.90
+                elif 'MID' in unit_str: mult = 0.50
+                elif 'DEF' in unit_str: mult = 0.15
+                else: mult = 0.50
+                
+            threat = rat * mult
+            if threat > best_threat_score:
+                best_threat_score = threat
+                boot_player = p
+                boot_mult = mult
+                boot_rat = rat
+                
+        if boot_player:
+            team_avg_goals = state['goals'][t] / num
+            
+            # Strikers take ~35-40% of team goals. Midfielders take ~15-20%.
+            # Plus a small bonus for being a highly-rated player.
+            share = (boot_mult * 0.35) + ((boot_rat - 70) / 100) * 0.15
+            share = max(0.05, min(0.60, share)) # Keep realistic bounds (5% to 60%)
+            
+            exp_player_goals = team_avg_goals * share
+            boot_candidates.append({
+                'player': boot_player['name'], 'team': t, 'xG': exp_player_goals, 'rat': boot_rat
+            })
+            
+    boot_candidates.sort(key=lambda x: x['xG'], reverse=True)
+    ball_candidates.sort(key=lambda x: x['score'], reverse=True)
+
+    html += f"""
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-top:30px; margin-bottom:30px;">
+        <!-- Golden Boot -->
+        <div class="dashboard-card" style="margin:0; border-top:4px solid #f59e0b;">
+            <h3 style="margin-top:0; color:#f59e0b;">👟 Projected Golden Boot</h3>
+            <table style="width:100%; font-size:0.9em; border-collapse:collapse;">
+                <tr style="border-bottom:1px solid var(--sidebar-border); color:var(--text-light); text-transform:uppercase; font-size:0.8em;">
+                    <th style="text-align:left; padding-bottom:5px;">Player</th>
+                    <th style="text-align:left; padding-bottom:5px;">Nation</th>
+                    <th style="text-align:right; padding-bottom:5px;">Proj. Goals</th>
+                </tr>
+    """
+    for i, cand in enumerate(boot_candidates[:5]):
+        t_name = sim.PRETTY_NAMES.get(cand['team'], cand['team'].title())
+        html += f"""
+                <tr style="border-bottom:1px solid var(--sidebar-border);">
+                    <td style="padding:8px 0; font-weight:bold; color:var(--text-main);">#{i+1} {cand['player']}</td>
+                    <td style="padding:8px 0;">{t_name}</td>
+                    <td style="padding:8px 0; text-align:right; font-weight:bold; color:var(--accent-green);">{cand['xG']:.1f}</td>
+                </tr>"""
+    html += """
+            </table>
+        </div>
+        
+        <!-- Golden Ball -->
+        <div class="dashboard-card" style="margin:0; border-top:4px solid #8b5cf6;">
+            <h3 style="margin-top:0; color:#8b5cf6;">🏆 Projected Golden Ball</h3>
+            <table style="width:100%; font-size:0.9em; border-collapse:collapse;">
+                <tr style="border-bottom:1px solid var(--sidebar-border); color:var(--text-light); text-transform:uppercase; font-size:0.8em;">
+                    <th style="text-align:left; padding-bottom:5px;">Player</th>
+                    <th style="text-align:left; padding-bottom:5px;">Nation</th>
+                    <th style="text-align:right; padding-bottom:5px;">Title Prob.</th>
+                </tr>
+    """
+    for i, cand in enumerate(ball_candidates[:5]):
+        t_name = sim.PRETTY_NAMES.get(cand['team'], cand['team'].title())
+        html += f"""
+                <tr style="border-bottom:1px solid var(--sidebar-border);">
+                    <td style="padding:8px 0; font-weight:bold; color:var(--text-main);">#{i+1} {cand['player']}</td>
+                    <td style="padding:8px 0;">{t_name}</td>
+                    <td style="padding:8px 0; text-align:right; font-weight:bold; color:var(--accent-blue);">{cand['win_pct']:.1f}%</td>
+                </tr>"""
+    html += """
+            </table>
+        </div>
+    </div>
+    """
+    # -----------------------------------------------
+
     html += """</div>
     <div style='display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid var(--sidebar-border); padding-bottom:10px; margin-bottom:15px;'>
         <div>
@@ -1356,14 +1488,23 @@ def update_dashboard_data(event=None):
     formation_info = sim.TEAM_FORMATIONS.get(slug_team, {})
 
     # 1. Build Playmakers List
+    # 1. Build Playmakers List
     playmakers_html = ""
     if 'top_players' in talent_info:
         for p in talent_info['top_players'][:4]:
             club = p.get('club', 'Unknown')
-            try:
-                rating = '--' if math.isnan(float(p['rat'])) else int(p['rat'])
-            except:
-                rating = '--'
+            
+            # --- FIXED RATING PARSER ---
+            rating = '--'
+            raw_rat = p.get('rat')
+            if raw_rat is not None:
+                try:
+                    rat_float = float(raw_rat)
+                    if rat_float > 0:
+                        rating = int(rat_float)
+                except (ValueError, TypeError):
+                    pass
+            # ---------------------------
 
             playmakers_html += f"""
             <div style="display:flex; justify-content:space-between; font-size:0.85em; padding:6px 0; border-bottom:1px solid var(--sidebar-border);">
@@ -1392,6 +1533,94 @@ def update_dashboard_data(event=None):
             </div>
         </div>
         """
+
+    # --- NEW DYNAMIC SQUAD OVERVIEW GENERATOR ---
+    csv_overview = formation_info.get('wc 2026 squad overview', '')
+    if not isinstance(csv_overview, str) or csv_overview.lower() == 'nan':
+        csv_overview = ''
+
+    # 1. Smart Player Phrasing based on FIFA Ratings
+    top_players = talent_info.get('top_players',[])
+    star_text = ""
+    if len(top_players) >= 2:
+        p1 = top_players[0]
+        p2 = top_players[1]
+        
+        def safe_rat(p):
+            try: return float(p.get('rat', 0))
+            except: return 0
+            
+        r1 = safe_rat(p1)
+        
+        if r1 >= 84:
+            star_phrases = [
+                f", headlined by world-class talents like {p1['name']} and {p2['name']},",
+                f", boasting global superstars like {p1['name']} and {p2['name']},",
+                f", driven by the elite quality of {p1['name']} and {p2['name']},"
+            ]
+        elif r1 >= 76:
+            star_phrases = [
+                f", led by standout figures like {p1['name']} and {p2['name']},",
+                f", featuring key difference-makers like {p1['name']} and {p2['name']},",
+                f", relying on the proven quality of {p1['name']} and {p2['name']},"
+            ]
+        else:
+            star_phrases =[
+                f", anchored by key contributors like {p1['name']} and {p2['name']},",
+                f", characterized by the hard work of {p1['name']} and {p2['name']},",
+                f", depending on the chemistry of players like {p1['name']} and {p2['name']},"
+            ]
+        star_text = random.choice(star_phrases)
+
+    # 2. Smart Unit Phrasing
+    unit_dict = {'Attack': r_att, 'Midfield': r_mid, 'Defense': r_def, 'Goalkeeping': r_gk}
+    best_unit = max(unit_dict, key=unit_dict.get) if sum(unit_dict.values()) > 0 else "balanced core"
+    max_unit_val = unit_dict.get(best_unit, 0)
+    
+    if max_unit_val >= 83:
+        unit_adj = random.choice(["dominant", "fearsome", "world-class", "formidable"])
+    elif max_unit_val >= 75:
+        unit_adj = random.choice(["capable", "reliable", "solid", "well-rounded"])
+    else:
+        unit_adj = random.choice(["hard-working", "gritty", "scrappy", "determined"])
+
+    # 3. Smart Elo/Threat Phrasing
+    elo_val = int(stats.get('elo', 1200))
+    if elo_val >= 1800:
+        elo_desc = random.choice(["an imposing", "an elite", "a terrifying"])
+        challenge_desc = random.choice([
+            "a massive tactical challenge for any opponent",
+            "a nightmare matchup for almost anyone in the draw",
+            "a dominant force on the global stage"
+        ])
+    elif elo_val >= 1600:
+        elo_desc = random.choice(["a strong", "a highly respectable", "a dangerous"])
+        challenge_desc = random.choice([
+            "a stiff test for most teams on the global stage",
+            "a tricky opponent capable of deep tournament runs",
+            "a proven competitive setup"
+        ])
+    else:
+        elo_desc = random.choice(["a developing", "a modest", "an emerging"])
+        challenge_desc = random.choice([
+            "a scrappy and determined setup",
+            "an underdog unit looking to shock the world",
+            "a team relying on chemistry and effort over raw talent"
+        ])
+
+    form_string = formation_info.get('formation 1', 'fluid')
+    sys_phrases =[
+        f"Operating primarily out of a <b>{form_string}</b> system",
+        f"Deploying a <b>{form_string}</b> base formation",
+        f"Set up tactically in a <b>{form_string}</b> shape"
+    ]
+    
+    # 4. Generate the final adaptive text
+    dynamic_overview = f"{random.choice(sys_phrases)}, the #{global_rank} globally ranked {display_name} squad is built around a {unit_adj} <b>{best_unit}</b> unit. With {elo_desc} Elo rating of {elo_val}{star_text} they present {challenge_desc}."
+    
+    if csv_overview:
+        dynamic_overview += f"<div style='margin-top:12px; padding-top:12px; border-top:1px dashed #cbd5e1;'><b style='color:var(--accent-blue);'>Scout's Notebook:</b> {csv_overview}</div>"
+    # ---------------------------------------------
 
     unit_bars_html = ""
     if r_att > 0:
@@ -1452,13 +1681,7 @@ def update_dashboard_data(event=None):
         <div class="dashboard-card" style="margin:0; padding:20px; background:rgba(59, 130, 246, 0.05); border-left:4px solid var(--accent-blue);">
             <h4 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">🔭 Squad Overview</h4>
             <div style="font-size:0.95em; line-height:1.6; color:var(--text-main);">
-                {formation_info.get('wc 2026 squad overview', 'No overview available for this nation.')}
-                <div style="margin-top:12px; padding-top:12px; border-top:1px dashed #cbd5e1;">
-                    <b style="color:var(--accent-blue);">Likely Starters:</b> {formation_info.get('key likely players', 'N/A')}
-                </div>
-                <div style="margin-top:8px;">
-                    <b style="color:var(--accent-red);">Missing/Retired:</b> {formation_info.get('notable absences / retirements', 'None noted.')}
-                </div>
+                {dynamic_overview}
             </div>
             {unit_bars_html}
         </div>
@@ -1554,12 +1777,24 @@ def generate_dynamic_report(team, atk, dfe, upset, stats):
     sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
     rank = next((i+1 for i, t in enumerate(sorted_teams) if t[0] == team), 0)
     
-    if rank <= 10: tier_text = "a global powerhouse"
-    elif rank <= 30: tier_text = "a formidable contender"
-    elif rank <= 60: tier_text = "a highly competitive dark horse"
-    else: tier_text = "an emerging underdog"
+    tier_phrases = {
+        10: ["a global powerhouse", "an undisputed heavyweight", "a premier title contender"],
+        30: ["a formidable contender", "a dangerous knockout threat", "a high-level competitor"],
+        60: ["a highly competitive dark horse", "a tricky opponent", "a resilient challenger"],
+        999:["an emerging underdog", "a gritty outsider", "a passionate wildcard"]
+    }
     
-    report_paragraphs.append(f"<b>Overview:</b> Ranked #{rank} globally, {team.title()} is {tier_text} out of {confed}. Their overall system is classified as <b>{style}</b>.")
+    if rank <= 10: tier_text = random.choice(tier_phrases[10])
+    elif rank <= 30: tier_text = random.choice(tier_phrases[30])
+    elif rank <= 60: tier_text = random.choice(tier_phrases[60])
+    else: tier_text = random.choice(tier_phrases[999])
+    
+    ov_phrases =[
+        f"Ranked #{rank} globally, {team.title()} stands as {tier_text} out of {confed}.",
+        f"Hailing from {confed}, the #{rank} ranked {team.title()} is widely regarded as {tier_text}.",
+        f"Currently sitting at #{rank} in the world rankings, {team.title()} is {tier_text} representing {confed}."
+    ]
+    report_paragraphs.append(f"<b>Overview:</b> {random.choice(ov_phrases)} Their overall system is classified as <b>{style}</b>.")
     
     tactical =[]
     pace = stats.get('pace_factor', 1.0)
@@ -1567,19 +1802,43 @@ def generate_dynamic_report(team, atk, dfe, upset, stats):
     momentum = stats.get('momentum', 0.0)
     
     if pace > 1.15: 
-        tactical.append("Their games are typically open and played at a frantic pace, frequently resulting in end-to-end action.")
+        tactical.append(random.choice([
+            "Their games are typically open and played at a frantic pace, frequently resulting in end-to-end action.",
+            "They thrive in chaotic, fast-paced matches that stretch opponents and create high-scoring affairs.",
+            "Expect a track meet; they push the tempo aggressively and force games to break open."
+        ]))
     elif pace < 0.90: 
-        tactical.append("They prefer to control the tempo, systematically dragging opponents into tight, low-scoring tactical battles.")
+        tactical.append(random.choice([
+            "They prefer to control the tempo, systematically dragging opponents into tight, low-scoring tactical battles.",
+            "They excel at slowing the game down, frustrating opponents with methodical and risk-averse play.",
+            "Matches involving them are usually chess matches—slow, tight, and decided by fine margins."
+        ]))
     
     if atk > 1.10: 
-        tactical.append("Offensively, they consistently create high-quality chances and punish mistakes.")
+        tactical.append(random.choice([
+            "Offensively, they consistently create high-quality chances and punish mistakes.",
+            "They boast a lethal attack that can dissect defenses from multiple angles.",
+            "Their forward line is a constant threat, generating expected goals at an elite rate."
+        ]))
     elif atk < 0.90: 
-        tactical.append("Goal-scoring can be a severe struggle for them in open play.")
+        tactical.append(random.choice([
+            "Goal-scoring can be a severe struggle for them in open play.",
+            "They frequently lack a cutting edge in the final third, relying heavily on set pieces or luck.",
+            "Creating high-value offensive chances is a well-documented weakness for this squad."
+        ]))
     
     if dfe < 0.85: 
-        tactical.append("Defensively, they are incredibly disciplined and notoriously difficult to break down.")
+        tactical.append(random.choice([
+            "Defensively, they are incredibly disciplined and notoriously difficult to break down.",
+            "Their backline operates like a fortress, rarely conceding high-quality looks.",
+            "They pride themselves on a watertight defensive structure that stifles opposing attackers."
+        ]))
     elif dfe > 1.10: 
-        tactical.append("Their backline is prone to leaks, heavily relying on outscoring their opponents to secure results.")
+        tactical.append(random.choice([
+            "Their backline is prone to leaks, heavily relying on outscoring their opponents to secure results.",
+            "Defensive fragility is a major concern, often leaving gaps that top-tier teams easily exploit.",
+            "They are statistically vulnerable at the back, meaning clean sheets are a rarity."
+        ]))
     
     report_paragraphs.append("<b>Identity:</b> " + " ".join(tactical))
     
@@ -1587,9 +1846,17 @@ def generate_dynamic_report(team, atk, dfe, upset, stats):
     vol = stats.get('volatility', 0.15)
     
     if vol >= 0.25: 
-        quirks.append("⚠️ <b>High Volatility:</b> Their matches are wildly unpredictable. They are entirely capable of pulling off a massive tournament-altering upset on any given day, but are equally vulnerable to shocking defeats.")
+        quirks.append(random.choice([
+            "⚠️ <b>High Volatility:</b> Their matches are wildly unpredictable. They can shock the world or collapse spectacularly.",
+            "⚠️ <b>High Volatility:</b> A classic wildcard. They play up (and down) to their competition constantly.",
+            "⚠️ <b>High Volatility:</b> Consistently inconsistent. They have the raw variance to pull off massive upsets."
+        ]))
     elif vol <= 0.10:
-        quirks.append("🔒 <b>Highly Consistent:</b> They perform exactly to their mathematical expectations with minimal variance. They reliably dispatch weaker teams but rarely pull off miracles against top-tier favorites.")
+        quirks.append(random.choice([
+            "🔒 <b>Highly Consistent:</b> They perform exactly to expectations. They rarely drop points to underdogs.",
+            "🔒 <b>Highly Consistent:</b> A machine-like setup. Minimal variance means they rarely beat themselves.",
+            "🔒 <b>Highly Consistent:</b> Extremely clinical against weaker sides, though they lack the chaotic edge to upset giants."
+        ]))
         
     if ko_exp > 15:
         quirks.append("They boast immense tournament pedigree and vast experience navigating high-pressure knockout scenarios.")
