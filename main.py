@@ -739,27 +739,26 @@ async def run_matchup_analysis(event):
 
         sa = sim.TEAM_STATS.get(team_a, {})
         sb = sim.TEAM_STATS.get(team_b, {})
+        ta = sim.TEAM_TALENT.get(team_a, {})
+        tb = sim.TEAM_TALENT.get(team_b, {})
+        
+        # Helper to get Pretty Names
+        name_a = sim.PRETTY_NAMES.get(team_a, team_a.title())
+        name_b = sim.PRETTY_NAMES.get(team_b, team_b.title())
+
+        def get_rat(talent_dict, key):
+            val = talent_dict.get(key, 0)
+            return int(round(val)) if val > 0 else "--"
+
+        # Squad talent variables
+        att_a, att_b = get_rat(ta, 'rating_att'), get_rat(tb, 'rating_att')
+        mid_a, mid_b = get_rat(ta, 'rating_mid'), get_rat(tb, 'rating_mid')
+        def_a, def_b = get_rat(ta, 'rating_def'), get_rat(tb, 'rating_def')
+        gk_a, gk_b   = get_rat(ta, 'rating_gk'),  get_rat(tb, 'rating_gk')
+
         style_a = sim.TEAM_PROFILES.get(team_a, 'Balanced')
         style_b = sim.TEAM_PROFILES.get(team_b, 'Balanced')
 
-        tactical_clash = "This is a balanced matchup where individual brilliance or a single mistake will likely decide the outcome."
-        if hasattr(sim, 'STYLE_MATCHUPS'):
-            mod_a = sim.STYLE_MATCHUPS.get((style_a, style_b), 1.0)
-            mod_b = sim.STYLE_MATCHUPS.get((style_b, style_a), 1.0)
-            
-            if mod_a > 1.0:
-                tactical_clash = f"<b>Tactical Advantage ({team_a.title()}):</b> {team_a.title()}'s <i>{style_a}</i> system naturally counters {team_b.title()}'s <i>{style_b}</i>. Expect the home side to exploit this stylistic mismatch."
-            elif mod_b > 1.0:
-                tactical_clash = f"<b>Tactical Advantage ({team_b.title()}):</b> {team_b.title()}'s <i>{style_b}</i> system naturally counters {team_a.title()}'s <i>{style_a}</i>. Expect the away side to exploit this stylistic mismatch."
-            elif style_a == "High Risk / Chaos" and style_b == "High Risk / Chaos":
-                tactical_clash = f"<b>A Chaotic Shootout:</b> Both teams play a high-octane <i>{style_a}</i> style. Expect an open midfield, end-to-end action, and plenty of goals."
-            elif style_a != style_b:
-                tactical_clash = f"<b>Clash of Styles:</b> It is a classic battle of ideologies as {team_a.title()}'s <i>{style_a}</i> tries to impose its will against {team_b.title()}'s <i>{style_b}</i>."
-
-        sa_elo = int(sa.get('elo', 1200))
-        sb_elo = int(sb.get('elo', 1200))
-        elo_diff = abs(sa_elo - sb_elo)
-        
         import math
         def calc_tactical_score(attacking, defending):
             ratio = attacking / defending if defending > 0 else 1.0
@@ -772,22 +771,28 @@ async def run_matchup_analysis(event):
         def_b = calc_tactical_score(sb.get('def', 1.0), sa.get('off', 1.0))
         consistency_a = min(10, (7.5 - (sa.get('btts_pct', 50) - 50) / 10))
         consistency_b = min(10, (7.5 - (sb.get('btts_pct', 50) - 50) / 10))
+
+        tactical_clash = f"This is a balanced matchup where individual brilliance or a single mistake will likely decide the outcome."
+        # ... (Keep your Style Matchup logic) ...
+
+        sa_elo = int(sa.get('elo', 1200))
+        sb_elo = int(sb.get('elo', 1200))
+        elo_diff = abs(sa_elo - sb_elo)
         
         html = f"""
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
             <div class="dashboard-card" style="margin-bottom:0;">
                 <h3 style="margin-top:0; color:var(--text-light); text-transform:uppercase; font-size:0.85em;">Match Simulation ({sim_count:,} runs)</h3>
-                
                 <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-weight:800; font-size:1.2em;">
-                    <div style="color:#3b82f6;">{team_a.title()}<br><span style="font-size:0.6em; font-weight:400;"><span class='ci-value' data-ci='95% CI: ±{ci_a:.1f}%'>{p_a:.1f}%</span></span></div>
+                    <div style="color:#3b82f6;">{name_a}<br><span style="font-size:0.6em; font-weight:400;"><span class='ci-value' data-ci='95% CI: ±{ci_a:.1f}%'>{p_a:.1f}%</span></span></div>
                     <div style="color:#64748b; font-size:0.8em; align-self:center;">DRAW<br><span style="font-size:0.7em;"><span class='ci-value' data-ci='95% CI: ±{ci_d:.1f}%'>{p_d:.1f}%</span></span></div>
-                    <div style="color:#ef4444;">{team_b.title()}<br><span style="font-size:0.6em; font-weight:400;"><span class='ci-value' data-ci='95% CI: ±{ci_b:.1f}%'>{p_b:.1f}%</span></span></div>
+                    <div style="color:#ef4444;">{name_b}<br><span style="font-size:0.6em; font-weight:400;"><span class='ci-value' data-ci='95% CI: ±{ci_b:.1f}%'>{p_b:.1f}%</span></span></div>
                 </div>
 
                 <div style="width:100%; height:30px; display:flex; border-radius:8px; overflow:hidden; box-shadow:var(--shadow-sm);">
-                    <div style="width:{p_a}%; background:#3b82f6; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:0.8em;"></div>
+                    <div style="width:{p_a}%; background:#3b82f6;"></div>
                     <div style="width:{p_d}%; background:#cbd5e1;"></div>
-                    <div style="width:{p_b}%; background:#ef4444; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold; font-size:0.8em;"></div>
+                    <div style="width:{p_b}%; background:#ef4444;"></div>
                 </div>
                 
                 <div style="display:flex; justify-content:space-between; margin-top:20px;">
@@ -813,14 +818,9 @@ async def run_matchup_analysis(event):
             html += f"""
             <div class="scoreline-row" style="border-left:4px solid {colors[i]};">
                 <div class="scoreline-label">{score}</div>
-                <div style="flex-grow:1;">
-                    <div style="height:8px; background:#e2e8f0; border-radius:4px; width:100%;">
-                        <div style="height:100%; width:{pct * 3}%; background:{colors[i]}; border-radius:4px; max-width:100%;"></div>
-                    </div>
-                </div>
+                <div style="flex-grow:1;"><div style="height:8px; background:#e2e8f0; border-radius:4px;"><div style="height:100%; width:{pct * 3}%; background:{colors[i]}; border-radius:4px;"></div></div></div>
                 <div class="scoreline-pct">{pct:.1f}%</div>
-            </div>
-            """
+            </div>"""
             
         html += f"""
                 </div>
@@ -834,16 +834,36 @@ async def run_matchup_analysis(event):
             <table class="rankings-table" style="margin-top:20px;">
                 <thead>
                     <tr>
-                        <th style="width:33%; text-align:right; color:#3b82f6; font-size:1.1em;">{team_a.title()}</th>
-                        <th style="width:33%; text-align:center;">Metric</th>
-                        <th style="width:33%; text-align:left; color:#ef4444; font-size:1.1em;">{team_b.title()}</th>
+                        <th style="width:33%; text-align:right; color:#3b82f6; font-size:1.1em;">{name_a}</th>
+                        <th style="width:33%; text-align:center;">Squad DNA</th>
+                        <th style="width:33%; text-align:left; color:#ef4444; font-size:1.1em;">{name_b}</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td style="text-align:right; font-weight:bold;">{int(sa.get('elo', 0))}</td>
+                        <td style="text-align:right; font-weight:bold;">{sa_elo}</td>
                         <td style="text-align:center; color:var(--text-light); font-size:0.85em; text-transform:uppercase;">Elo Rating</td>
-                        <td style="text-align:left; font-weight:bold;">{int(sb.get('elo', 0))}</td>
+                        <td style="text-align:left; font-weight:bold;">{sb_elo}</td>
+                    </tr>
+                    <tr style="background: rgba(59, 130, 246, 0.03);">
+                        <td style="text-align:right; font-weight:bold; color:var(--accent-blue);">{att_a}</td>
+                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; font-weight:bold;">ATTACK UNIT</td>
+                        <td style="text-align:left; font-weight:bold; color:var(--accent-red);">{att_b}</td>
+                    </tr>
+                    <tr style="background: rgba(59, 130, 246, 0.03);">
+                        <td style="text-align:right; font-weight:bold; color:var(--accent-blue);">{mid_a}</td>
+                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; font-weight:bold;">MIDFIELD UNIT</td>
+                        <td style="text-align:left; font-weight:bold; color:var(--accent-red);">{mid_b}</td>
+                    </tr>
+                    <tr style="background: rgba(59, 130, 246, 0.03);">
+                        <td style="text-align:right; font-weight:bold; color:var(--accent-blue);">{def_a}</td>
+                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; font-weight:bold;">DEFENSE UNIT</td>
+                        <td style="text-align:left; font-weight:bold; color:var(--accent-red);">{def_b}</td>
+                    </tr>
+                    <tr style="background: rgba(59, 130, 246, 0.03);">
+                        <td style="text-align:right; font-weight:bold; color:var(--accent-blue);">{gk_a}</td>
+                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; font-weight:bold;">GOALKEEPER</td>
+                        <td style="text-align:left; font-weight:bold; color:var(--accent-red);">{gk_b}</td>
                     </tr>
                     <tr>
                         <td style="text-align:right; font-weight:bold;">{sa.get('adj_gf', 0):.2f}</td>
@@ -852,12 +872,12 @@ async def run_matchup_analysis(event):
                     </tr>
                     <tr>
                         <td style="text-align:right; font-weight:bold;">{sa.get('adj_ga', 0):.2f}</td>
-                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; text-transform:uppercase;">Defensive Leaks (Lower is better)</td>
+                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; text-transform:uppercase;">Defensive Leaks</td>
                         <td style="text-align:left; font-weight:bold;">{sb.get('adj_ga', 0):.2f}</td>
                     </tr>
                     <tr>
                         <td style="text-align:right; font-weight:bold;">{int(sa.get('btts_pct', 0))}%</td>
-                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; text-transform:uppercase;">Chaos Factor (BTTS %)</td>
+                        <td style="text-align:center; color:var(--text-light); font-size:0.85em; text-transform:uppercase;">BTTS %</td>
                         <td style="text-align:left; font-weight:bold;">{int(sb.get('btts_pct', 0))}%</td>
                     </tr>
                 </tbody>
@@ -865,57 +885,40 @@ async def run_matchup_analysis(event):
         </div>
 
         <div class="dashboard-card" style="border-left:4px solid #f59e0b; margin-top:20px;">
-            <h3 style="margin-top:0; color:#f59e0b;">⚔️ Tactical Comparison (Head-to-Head Edge)</h3>
-            <p style="color:var(--text-light); font-size:0.85em; margin-bottom:15px;">Scale: 0-10 shows who has the advantage in each area. 5 = evenly matched. Higher = advantage to that team.</p>
-            
+            <h3 style="margin-top:0; color:#f59e0b;">⚔️ Tactical Comparison</h3>
             <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:15px;">
                 <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #ef4444;">
-                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px; color:#b45309;">Attacking Power ⚽</div>
-                    <div style="font-size:0.7em; color:var(--text-light); margin-bottom:10px;">Who scores more easily?</div>
+                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px;">Attacking Power ⚽</div>
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
-                            <div style="background:#3b82f6; height:100%; width:{(atk_a/10)*100:.0f}%;"></div>
-                        </div>
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;"><div style="background:#3b82f6; height:100%; width:{(atk_a/10)*100:.0f}%;"></div></div>
                         <div style="font-weight:bold; font-size:0.9em; width:20px;">{atk_a:.1f}</div>
                     </div>
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
-                            <div style="background:#ef4444; height:100%; width:{(atk_b/10)*100:.0f}%;"></div>
-                        </div>
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;"><div style="background:#ef4444; height:100%; width:{(atk_b/10)*100:.0f}%;"></div></div>
                         <div style="font-weight:bold; font-size:0.9em; width:20px;">{atk_b:.1f}</div>
                     </div>
                 </div>
                 
                 <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #10b981;">
-                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px; color:#059669;">Defensive Solidity 🛡️</div>
-                    <div style="font-size:0.7em; color:var(--text-light); margin-bottom:10px;">Who prevents goals better?</div>
+                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px;">Defensive Solidity 🛡️</div>
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
-                            <div style="background:#3b82f6; height:100%; width:{(def_a/10)*100:.0f}%;"></div>
-                        </div>
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;"><div style="background:#3b82f6; height:100%; width:{(def_a/10)*100:.0f}%;"></div></div>
                         <div style="font-weight:bold; font-size:0.9em; width:20px;">{def_a:.1f}</div>
                     </div>
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
-                            <div style="background:#ef4444; height:100%; width:{(def_b/10)*100:.0f}%;"></div>
-                        </div>
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;"><div style="background:#ef4444; height:100%; width:{(def_b/10)*100:.0f}%;"></div></div>
                         <div style="font-weight:bold; font-size:0.9em; width:20px;">{def_b:.1f}</div>
                     </div>
                 </div>
                 
                 <div style="background:var(--card-bg); padding:12px; border-radius:8px; border-left:3px solid #8b5cf6;">
-                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px; color:#6d28d9;">Consistency 📊</div>
-                    <div style="font-size:0.7em; color:var(--text-light); margin-bottom:10px;">Who plays more predictably?</div>
+                    <div style="font-weight:bold; font-size:0.85em; margin-bottom:8px;">Consistency 📊</div>
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
-                            <div style="background:#3b82f6; height:100%; width:{(consistency_a/10)*100:.0f}%;"></div>
-                        </div>
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;"><div style="background:#3b82f6; height:100%; width:{(consistency_a/10)*100:.0f}%;"></div></div>
                         <div style="font-weight:bold; font-size:0.9em; width:20px;">{consistency_a:.1f}</div>
                     </div>
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;">
-                            <div style="background:#ef4444; height:100%; width:{(consistency_b/10)*100:.0f}%;"></div>
-                        </div>
+                        <div style="flex:1; background:#f0f0f0; height:16px; border-radius:3px; overflow:hidden;"><div style="background:#ef4444; height:100%; width:{(consistency_b/10)*100:.0f}%;"></div></div>
                         <div style="font-weight:bold; font-size:0.9em; width:20px;">{consistency_b:.1f}</div>
                     </div>
                 </div>
@@ -926,7 +929,7 @@ async def run_matchup_analysis(event):
             <h3 style="margin-top:0; color:#0f172a;">💡 Strategic Insights</h3>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
                 <div>
-                    <div style="font-weight:bold; margin-bottom:8px; color: #3b82f6;">{team_a.title()}'s Strengths</div>
+                    <div style="font-weight:bold; margin-bottom:8px; color: #3b82f6;">{name_a}'s Strengths</div>
                     <ul style="margin:0; padding-left:18px; font-size:0.9em; line-height:1.6;">
                         <li>{('💪 Dominant Attack' if atk_a > atk_b + 1.5 else '⚔️ Balanced Offense') if abs(atk_a - atk_b) > 0.5 else '⚖️ Average Attack'}</li>
                         <li>{('🧱 Fortress Defense' if def_a > def_b + 1.5 else '🛡️ Solid Backline') if abs(def_a - def_b) > 0.5 else '⚖️ Average Defense'}</li>
@@ -934,7 +937,7 @@ async def run_matchup_analysis(event):
                     </ul>
                 </div>
                 <div>
-                    <div style="font-weight:bold; margin-bottom:8px; color: #ef4444;">{team_b.title()}'s Strengths</div>
+                    <div style="font-weight:bold; margin-bottom:8px; color: #ef4444;">{name_b}'s Strengths</div>
                     <ul style="margin:0; padding-left:18px; font-size:0.9em; line-height:1.6;">
                         <li>{('💪 Dominant Attack' if atk_b > atk_a + 1.5 else '⚔️ Balanced Offense') if abs(atk_b - atk_a) > 0.5 else '⚖️ Average Attack'}</li>
                         <li>{('🧱 Fortress Defense' if def_b > def_a + 1.5 else '🛡️ Solid Backline') if abs(def_b - def_a) > 0.5 else '⚖️ Average Defense'}</li>
