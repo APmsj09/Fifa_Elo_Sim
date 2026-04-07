@@ -1049,11 +1049,18 @@ def load_data_view(event):
     GLOBAL_AVG = sim.AVG_GOALS if sim.AVG_GOALS > 0 else 1.25
 
     rank_counter = 0
+    # 1. Create a list of slugs for the World Cup teams once, before the loop
+    wc_team_slugs = [sim.get_slug(t) for t in sim.WC_TEAMS]
+
     for team, stats in sorted_teams:
-        if wc_only and team not in sim.WC_TEAMS: continue
+        # 2. Compare the team slug against our list of World Cup slugs
+        if wc_only and team not in wc_team_slugs:
+            continue
         
+        # 3. Apply your match-count filter
         matches = stats.get('matches', 0)
-        if matches < 7: continue 
+        if matches < 7: 
+            continue 
 
         rank_counter += 1
 
@@ -1073,12 +1080,6 @@ def load_data_view(event):
             elif char == 'L': color = "#e74c3c"
             else: color = "#bdc3c7"
             formatted_form += f"<span style='color:{color}; font-weight:bold;'>{char}</span>"
-
-        # Fetch Player/Talent Data
-        import re, unicodedata
-        def get_slug(text):
-            t = unicodedata.normalize('NFKD', str(text)).encode('ascii', 'ignore').decode('utf-8')
-            return re.sub(r'[^a-z0-9]', '', t.lower())
         
         talent = sim.TEAM_TALENT.get(get_slug(team), {})
         
