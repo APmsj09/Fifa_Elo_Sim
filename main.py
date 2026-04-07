@@ -1336,18 +1336,10 @@ def update_dashboard_data(event=None):
         </div>
         """
 
-    # --- THIS IS THE NEW PLAYER LOGIC SECTION ---
-    import math
-    import re, unicodedata
+    slug_team = sim.get_slug(team)
 
-    def get_slug(text):
-        t = unicodedata.normalize('NFKD', str(text)).encode('ascii', 'ignore').decode('utf-8')
-        return re.sub(r'[^a-z0-9]', '', t.lower())
-
-    slug_team = get_slug(team)
-
-    talent_info = sim.TEAM_TALENT.get(slug_team, {}) if hasattr(sim, 'TEAM_TALENT') else {}
-    formation_info = sim.TEAM_FORMATIONS.get(slug_team, {}) if hasattr(sim, 'TEAM_FORMATIONS') else {}
+    talent_info = sim.TEAM_TALENT.get(slug_team, {})
+    formation_info = sim.TEAM_FORMATIONS.get(slug_team, {})
 
     # 1. Build Playmakers List
     playmakers_html = ""

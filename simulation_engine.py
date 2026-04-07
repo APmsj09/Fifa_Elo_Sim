@@ -43,7 +43,7 @@ def get_slug(name):
         'ireland': 'republic of ireland', 'eire': 'republic of ireland',
         
         # CAF
-        'ivory coast': "cote d'ivoire", 'cote d'ivoire': "cote d'ivoire",
+        "cote d'ivoire": "cote d'ivoire", 'ivory coast': "cote d'ivoire",
         'dr congo': 'congo dr', 'democratic republic of the congo': 'congo dr',
         'cape verde': 'cabo verde',
     }
@@ -410,18 +410,25 @@ def initialize_engine():
         return {}, {}, 2.5, None
 
 def _initialize_engine_impl():
+    global TEAM_TALENT, TEAM_FORMATIONS, TEAM_HISTORY, TEAM_STATS, calculated_hfa, TEAM_CONFEDS
+    
+    # 1. SLUGIFY CONFEDERATIONS
+    # This guarantees that the keys perfectly match the match slugs later!
+    TEAM_CONFEDS = {get_slug(k): v for k, v in TEAM_CONFEDS.items()}
+    
     results_df, scorers_df, df_names, player_df, formation_df = load_data()
     
-    global TEAM_TALENT, TEAM_FORMATIONS
-    TEAM_TALENT = calculate_squad_ratings(player_df, formation_df) 
-    
+    # 2. POPULATE FORMATIONS FIRST (Before calculating ratings!)
     TEAM_FORMATIONS = {}
     if formation_df is not None:
-        # Lowercase all column headers so they match perfectly
         formation_df.columns = [str(c).strip().lower() for c in formation_df.columns]
         if 'nation' in formation_df.columns:
             for _, row in formation_df.iterrows():
-                TEAM_FORMATIONS[str(row['nation']).lower().strip()] = row.to_dict()
+                # FIXED: Use get_slug here!
+                TEAM_FORMATIONS[get_slug(row['nation'])] = row.to_dict()
+
+    # 3. THEN CALCULATE SQUAD RATINGS
+    TEAM_TALENT = calculate_squad_ratings(player_df, formation_df) 
 
     try:
         if df_names is not None and 'old_name' in df_names.columns and 'new_name' in df_names.columns:
@@ -640,7 +647,8 @@ def _initialize_engine_impl():
             if hs > 0 and as_ > 0: TEAM_STATS[a]['btts'] += 1
 
     if scorers_df is not None and 'team' in scorers_df.columns and 'date' in scorers_df.columns:
-        scorers_df['team'] = scorers_df['team'].str.lower().str.strip().replace(NAME_MAP)
+        # Replaced the .str.lower().str.strip() with a full apply(get_slug)
+        scorers_df['team'] = scorers_df['team'].replace(NAME_MAP).apply(get_slug)
         scorers_df['date'] = pd.to_datetime(scorers_df['date'], errors='coerce')
         modern_scorers = scorers_df[scorers_df['date'] > RELEVANCE_CUTOFF]
         
@@ -990,7 +998,8 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
 
     clean_groups = {}
     for grp, teams in groups.items():
-        clean_groups[grp] = [str(team).lower().strip() for team in teams]
+        # Changed this from .lower().strip() to get_slug
+        clean_groups[grp] = [get_slug(team) for team in teams]
     groups = clean_groups
 
     group_results_lists = {}
