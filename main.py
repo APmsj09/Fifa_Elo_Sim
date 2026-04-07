@@ -441,6 +441,7 @@ def build_bulk_dashboard():
     num = state['num']
     out_div = js.document.getElementById("bulk-results")
     
+    # 1. CALCULATE TOP-LEVEL TEAM STATS
     chaos_pct = (state['chaos'] / num) * 100
     if chaos_pct > 40: chaos_desc, chaos_col = "High 🌋", "var(--accent-red)"
     elif chaos_pct > 20: chaos_desc, chaos_col = "Medium 🌪️", "var(--accent-gold)"
@@ -448,104 +449,14 @@ def build_bulk_dashboard():
     
     sorted_teams_elo = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
     eligible_underdogs = [t[0] for i, t in enumerate(sorted_teams_elo) if i > 14 and t[0] in state['stats']]
-    cinderella = "None"
-    if eligible_underdogs:
-        cinderella = max(eligible_underdogs, key=lambda t: state['stats'][t]['qf'])
+    cinderella = max(eligible_underdogs, key=lambda t: state['stats'][t]['qf']) if eligible_underdogs else "None"
+    cind_name = sim.PRETTY_NAMES.get(cinderella, cinderella.title())
     cind_pct = (state['stats'][cinderella]['qf'] / num * 100) if cinderella != "None" else 0
-    
-    avg_goals = {t: (g / num) for t, g in state['goals'].items()}
-    top_scorer = max(avg_goals, key=avg_goals.get) if avg_goals else "None"
     
     group_elos = {g: data['total_elo'] for g, data in state['groups'].items()}
     group_of_death = max(group_elos, key=group_elos.get) if group_elos else "A"
 
-    ko_counts = {}
-    giant_killer = ("None", "None", 0, 0) 
-
-    for t1, opps in state['h2h'].items():
-        elo1 = sim.TEAM_STATS.get(t1, {}).get('elo', 1200)
-        for t2, data in opps.items():
-            pair = tuple(sorted((t1, t2)))
-            if pair not in ko_counts and t1 < t2:
-                ko_counts[pair] = data['m']
-            elo2 = sim.TEAM_STATS.get(t2, {}).get('elo', 1200)
-            if elo2 - elo1 > 100 and data['m'] > max(5, num * 0.02):
-                win_pct = data['w'] / data['m']
-                if win_pct > giant_killer[2]: 
-                    giant_killer = (t1, t2, win_pct, data['m'])
-
-    top_rivalry = max(ko_counts, key=ko_counts.get) if ko_counts else ("None", "None")
-    rivalry_matches = ko_counts.get(top_rivalry, 0)
-    
-    # --- NEW NAME FORMATTING VARIABLES ---
-    cind_name = sim.PRETTY_NAMES.get(cinderella, cinderella.title()) if cinderella != "None" else "None"
-    scorer_name = sim.PRETTY_NAMES.get(top_scorer, top_scorer.title()) if top_scorer != "None" else "None"
-    riv1_name = sim.PRETTY_NAMES.get(top_rivalry[0], top_rivalry[0].title()) if top_rivalry[0] != "None" else "None"
-    riv2_name = sim.PRETTY_NAMES.get(top_rivalry[1], top_rivalry[1].title()) if top_rivalry[1] != "None" else "None"
-    
-    if giant_killer[0] != "None":
-        gk0_name = sim.PRETTY_NAMES.get(giant_killer[0], giant_killer[0].title())
-        gk1_name = sim.PRETTY_NAMES.get(giant_killer[1], giant_killer[1].title())
-        gk_text = f"{gk0_name} beats {gk1_name} ({giant_killer[2]*100:.1f}%)"
-    else:
-        gk_text = "None"
-    # --------------------------------------
-
-    html = f"""
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom:15px;">
-        <div class="dashboard-card" style="margin:0; border-left:4px solid {chaos_col};">
-            <div style="font-size:0.75em; text-transform:uppercase; color:var(--text-light); font-weight:700;">Chaos Index</div>
-            <div style="font-size:1.6em; font-weight:900; color:var(--text-main); margin:5px 0;">{chaos_desc}</div>
-            <div style="font-size:0.8em; color:var(--text-light);">Underdog Win Prob: {chaos_pct:.1f}%</div>
-        </div>
-        <div class="dashboard-card" style="margin:0; border-left:4px solid var(--accent-gold);">
-            <div style="font-size:0.75em; text-transform:uppercase; color:var(--text-light); font-weight:700;">Top Dark Horse</div>
-            <div style="font-size:1.6em; font-weight:900; color:var(--accent-gold); margin:5px 0;">{cind_name}</div>
-            <div style="font-size:0.8em; color:var(--text-light);">{cind_pct:.1f}% chance to reach QF</div>
-        </div>
-        <div class="dashboard-card" style="margin:0; border-left:4px solid var(--accent-green);">
-            <div style="font-size:0.75em; text-transform:uppercase; color:var(--text-light); font-weight:700;">Highest Scoring Team</div>
-            <div style="font-size:1.6em; font-weight:900; color:var(--accent-green); margin:5px 0;">{scorer_name}</div>
-            <div style="font-size:0.8em; color:var(--text-light);">{avg_goals[top_scorer]:.1f} projected tournament goals</div>
-        </div>
-    </div>
-
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:30px;">
-        <div class="dashboard-card" style="margin:0; background:rgba(139, 92, 246, 0.05); border:1px solid rgba(139, 92, 246, 0.2);">
-            <div style="font-size:0.75em; text-transform:uppercase; color:#8b5cf6; font-weight:700;">⚔️ Most Frequent Knockout Matchup</div>
-            <div style="font-size:1.1em; font-weight:700; color:var(--text-main); margin-top:5px;">
-                {riv1_name} vs {riv2_name} <span style="font-size:0.8em; color:var(--text-light); font-weight:normal;">({rivalry_matches} meetings)</span>
-            </div>
-        </div>
-        <div class="dashboard-card" style="margin:0; background:rgba(239, 68, 68, 0.05); border:1px solid rgba(239, 68, 68, 0.2);">
-            <div style="font-size:0.75em; text-transform:uppercase; color:#ef4444; font-weight:700;">💀 Biggest Bogey Matchup</div>
-            <div style="font-size:1.1em; font-weight:700; color:var(--text-main); margin-top:5px;">{gk_text}</div>
-        </div>
-    </div>
-
-    <h3 style='color:var(--text-main); border-bottom:2px solid var(--sidebar-border); padding-bottom:10px;'>📋 Projected Group Standings</h3>
-    <div style='display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:15px; margin-bottom:40px;'>
-    """
-    
-    for grp in sorted(state['groups'].keys()):
-        is_god = "💀" if grp == group_of_death else ""
-        html += f"""<div class='dashboard-card' style='margin:0; padding:15px;'>
-            <h4 style='margin:0 0 10px 0; color:var(--accent-blue);'>Group {grp} <span style="float:right;" title="Group of Death">{is_god}</span></h4>
-            <table style='width:100%; font-size:0.85em; border-collapse:collapse;'>"""
-        
-        group_teams = list(state['groups'][grp]['teams'].keys())
-        group_teams.sort(key=lambda t: state['stats'][t]['r32'], reverse=True)
-        for t in group_teams:
-            s = state['stats'][t]
-            adv_pct = (s['r32'] / num) * 100
-            opacity = "1.0" if (s['apps']/num) > 0.5 else "0.5"
-            t_name = sim.PRETTY_NAMES.get(t, t.title())  # ADDED THIS LINE
-            html += f"""<tr style='opacity:{opacity}; border-bottom:1px solid var(--sidebar-border);'>
-                <td style='padding:6px 0; font-weight:600;'>{t_name}</td>
-                <td style='padding:6px 0; text-align:right; font-weight:bold; color:var(--accent-green);'>{adv_pct:.1f}%</td>
-            </tr>"""
-        html += "</table></div>"
-    
+    # 2. CALCULATE PLAYER AWARDS (BOOT & BALL) WITH POSITION WEIGHTING
     # --- PROJECTIONS: GOLDEN BOOT & GOLDEN BALL ---
     boot_candidates = []
     ball_candidates =[]
@@ -629,55 +540,118 @@ def build_bulk_dashboard():
     boot_candidates.sort(key=lambda x: x['xG'], reverse=True)
     ball_candidates.sort(key=lambda x: x['score'], reverse=True)
 
-    html += f"""
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-top:30px; margin-bottom:30px;">
-        <!-- Golden Boot -->
-        <div class="dashboard-card" style="margin:0; border-top:4px solid #f59e0b;">
-            <h3 style="margin-top:0; color:#f59e0b;">👟 Projected Golden Boot</h3>
-            <table style="width:100%; font-size:0.9em; border-collapse:collapse;">
-                <tr style="border-bottom:1px solid var(--sidebar-border); color:var(--text-light); text-transform:uppercase; font-size:0.8em;">
-                    <th style="text-align:left; padding-bottom:5px;">Player</th>
-                    <th style="text-align:left; padding-bottom:5px;">Nation</th>
-                    <th style="text-align:right; padding-bottom:5px;">Proj. Goals</th>
-                </tr>
+    # 3. MATCHUP INSIGHTS
+    ko_counts = {}
+    giant_killer = ("None", "None", 0, 0) 
+    for t1, opps in state['h2h'].items():
+        elo1 = sim.TEAM_STATS.get(t1, {}).get('elo', 1200)
+        for t2, data in opps.items():
+            if t1 < t2:
+                ko_counts[tuple(sorted((t1, t2)))] = data['m']
+            elo2 = sim.TEAM_STATS.get(t2, {}).get('elo', 1200)
+            if elo2 - elo1 > 100 and data['m'] > max(5, num * 0.02):
+                win_rate = data['w'] / data['m']
+                if win_rate > giant_killer[2]:
+                    giant_killer = (t1, t2, win_rate, data['m'])
+
+    top_rivalry = max(ko_counts, key=ko_counts.get) if ko_counts else ("None", "None")
+    riv1_name = sim.PRETTY_NAMES.get(top_rivalry[0], top_rivalry[0].title())
+    riv2_name = sim.PRETTY_NAMES.get(top_rivalry[1], top_rivalry[1].title())
+    
+    if giant_killer[0] != "None":
+        gk0_name = sim.PRETTY_NAMES.get(giant_killer[0], giant_killer[0].title())
+        gk1_name = sim.PRETTY_NAMES.get(giant_killer[1], giant_killer[1].title())
+        gk_text = f"{gk0_name} vs {gk1_name} ({giant_killer[2]*100:.1f}%)"
+    else:
+        gk_text = "None"
+
+    # 4. BUILD THE DASHBOARD HTML
+    html = f"""
+    <!-- ROW 1: CORE TOURNAMENT METRICS -->
+    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:15px; margin-bottom:15px;">
+        <div class="dashboard-card" style="margin:0; border-left:4px solid {chaos_col};">
+            <div style="font-size:0.75em; text-transform:uppercase; color:var(--text-light); font-weight:700;">Chaos Index</div>
+            <div style="font-size:1.5em; font-weight:900; color:var(--text-main); margin:5px 0;">{chaos_desc}</div>
+            <div style="font-size:0.8em; color:var(--text-light);">Upset Probability: {chaos_pct:.1f}%</div>
+        </div>
+        <div class="dashboard-card" style="margin:0; border-left:4px solid var(--accent-gold);">
+            <div style="font-size:0.75em; text-transform:uppercase; color:var(--text-light); font-weight:700;">Top Dark Horse</div>
+            <div style="font-size:1.5em; font-weight:900; color:var(--accent-gold); margin:5px 0;">{cind_name}</div>
+            <div style="font-size:0.8em; color:var(--text-light);">{cind_pct:.1f}% to reach QF</div>
+        </div>
+        <div class="dashboard-card" style="margin:0; border-left:4px solid var(--accent-red);">
+            <div style="font-size:0.75em; text-transform:uppercase; color:var(--text-light); font-weight:700;">Group of Death</div>
+            <div style="font-size:1.5em; font-weight:900; color:var(--accent-red); margin:5px 0;">Group {group_of_death}</div>
+            <div style="font-size:0.8em; color:var(--text-light);">Highest Average Elo</div>
+        </div>
+    </div>
+
+    <!-- ROW 2: AWARDS PROJECTIONS -->
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:15px;">
+        <div class="dashboard-card" style="margin:0; padding:15px; border-top:3px solid #f59e0b;">
+            <h4 style="margin:0 0 10px 0; color:#f59e0b; font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">👟 Golden Boot Projection</h4>
+            <table style="width:100%; font-size:0.85em; border-collapse:collapse;">
     """
-    for i, cand in enumerate(boot_candidates[:5]):
-        t_name = sim.PRETTY_NAMES.get(cand['team'], cand['team'].title())
-        html += f"""
-                <tr style="border-bottom:1px solid var(--sidebar-border);">
-                    <td style="padding:8px 0; font-weight:bold; color:var(--text-main);">#{i+1} {cand['player']}</td>
-                    <td style="padding:8px 0;">{t_name}</td>
-                    <td style="padding:8px 0; text-align:right; font-weight:bold; color:var(--accent-green);">{cand['xG']:.1f}</td>
-                </tr>"""
-    html += """
+    for i, c in enumerate(boot_candidates[:5]):
+        t_name = sim.PRETTY_NAMES.get(c['team'], c['team'].title())
+        html += f"""<tr style="border-bottom:1px solid var(--sidebar-border);">
+            <td style="padding:6px 0; color:var(--text-main);"><b>#{i+1}</b> {c['player']} ({t_name})</td>
+            <td style="text-align:right; font-weight:bold; color:var(--accent-green);">{c['xG']:.1f} xG</td>
+        </tr>"""
+    
+    html += f"""
             </table>
         </div>
-        
-        <!-- Golden Ball -->
-        <div class="dashboard-card" style="margin:0; border-top:4px solid #8b5cf6;">
-            <h3 style="margin-top:0; color:#8b5cf6;">🏆 Projected Golden Ball</h3>
-            <table style="width:100%; font-size:0.9em; border-collapse:collapse;">
-                <tr style="border-bottom:1px solid var(--sidebar-border); color:var(--text-light); text-transform:uppercase; font-size:0.8em;">
-                    <th style="text-align:left; padding-bottom:5px;">Player</th>
-                    <th style="text-align:left; padding-bottom:5px;">Nation</th>
-                    <th style="text-align:right; padding-bottom:5px;">Title Prob.</th>
-                </tr>
+        <div class="dashboard-card" style="margin:0; padding:15px; border-top:3px solid #8b5cf6;">
+            <h4 style="margin:0 0 10px 0; color:#8b5cf6; font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">🏆 Golden Ball Projection</h4>
+            <table style="width:100%; font-size:0.85em; border-collapse:collapse;">
     """
-    for i, cand in enumerate(ball_candidates[:5]):
-        t_name = sim.PRETTY_NAMES.get(cand['team'], cand['team'].title())
-        html += f"""
-                <tr style="border-bottom:1px solid var(--sidebar-border);">
-                    <td style="padding:8px 0; font-weight:bold; color:var(--text-main);">#{i+1} {cand['player']}</td>
-                    <td style="padding:8px 0;">{t_name}</td>
-                    <td style="padding:8px 0; text-align:right; font-weight:bold; color:var(--accent-blue);">{cand['win_pct']:.1f}%</td>
-                </tr>"""
-    html += """
+    for i, c in enumerate(ball_candidates[:5]):
+        t_name = sim.PRETTY_NAMES.get(c['team'], c['team'].title())
+        html += f"""<tr style="border-bottom:1px solid var(--sidebar-border);">
+            <td style="padding:6px 0; color:var(--text-main);"><b>#{i+1}</b> {c['player']} ({t_name})</td>
+            <td style="text-align:right; font-weight:bold; color:var(--accent-blue);">{c['win_pct']:.1f}% Win</td>
+        </tr>"""
+    
+    html += f"""
             </table>
         </div>
     </div>
-    """
-    # -----------------------------------------------
 
+    <!-- ROW 3: MATCHUP INSIGHTS -->
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:30px;">
+        <div class="dashboard-card" style="margin:0; background:rgba(139, 92, 246, 0.05); border:1px solid rgba(139, 92, 246, 0.2);">
+            <div style="font-size:0.7em; text-transform:uppercase; color:#8b5cf6; font-weight:700;">⚔️ Most Likely KO Matchup</div>
+            <div style="font-size:1.1em; font-weight:700; color:var(--text-main); margin-top:3px;">{riv1_name} vs {riv2_name}</div>
+        </div>
+        <div class="dashboard-card" style="margin:0; background:rgba(239, 68, 68, 0.05); border:1px solid rgba(239, 68, 68, 0.2);">
+            <div style="font-size:0.7em; text-transform:uppercase; color:#ef4444; font-weight:700;">💀 Biggest Bogey Matchup</div>
+            <div style="font-size:1.1em; font-weight:700; color:var(--text-main); margin-top:3px;">{gk_text}</div>
+        </div>
+    </div>
+
+    <h3 style='color:var(--text-main); border-bottom:2px solid var(--sidebar-border); padding-bottom:10px;'>📋 Projected Group Standings</h3>
+    <div style='display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:15px; margin-bottom:40px;'>
+    """
+    
+    for grp in sorted(state['groups'].keys()):
+        is_god = "💀" if grp == group_of_death else ""
+        html += f"""<div class='dashboard-card' style='margin:0; padding:15px;'>
+            <h4 style='margin:0 0 10px 0; color:var(--accent-blue);'>Group {grp} <span style="float:right;" title="Group of Death">{is_god}</span></h4>
+            <table style='width:100%; font-size:0.85em; border-collapse:collapse;'>"""
+        group_teams = list(state['groups'][grp]['teams'].keys())
+        group_teams.sort(key=lambda t: state['stats'][t]['r32'], reverse=True)
+        for t in group_teams:
+            s = state['stats'][t]
+            adv_pct = (s['r32'] / num) * 100
+            opacity = "1.0" if (s['apps']/num) > 0.5 else "0.5"
+            t_name = sim.PRETTY_NAMES.get(t, t.title())  # ADDED THIS LINE
+            html += f"""<tr style='opacity:{opacity}; border-bottom:1px solid var(--sidebar-border);'>
+                <td style='padding:6px 0; font-weight:600;'>{t_name}</td>
+                <td style='padding:6px 0; text-align:right; font-weight:bold; color:var(--accent-green);'>{adv_pct:.1f}%</td>
+            </tr>"""
+        html += "</table></div>"
+    
     html += """</div>
     <div style='display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid var(--sidebar-border); padding-bottom:10px; margin-bottom:15px;'>
         <div>
