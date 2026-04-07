@@ -25,6 +25,26 @@ def get_slug(name):
     # Lowercase and remove all non-alphanumeric characters
     return re.sub(r'[^a-z0-9]', '', name.lower().strip())
 
+def parse_formation_to_targets(fmt_str):
+    """
+    Turns '4-3-3' into {'DEF': 4, 'MID': 3, 'ATT': 3}
+    Turns '4-2-3-1' into {'DEF': 4, 'MID': 5, 'ATT': 1}
+    """
+    import re
+    # Extract just the numbers: '4-3-3' -> ['4', '3', '3']
+    nums = [int(n) for n in re.findall(r'\d', str(fmt_str))]
+    
+    if len(nums) == 3:
+        return {'GK': 1, 'DEF': nums[0], 'MID': nums[1], 'ATT': nums[2]}
+    elif len(nums) == 4:
+        # e.g., 4-2-3-1. We combine the middle two (DM + AM) into 'MID'
+        return {'GK': 1, 'DEF': nums[0], 'MID': nums[1] + nums[2], 'ATT': nums[3]}
+    elif len(nums) == 5:
+        # e.g., 4-1-4-1. Combine the three middle layers.
+        return {'GK': 1, 'DEF': nums[0], 'MID': nums[1] + nums[2] + nums[3], 'ATT': nums[4]}
+    
+    # Default fallback if string is weird
+    return {'GK': 1, 'DEF': 4, 'MID': 4, 'ATT': 2}
 # We will store the 'Pretty' version of names here as we find them
 PRETTY_NAMES = {}
 
@@ -170,10 +190,29 @@ def calculate_squad_ratings(player_df, formation_df):
 
     # Position mapping helper
     def get_unit(pos_str):
-        p = str(pos_str).upper()
-        if 'GK' in p: return 'GK'
-        if any(x in p for x in ['CB', 'RB', 'LB', 'RWB', 'LWB', 'DC', 'DR', 'DL', 'SW', 'DF']): return 'DEF'
-        if any(x in p for x in ['ST', 'CF', 'FW', 'LW', 'RW', 'AMR', 'AML', 'WF']): return 'ATT'
+        # Convert "AML ST" or "MC, AMR" into a list of clean uppercase tokens
+        p_orig = str(pos_str).upper()
+        # Replace commas/slashes with spaces then split
+        p_parts = p_orig.replace(',', ' ').replace('/', ' ').split()
+    
+        # 1. GOALKEEPER
+        if 'GK' in p_parts: 
+            return 'GK'
+    
+        # 2. ATTACK: ST, AML, AMR, CF, FW
+        # We include AML/AMR here because in a 4-unit split, wingers are attackers.
+        att_keys = {'ST', 'AML', 'AMR', 'CF', 'FW', 'STRIKER', 'FORWARD', 'WF'}
+        if any(part in att_keys for part in p_parts): 
+            return 'ATT'
+        
+        # 3. DEFENSE: DC, DL, DR, WBL, WBR, DF
+        # Wing-backs (WBL/WBR) are classified as Defenders here for stability.
+        def_keys = {'DC', 'DL', 'DR', 'WBL', 'WBR', 'DF', 'CB', 'LB', 'RB', 'SW'}
+        if any(part in def_keys for part in p_parts): 
+            return 'DEF'
+    
+        # 4. MIDFIELD: DM, MC, ML, MR, AMC
+        # If they aren't a GK, ATT, or DEF, they are a Midfielder.
         return 'MID'
 
     player_df['unit'] = player_df[pos_col].apply(get_unit)
@@ -182,25 +221,39 @@ def calculate_squad_ratings(player_df, formation_df):
     for nation, group in player_df.groupby('nation'):
         n_key = get_slug(nation)
         
-        # Calculate baseline
-        squad_top_15 = group.sort_values('rat', ascending=False).head(15)
-        squad_avg = squad_top_15['rat'].mean() if not squad_top_15.empty else 70
-
-        # Calculate units
-        targets = {'GK': 1, 'DEF': 4, 'MID': 3, 'ATT': 3}
-        final_units = {}
-
-        for unit, count in targets.items():
-            natural_players = group[group['unit'] == unit].sort_values('rat', ascending=False)
-            if not natural_players.empty:
-                final_units[unit] = natural_players.head(count)['rat'].mean()
-            else:
-                final_units[unit] = max(45, squad_avg - 5)
-
-        # Calculate overall
-        overall_talent = group['rat'].sort_values(ascending=False).head(18).mean()
+        # 1. GET THE FORMATION TARGETS
+        # Look up Norway in the FORMATIONS dict we loaded from CSV
+        fmt_data = TEAM_FORMATIONS.get(n_key, {})
+        fmt_str = fmt_data.get('formation 1', '4-4-2') # Default to 4-4-2 if missing
+        targets = parse_formation_to_targets(fmt_str)
         
-        # --- LINE 220: This must be indented exactly 8 spaces from the left ---
+        # Calculate baseline squad average for fallbacks
+        squad_top_18 = group.sort_values('rat', ascending=False).head(18)
+        squad_avg = squad_top_18['rat'].mean() if not squad_top_18.empty else 70
+
+        final_units = {}
+        # 2. CALCULATE UNIT RATINGS BASED ON FORMATION
+        for unit, count in targets.items():
+            # Get players naturally assigned to this unit (e.g. ST/AML/AMR for ATT)
+            natural_players = group[group['unit'] == unit].sort_values('rat', ascending=False)
+            natural_list = natural_players['rat'].tolist()
+
+            if len(natural_list) < count:
+                # Fill gaps with best available squad members (with -5 penalty)
+                needed = count - len(natural_list)
+                fillers = group[group['unit'] != unit].sort_values('rat', ascending=False)
+                filler_list = (fillers.head(needed)['rat'] - 5).tolist()
+                
+                combined = natural_list + filler_list
+                final_units[unit] = sum(combined) / len(combined) if combined else squad_avg
+            else:
+                # Take the top N players defined by the formation
+                final_units[unit] = natural_players.head(count)['rat'].mean()
+
+        # 3. Final Overall Score (Weighted toward the starters)
+        overall_talent = (final_units['GK']*0.1 + final_units['DEF']*0.3 + 
+                          final_units['MID']*0.3 + final_units['ATT']*0.3)
+        
         team_ratings[n_key] = {
             'talent_score': overall_talent,
             'talent_weight': np.clip(overall_talent / 75.0, 0.85, 1.25),
@@ -208,6 +261,7 @@ def calculate_squad_ratings(player_df, formation_df):
             'rating_def': final_units['DEF'],
             'rating_mid': final_units['MID'],
             'rating_att': final_units['ATT'],
+            'formation': fmt_str,
             'top_players': group.sort_values('rat', ascending=False).head(4).to_dict('records')
         }
             
