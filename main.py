@@ -1012,8 +1012,13 @@ def load_data_view(event):
     if not container: return
     
     container.innerHTML = "<div style='padding:20px; text-align:center;'>Loading raw data...</div>" 
+    
+    # 1. Determine if we are filtering for WC Teams
     sidebar_checkbox = js.document.getElementById("hist-filter-wc")
     wc_only = sidebar_checkbox.checked if sidebar_checkbox else False
+    
+    # 2. Create the list of slugs for the WC Teams once
+    wc_team_slugs = [sim.get_slug(t) for t in sim.WC_TEAMS]
     
     html = """
     <div style="margin-bottom:10px; font-size:0.8em; color:#7f8c8d; text-align:right;">
@@ -1049,18 +1054,16 @@ def load_data_view(event):
     GLOBAL_AVG = sim.AVG_GOALS if sim.AVG_GOALS > 0 else 1.25
 
     rank_counter = 0
-    # 1. Create a list of slugs for the World Cup teams once, before the loop
-    wc_team_slugs = [sim.get_slug(t) for t in sim.WC_TEAMS]
-
     for team, stats in sorted_teams:
-        # 2. Compare the team slug against our list of World Cup slugs
+        # 'team' is already a slug (e.g., 'unitedstates')
+        
+        # Apply the World Cup Filter correctly
         if wc_only and team not in wc_team_slugs:
             continue
         
-        # 3. Apply your match-count filter
+        # Apply Match Minimum Filter
         matches = stats.get('matches', 0)
-        if matches < 7: 
-            continue 
+        if matches < 7: continue 
 
         rank_counter += 1
 
@@ -1080,8 +1083,9 @@ def load_data_view(event):
             elif char == 'L': color = "#e74c3c"
             else: color = "#bdc3c7"
             formatted_form += f"<span style='color:{color}; font-weight:bold;'>{char}</span>"
-        
-        talent = sim.TEAM_TALENT.get(get_slug(team), {})
+
+        # Look up talent using the slug (which 'team' already is)
+        talent = sim.TEAM_TALENT.get(team, {})
         
         def fmt(key):
             v = talent.get(key, 0)
