@@ -935,16 +935,16 @@ async def run_matchup_analysis(event):
                 <div>
                     <div style="font-weight:bold; margin-bottom:8px; color: #3b82f6;">{name_a}'s Strengths</div>
                     <ul style="margin:0; padding-left:18px; font-size:0.9em; line-height:1.6;">
-                        <li>{('💪 Dominant Attack' if atk_a > atk_b + 1.5 else '⚔️ Balanced Offense') if abs(atk_a - atk_b) > 0.5 else '⚖️ Average Attack'}</li>
-                        <li>{('🧱 Fortress Defense' if def_a > def_b + 1.5 else '🛡️ Solid Backline') if abs(def_a - def_b) > 0.5 else '⚖️ Average Defense'}</li>
+                        <li>{('💪 Dominant Attack' if tac_atk_a > tac_atk_b + 1.5 else '⚔️ Balanced Offense') if abs(tac_atk_a - tac_atk_b) > 0.5 else '⚖️ Average Attack'}</li>
+                        <li>{('🧱 Fortress Defense' if tac_def_a > tac_def_b + 1.5 else '🛡️ Solid Backline') if abs(tac_def_a - tac_def_b) > 0.5 else '⚖️ Average Defense'}</li>
                         <li>{('✓ Game Control' if consistency_a > consistency_b else '⚠️ Unpredictable') if abs(consistency_a - consistency_b) > 1.5 else '↔️ Similar Control'}</li>
                     </ul>
                 </div>
                 <div>
                     <div style="font-weight:bold; margin-bottom:8px; color: #ef4444;">{name_b}'s Strengths</div>
                     <ul style="margin:0; padding-left:18px; font-size:0.9em; line-height:1.6;">
-                        <li>{('💪 Dominant Attack' if atk_b > atk_a + 1.5 else '⚔️ Balanced Offense') if abs(atk_b - atk_a) > 0.5 else '⚖️ Average Attack'}</li>
-                        <li>{('🧱 Fortress Defense' if def_b > def_a + 1.5 else '🛡️ Solid Backline') if abs(def_b - def_a) > 0.5 else '⚖️ Average Defense'}</li>
+                        <li>{('💪 Dominant Attack' if tac_atk_b > tac_atk_a + 1.5 else '⚔️ Balanced Offense') if abs(tac_atk_b - tac_atk_a) > 0.5 else '⚖️ Average Attack'}</li>
+                        <li>{('🧱 Fortress Defense' if tac_def_b > tac_def_a + 1.5 else '🛡️ Solid Backline') if abs(tac_def_b - tac_def_a) > 0.5 else '⚖️ Average Defense'}</li>
                         <li>{('✓ Game Control' if consistency_b > consistency_a else '⚠️ Unpredictable') if abs(consistency_b - consistency_a) > 1.5 else '↔️ Similar Control'}</li>
                     </ul>
                 </div>
@@ -1020,11 +1020,12 @@ def load_data_view(event):
     
     container.innerHTML = "<div style='padding:20px; text-align:center;'>Loading raw data...</div>" 
     
-    # 1. Determine if we are filtering for WC Teams
+    # 1. READ CHECKBOX (Ensure the ID matches your HTML 'hist-filter-wc')
     sidebar_checkbox = js.document.getElementById("hist-filter-wc")
     wc_only = sidebar_checkbox.checked if sidebar_checkbox else False
     
-    # 2. Create the list of slugs for the WC Teams once
+    # 2. SLUGIFY WORLD CUP LIST (Critical for comparison)
+    # We do this once outside the loop for speed
     wc_team_slugs = [sim.get_slug(t) for t in sim.WC_TEAMS]
     
     html = """
@@ -1062,15 +1063,18 @@ def load_data_view(event):
 
     rank_counter = 0
     for team, stats in sorted_teams:
-        # 'team' is already a slug (e.g., 'unitedstates')
+        # team is a slug (e.g. 'argentina')
         
-        # Apply the World Cup Filter correctly
-        if wc_only and team not in wc_team_slugs:
-            continue
+        if wc_only:
+            if team not in wc_team_slugs:
+                continue # Skip this team if they aren't in the WC
         
-        # Apply Match Minimum Filter
+        # 4. APPLY MINIMUM MATCH FILTER
         matches = stats.get('matches', 0)
-        if matches < 7: continue 
+        if matches < 7:
+            # But let them stay if they are a WC team even if they have <7 matches
+            if team not in wc_team_slugs:
+                continue
 
         rank_counter += 1
 
