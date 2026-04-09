@@ -132,7 +132,7 @@ def load_r32_combinations():
                 'K': get_group_letter(row.get('1K')),
                 'L': get_group_letter(row.get('1L'))
             }
-        print(f"Loaded {len(R32_LOOKUP)} 3rd-place combinations.")
+        js.console.log(f"Loaded {len(R32_LOOKUP)} 3rd-place combinations.")
     except Exception as e:
         import js
         js.console.error(f"Error loading possible_matchups.csv: {e}")
