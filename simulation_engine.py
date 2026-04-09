@@ -98,6 +98,32 @@ def parse_formation_to_targets(fmt_str):
 # We will store the 'Pretty' version of names here as we find them
 PRETTY_NAMES = {}
 
+R32_LOOKUP = {}
+
+def load_r32_combinations():
+    global R32_LOOKUP
+    try:
+        df = pd.read_csv("possible_matchups.csv")
+        for _, row in df.iterrows():
+            # Create standardized key: "EFGHIJKL"
+            combo_key = "".join(sorted(str(row['Combination']).strip().upper()))
+            
+            # Extract only the target Group letter (the last character)
+            R32_LOOKUP[combo_key] = {
+                'A': str(row['1A']).strip()[-1].upper(),
+                'B': str(row['1B']).strip()[-1].upper(),
+                'D': str(row['1D']).strip()[-1].upper(),
+                'E': str(row['1E']).strip()[-1].upper(),
+                'G': str(row['1G']).strip()[-1].upper(),
+                'I': str(row['1I']).strip()[-1].upper(),
+                'K': str(row['1K']).strip()[-1].upper(),
+                'L': str(row['1L']).strip()[-1].upper()
+            }
+        print(f"Loaded {len(R32_LOOKUP)} 3rd-place combinations.")
+    except Exception as e:
+        import js
+        js.console.error(f"Error loading possible_matchups.csv: {e}")
+
 # =============================================================================
 # --- PART 1: SETUP & DATA LOADING ---
 # =============================================================================
@@ -440,6 +466,8 @@ def _initialize_engine_impl():
     TEAM_CONFEDS = {get_slug(k): v for k, v in TEAM_CONFEDS.items()}
     
     results_df, scorers_df, df_names, player_df, formation_df = load_data()
+
+    load_r32_combinations()
     
     # 2. POPULATE FORMATIONS FIRST (Before calculating ratings!)
     TEAM_FORMATIONS = {}
@@ -1070,24 +1098,31 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
     def get_t(grp, pos):
         return group_results_lists[grp][pos]
 
-    best_3rds = sorted(third_place, key=lambda x: (x['stats']['p'], x['stats']['gd'], x['stats']['gf']), reverse=True)[:8]
-    target_winners =['A', 'B', 'D', 'E', 'G', 'I', 'K', 'L']
+    # 1. Identify the 8 best 3rd-place teams
+    best_3rds_list = sorted(third_place, key=lambda x: (x['stats']['p'], x['stats']['gd'], x['stats']['gf']), reverse=True)[:8]
+    
+    # 2. Map group letter to the team slug (e.g., {'E': 'germany', 'J': 'argentina'})
+    third_place_teams = {x['team_group']: x['team'] for x in best_3rds_list}
+    
+    # 3. Create the lookup key (e.g., "EFGHIJKL")
+    advancing_group_letters = sorted(third_place_teams.keys())
+    lookup_key = "".join(advancing_group_letters)
+    
     t3_mapping = {}
+    
+    # 4. Pull assignments directly from the CSV mapping
+    if lookup_key in R32_LOOKUP:
+        assignments = R32_LOOKUP[lookup_key] 
+        for winner_letter, target_group in assignments.items():
+            t3_mapping[winner_letter] = third_place_teams[target_group]
+    else:
+        # Fallback (Safety net in case CSV fails to load)
+        target_winners = ['A', 'B', 'D', 'E', 'G', 'I', 'K', 'L']
+        for i, winner_letter in enumerate(target_winners):
+            t3_mapping[winner_letter] = best_3rds_list[i]['team']
 
-    def assign_t3(index, available_t3):
-        if index == len(target_winners): return True
-        host_group = target_winners[index]
-        for t3 in available_t3:
-            if t3['team_group'] != host_group:          
-                t3_mapping[host_group] = t3['team']
-                new_available =[t for t in available_t3 if t != t3]
-                if assign_t3(index + 1, new_available): 
-                    return True
-        return False
-        
-    assign_t3(0, best_3rds)
-
-    bracket_matchups =[
+    # 5. Build the Bracket
+    bracket_matchups = [
         (get_t('A', 0), t3_mapping['A']),    
         (get_t('C', 1), get_t('F', 1)),      
         (get_t('E', 0), t3_mapping['E']),    
