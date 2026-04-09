@@ -105,19 +105,32 @@ def load_r32_combinations():
     try:
         df = pd.read_csv("possible_matchups.csv")
         for _, row in df.iterrows():
-            # Create standardized key: "EFGHIJKL"
-            combo_key = "".join(sorted(str(row['Combination']).strip().upper()))
+            # Safely read the combination string
+            combo_str = str(row.get('Combination', '')).strip()
             
-            # Extract only the target Group letter (the last character)
+            # CRITICAL FIX: Skip empty rows or rows evaluated as 'nan'
+            if not combo_str or combo_str.lower() == 'nan':
+                continue
+                
+            # Create standardized key: "EFGHIJKL"
+            combo_key = "".join(sorted(combo_str.upper()))
+            
+            # Safe parsing helper
+            def get_group_letter(val):
+                val_str = str(val).strip()
+                if val_str.lower() == 'nan' or not val_str:
+                    return 'X' # Fallback placeholder
+                return val_str[-1].upper()
+            
             R32_LOOKUP[combo_key] = {
-                'A': str(row['1A']).strip()[-1].upper(),
-                'B': str(row['1B']).strip()[-1].upper(),
-                'D': str(row['1D']).strip()[-1].upper(),
-                'E': str(row['1E']).strip()[-1].upper(),
-                'G': str(row['1G']).strip()[-1].upper(),
-                'I': str(row['1I']).strip()[-1].upper(),
-                'K': str(row['1K']).strip()[-1].upper(),
-                'L': str(row['1L']).strip()[-1].upper()
+                'A': get_group_letter(row.get('1A')),
+                'B': get_group_letter(row.get('1B')),
+                'D': get_group_letter(row.get('1D')),
+                'E': get_group_letter(row.get('1E')),
+                'G': get_group_letter(row.get('1G')),
+                'I': get_group_letter(row.get('1I')),
+                'K': get_group_letter(row.get('1K')),
+                'L': get_group_letter(row.get('1L'))
             }
         print(f"Loaded {len(R32_LOOKUP)} 3rd-place combinations.")
     except Exception as e:
@@ -1113,10 +1126,22 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
     # 4. Pull assignments directly from the CSV mapping
     if lookup_key in R32_LOOKUP:
         assignments = R32_LOOKUP[lookup_key] 
+        
+        # Track used teams for a seamless fallback
+        available_3rds = [x['team'] for x in best_3rds_list]
+        
         for winner_letter, target_group in assignments.items():
-            t3_mapping[winner_letter] = third_place_teams[target_group]
+            if target_group in third_place_teams:
+                team_to_assign = third_place_teams[target_group]
+                t3_mapping[winner_letter] = team_to_assign
+                if team_to_assign in available_3rds:
+                    available_3rds.remove(team_to_assign)
+            else:
+                # CRASH PREVENTION: If target_group is invalid (e.g. 'N'), use next available
+                fallback_team = available_3rds.pop(0) if available_3rds else best_3rds_list[0]['team']
+                t3_mapping[winner_letter] = fallback_team
     else:
-        # Fallback (Safety net in case CSV fails to load)
+        # Fallback (Safety net in case CSV fails to load or combo is completely missing)
         target_winners = ['A', 'B', 'D', 'E', 'G', 'I', 'K', 'L']
         for i, winner_letter in enumerate(target_winners):
             t3_mapping[winner_letter] = best_3rds_list[i]['team']
