@@ -172,6 +172,9 @@ def setup_interactions():
     EVENT_HANDLERS.append(proxy_sort)
     js.window.sort_table = proxy_sort
 
+    js.window.switch_bulk_tab = create_proxy(switch_bulk_tab)
+    js.window.show_top_bracket = create_proxy(show_top_bracket)
+
     proxy_view_group = create_proxy(open_group_modal)
     EVENT_HANDLERS.append(proxy_view_group)
     js.window.view_group_matches = proxy_view_group
@@ -201,6 +204,74 @@ def setup_interactions():
 # =============================================================================
 # --- 2. SINGLE SIMULATION ---
 # =============================================================================
+def switch_bulk_tab(tab_id):
+    if tab_id == 'agg':
+        js.document.getElementById('bulk-agg-view').style.display = 'block'
+        js.document.getElementById('bulk-brackets-view').style.display = 'none'
+        js.document.getElementById('btn-bulk-agg').classList.add('active')
+        js.document.getElementById('btn-bulk-brackets').classList.remove('active')
+    else:
+        js.document.getElementById('bulk-agg-view').style.display = 'none'
+        js.document.getElementById('bulk-brackets-view').style.display = 'block'
+        js.document.getElementById('btn-bulk-agg').classList.remove('active')
+        js.document.getElementById('btn-bulk-brackets').classList.add('active')
+        
+        container = js.document.getElementById('top-bracket-render-area')
+        if container and container.innerHTML.strip() == "":
+            show_top_bracket(0)
+
+def show_top_bracket(index):
+    state = BULK_STATE
+    if not state or 'top_brackets' not in state: return
+    brackets = state['top_brackets']
+    if index >= len(brackets): return
+    
+    # Update active button states
+    for i in range(5):
+        btn = js.document.getElementById(f"btn-scenario-{i}")
+        if btn:
+            if i == index: btn.classList.add("active")
+            else: btn.classList.remove("active")
+            
+    bracket_data = brackets[index]
+    
+    # Generate Bracket HTML
+    bracket_html = '<div id="bracket-container">'
+    for round_data in bracket_data:
+        if round_data["round"] == "Third Place Play-off": continue # Hide 3rd place from bracket view to save space
+        
+        bracket_html += f'<div class="bracket-round"><div class="round-title">{round_data["round"]}</div>'
+        for m in round_data['matches']:
+            c1 = "winner-text" if m['winner'] == m['t1'] else ""
+            c2 = "winner-text" if m['winner'] == m['t2'] else ""
+            
+            g1_txt = str(m['g1'])
+            g2_txt = str(m['g2'])
+            if m['method'] == 'pks':
+                g1_txt = f"{m['g1']} (P)" if m['winner'] == m['t1'] else str(m['g1'])
+                g2_txt = f"{m['g2']} (P)" if m['winner'] == m['t2'] else str(m['g2'])
+            elif m['method'] == 'aet':
+                g1_txt = f"{m['g1']} (ET)"
+                g2_txt = f"{m['g2']} (ET)"
+
+            name1 = sim.PRETTY_NAMES.get(m['t1'], m['t1'].title())
+            name2 = sim.PRETTY_NAMES.get(m['t2'], m['t2'].title())
+
+            bracket_html += f'''
+            <div class="matchup">
+                <div class="matchup-team {c1}">
+                    <span>{name1}</span> <span>{g1_txt}</span>
+                </div>
+                <div class="matchup-team {c2}">
+                    <span>{name2}</span> <span>{g2_txt}</span>
+                </div>
+            </div>
+            '''
+        bracket_html += "</div>"
+    bracket_html += "</div>"
+    
+    js.document.getElementById("top-bracket-render-area").innerHTML = bracket_html
+
 async def run_single_sim(event):
     global LAST_SIM_RESULTS
     
@@ -376,9 +447,13 @@ async def run_bulk_sim(event):
     """
     await asyncio.sleep(0.05)
 
+    all_brackets = [] # NEW
+
     try:
         for i in range(num):
             res = sim.run_simulation(fast_mode=False, quiet=True)
+            
+            all_brackets.append(res['bracket_data']) # NEW
             
             for grp, table in res['groups_data'].items():
                 if grp not in group_mapping: group_mapping[grp] = {'teams': {}, 'total_elo': 0}
@@ -436,10 +511,38 @@ async def run_bulk_sim(event):
                 if ptext: ptext.innerHTML = f"{pct}% Complete"
                 await asyncio.sleep(0)
 
+        # NEW: SCORE AND RANK THE BRACKETS
+        unique_brackets = {}
+        for b in all_brackets:
+            if not b: continue
+            score = 0
+            sig_parts = []
+            for r in b:
+                r_name = r['round']
+                if r_name == 'Round of 32': metric = 'r16'
+                elif r_name == 'Round of 16': metric = 'qf'
+                elif r_name == 'Quarter-finals': metric = 'sf'
+                elif r_name == 'Semi-finals': metric = 'final'
+                elif r_name == 'Final': metric = 'win'
+                else: continue
+                
+                for m in r['matches']:
+                    w = m['winner']
+                    # Add the probability of this team reaching this far
+                    score += (team_stats[w][metric] / num)
+                    sig_parts.append(w)
+            
+            sig = "|".join(sig_parts)
+            if sig not in unique_brackets or unique_brackets[sig]['score'] < score:
+                unique_brackets[sig] = {'score': score, 'bracket': b}
+                
+        sorted_unique = sorted(unique_brackets.values(), key=lambda x: x['score'], reverse=True)
+        top_brackets = [x['bracket'] for x in sorted_unique[:5]]
+
         BULK_STATE = {
             'num': num, 'stats': team_stats, 'matchups': matchups, 
             'goals': goals_tracker, 'groups': group_mapping, 'chaos': chaos_events,
-            'h2h': h2h_tracker 
+            'h2h': h2h_tracker, 'top_brackets': top_brackets # Added top_brackets
         }
 
         build_bulk_dashboard()
@@ -679,7 +782,38 @@ def build_bulk_dashboard():
     <div id="favorites-table-container"></div>
     <div id="path-modal-container"></div>
     """
-    out_div.innerHTML = html
+    
+    tabs_html = """
+    <div class="sub-tab-container">
+        <button id="btn-bulk-agg" class="sub-tab-btn active" onclick="window.switch_bulk_tab('agg')">📊 Aggregates</button>
+        <button id="btn-bulk-brackets" class="sub-tab-btn" onclick="window.switch_bulk_tab('brackets')">🔮 Most Likely Scenarios</button>
+    </div>
+    """
+    
+    # Wrap original aggregates in a div
+    html = f"<div id='bulk-agg-view'>{html}</div>"
+    
+    # Build the Brackets shell
+    brackets_shell = """
+    <div id="bulk-brackets-view" style="display:none;">
+        <div class="dashboard-card" style="margin-bottom:20px;">
+            <h3 style="margin-top:0;">Top 5 Most Likely Outcomes</h3>
+            <p style="color:var(--text-light); font-size:0.9em; margin-bottom:15px;">Based on the mathematical probability of each matchup, these are the 5 exact brackets that were most likely to occur in this simulation block.</p>
+            <div style="display:flex; gap:10px; overflow-x:auto; padding-bottom:10px;">
+    """
+    
+    for i in range(len(state.get('top_brackets', []))):
+        act_class = "active" if i == 0 else ""
+        brackets_shell += f'<button id="btn-scenario-{i}" class="scenario-btn {act_class}" onclick="window.show_top_bracket({i})">Scenario {i+1}</button>'
+        
+    brackets_shell += """
+            </div>
+        </div>
+        <div id="top-bracket-render-area" style="overflow-x:auto; padding-bottom: 20px;"></div>
+    </div>
+    """
+    
+    out_div.innerHTML = tabs_html + html + brackets_shell
     render_favorites_table()
 
 def render_favorites_table(event=None):
