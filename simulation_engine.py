@@ -62,23 +62,38 @@ def get_slug(name):
 
 def parse_formation_to_targets(fmt_str):
     """
-    Turns '4-3-3' into {'DEF': 4, 'MID': 3, 'ATT': 3}
-    Turns '4-2-3-1' into {'DEF': 4, 'MID': 5, 'ATT': 1}
+    Explicitly maps modern formations to their true unit counts.
+    (e.g., 4-2-3-1 is 4 Defenders, 2 Midfielders, 4 Attackers (1 ST + 3 AM/Wingers))
     """
     import re
-    # Extract just the numbers: '4-3-3' -> ['4', '3', '3']
-    nums = [int(n) for n in re.findall(r'\d', str(fmt_str))]
+    fmt = str(fmt_str).strip()
     
+    mapping = {
+        '4-2-3-1': {'GK': 1, 'DEF': 4, 'MID': 2, 'ATT': 4},
+        '4-3-3':   {'GK': 1, 'DEF': 4, 'MID': 3, 'ATT': 3},
+        '4-4-2':   {'GK': 1, 'DEF': 4, 'MID': 4, 'ATT': 2},
+        '3-4-3':   {'GK': 1, 'DEF': 3, 'MID': 4, 'ATT': 3},
+        '3-4-2-1': {'GK': 1, 'DEF': 3, 'MID': 4, 'ATT': 3},
+        '3-5-2':   {'GK': 1, 'DEF': 3, 'MID': 5, 'ATT': 2},
+        '4-1-4-1': {'GK': 1, 'DEF': 4, 'MID': 5, 'ATT': 1},
+        '5-3-2':   {'GK': 1, 'DEF': 5, 'MID': 3, 'ATT': 2},
+        '4-3-2-1': {'GK': 1, 'DEF': 4, 'MID': 3, 'ATT': 3},
+        '4-3-1-2': {'GK': 1, 'DEF': 4, 'MID': 3, 'ATT': 3},
+        '4-4-1-1': {'GK': 1, 'DEF': 4, 'MID': 4, 'ATT': 2},
+        '4-2-2-2': {'GK': 1, 'DEF': 4, 'MID': 2, 'ATT': 4},
+    }
+    
+    if fmt in mapping: 
+        return mapping[fmt]
+    
+    # Fallback if string is weird
+    nums = [int(n) for n in re.findall(r'\d', fmt)]
     if len(nums) == 3:
         return {'GK': 1, 'DEF': nums[0], 'MID': nums[1], 'ATT': nums[2]}
     elif len(nums) == 4:
-        # e.g., 4-2-3-1. We combine the middle two (DM + AM) into 'MID'
-        return {'GK': 1, 'DEF': nums[0], 'MID': nums[1] + nums[2], 'ATT': nums[3]}
-    elif len(nums) == 5:
-        # e.g., 4-1-4-1. Combine the three middle layers.
-        return {'GK': 1, 'DEF': nums[0], 'MID': nums[1] + nums[2] + nums[3], 'ATT': nums[4]}
+        # Assume generic 4-band shape implies defensive mids + attacking mids
+        return {'GK': 1, 'DEF': nums[0], 'MID': nums[1], 'ATT': nums[2] + nums[3]}
     
-    # Default fallback if string is weird
     return {'GK': 1, 'DEF': 4, 'MID': 4, 'ATT': 2}
 # We will store the 'Pretty' version of names here as we find them
 PRETTY_NAMES = {}
@@ -225,29 +240,23 @@ def calculate_squad_ratings(player_df, formation_df):
 
     # Position mapping helper
     def get_unit(pos_str):
-        # Convert "AML ST" or "MC, AMR" into a list of clean uppercase tokens
         p_orig = str(pos_str).upper()
-        # Replace commas/slashes with spaces then split
         p_parts = p_orig.replace(',', ' ').replace('/', ' ').split()
     
-        # 1. GOALKEEPER
         if 'GK' in p_parts: 
             return 'GK'
     
-        # 2. ATTACK: ST, AML, AMR, CF, FW
-        # We include AML/AMR here because in a 4-unit split, wingers are attackers.
-        att_keys = {'ST', 'AML', 'AMR', 'CF', 'FW', 'STRIKER', 'FORWARD', 'WF'}
+        # ATTACK: Strikers, Wingers, and Attacking Mids
+        att_keys = {'ST', 'AML', 'AMR', 'CF', 'FW', 'STRIKER', 'FORWARD', 'WF', 'AMC', 'CAM', 'AM', 'LW', 'RW'}
         if any(part in att_keys for part in p_parts): 
             return 'ATT'
         
-        # 3. DEFENSE: DC, DL, DR, WBL, WBR, DF
-        # Wing-backs (WBL/WBR) are classified as Defenders here for stability.
-        def_keys = {'DC', 'DL', 'DR', 'WBL', 'WBR', 'DF', 'CB', 'LB', 'RB', 'SW'}
+        # DEFENSE: Center Backs, Fullbacks, Wingbacks
+        def_keys = {'DC', 'DL', 'DR', 'WBL', 'WBR', 'DF', 'CB', 'LB', 'RB', 'SW', 'LWB', 'RWB'}
         if any(part in def_keys for part in p_parts): 
             return 'DEF'
     
-        # 4. MIDFIELD: DM, MC, ML, MR, AMC
-        # If they aren't a GK, ATT, or DEF, they are a Midfielder.
+        # MIDFIELD: CDMs, CMs, LM/RM
         return 'MID'
 
     player_df['unit'] = player_df[pos_col].apply(get_unit)
@@ -256,42 +265,56 @@ def calculate_squad_ratings(player_df, formation_df):
     for nation, group in player_df.groupby('nation'):
         n_key = get_slug(nation)
         
-        # 1. GET THE FORMATION TARGETS
-        # Look up Norway in the FORMATIONS dict we loaded from CSV
         fmt_data = TEAM_FORMATIONS.get(n_key, {})
         fmt_str = fmt_data.get('formation 1', '4-4-2') 
         if pd.isna(fmt_str) or not fmt_str:
             fmt_str = '4-4-2'
+            
         targets = parse_formation_to_targets(fmt_str)
         
-        # Calculate baseline squad average for fallbacks
         squad_top_18 = group.sort_values('rat', ascending=False).head(18)
         squad_avg = squad_top_18['rat'].mean() if not squad_top_18.empty else 70
 
         final_units = {}
-        # 2. CALCULATE UNIT RATINGS BASED ON FORMATION
+        
         for unit, count in targets.items():
             natural_players = group[group['unit'] == unit].sort_values('rat', ascending=False)
             natural_list = natural_players['rat'].tolist()
 
-            if len(natural_list) < count:
+            starters = natural_list[:count]
+            
+            # --- 1. FILL STARTERS IF SHORTAGE ---
+            if len(starters) < count:
                 if unit == 'GK':
-                    # Do not let Haaland play in goal! If no GK is found, give a standard backup rating
-                    final_units[unit] = max(60, squad_avg - 10)
+                    starters.extend([max(60, squad_avg - 10)] * (count - len(starters)))
                 else:
-                    # Fill OUTFIELD gaps with best available squad members (with -5 penalty)
-                    needed = count - len(natural_list)
+                    needed = count - len(starters)
                     fillers = group[group['unit'] != unit].sort_values('rat', ascending=False)
-                    # Exclude actual GKs from playing outfield
-                    fillers = fillers[fillers['unit'] != 'GK'] 
-                    
+                    fillers = fillers[fillers['unit'] != 'GK'] # Exclude GKs
                     filler_list = (fillers.head(needed)['rat'] - 5).tolist()
-                    combined = natural_list + filler_list
-                    final_units[unit] = sum(combined) / len(combined) if combined else squad_avg
-            else:
-                final_units[unit] = natural_players.head(count)['rat'].mean()
+                    starters.extend(filler_list)
+                    
+                    # Absolute worst case fallback (database missing players)
+                    while len(starters) < count:
+                        starters.append(max(50, squad_avg - 10))
 
-        # 3. Final Overall Score (Weighted toward the starters)
+            starter_avg = sum(starters) / len(starters)
+
+            # --- 2. FACTOR IN SQUAD DEPTH (BACKUPS) ---
+            num_backups = 1 if unit == 'GK' else max(1, count // 2)
+            backups = natural_list[count : count + num_backups]
+            
+            if len(backups) < num_backups:
+                # Penalize lack of depth
+                missing_backups = num_backups - len(backups)
+                backups.extend([max(50, squad_avg - 8)] * missing_backups)
+                
+            backup_avg = sum(backups) / len(backups)
+            
+            # --- 3. BLEND STARTERS (85%) AND BACKUPS (15%) ---
+            final_units[unit] = (starter_avg * 0.85) + (backup_avg * 0.15)
+
+        # Final Overall Score (Weighted toward the outfield starters)
         overall_talent = (final_units['GK']*0.1 + final_units['DEF']*0.3 + 
                           final_units['MID']*0.3 + final_units['ATT']*0.3)
         

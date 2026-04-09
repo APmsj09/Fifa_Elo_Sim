@@ -1134,13 +1134,13 @@ def load_data_view(event=None):
 
         elo = stats.get('elo', 1200)
         ovr = fmt('talent_score')
-        
-        # Calculate Hybrid Power Rating (60% Elo / 40% OVR)
+
         if ovr > 0:
-            talent_elo = 1000 + (ovr - 60) * 40
-            hybrid = (elo * 0.60) + (talent_elo * 0.40)
+            overall_rating_z_score = (ovr - 70.0) / 8.0
+            talent_elo_rating = 1500.0 + (overall_rating_z_score * 200.0)
+            hybrid_power_rating = (elo * 0.60) + (talent_elo_rating * 0.40)
         else:
-            hybrid = elo
+            hybrid_power_rating = elo
 
         reg_gf_avg = stats.get('gf_avg', 0)
         reg_ga_avg = stats.get('ga_avg', 0)
