@@ -1123,9 +1123,8 @@ def load_data_view(event=None):
             continue
             
         matches = stats.get('matches', 0)
-        if matches < 7:
-            if team not in wc_team_slugs:
-                continue
+        if matches < 7 and team not in wc_team_slugs:
+            continue
 
         talent = sim.TEAM_TALENT.get(team, {})
         def fmt(key):
@@ -1138,9 +1137,9 @@ def load_data_view(event=None):
         if ovr > 0:
             overall_rating_z_score = (ovr - 70.0) / 8.0
             talent_elo_rating = 1500.0 + (overall_rating_z_score * 200.0)
-            hybrid_power_rating = (elo * 0.60) + (talent_elo_rating * 0.40)
+            hybrid = (elo * 0.60) + (talent_elo_rating * 0.40)
         else:
-            hybrid_power_rating = elo
+            hybrid = elo
 
         reg_gf_avg = stats.get('gf_avg', 0)
         reg_ga_avg = stats.get('ga_avg', 0)
@@ -1164,7 +1163,7 @@ def load_data_view(event=None):
             'name': sim.PRETTY_NAMES.get(team, team.title()),
             'elo': elo,
             'ovr': ovr,
-            'hybrid': hybrid,
+            'hybrid': hybrid, # Fixed variable name
             'att': fmt('rating_att'),
             'mid': fmt('rating_mid'),
             'def': fmt('rating_def'),
@@ -1184,18 +1183,16 @@ def load_data_view(event=None):
     else:
         table_data.sort(key=lambda x: x.get(TABLE_SORT_COL, 0), reverse=TABLE_SORT_DESC)
 
-    # Dynamic Table Header Builder
+    # Helper function for sortable headers
     def get_th(col_id, label, color="", title=""):
         arrow = ""
         if TABLE_SORT_COL == col_id:
             arrow = " ▼" if TABLE_SORT_DESC else " ▲"
         else:
             arrow = " ↕"
-            
         style = ""
         if color: style += f" color:{color};"
         title_attr = f" title='{title}'" if title else ""
-        
         return f'<th class="sortable-th" onclick="window.sort_table(\'{col_id}\')" style="{style}"{title_attr}>{label}<span style="font-size:0.8em; opacity:0.6;">{arrow}</span></th>'
 
     html = f'''
@@ -1208,20 +1205,20 @@ def load_data_view(event=None):
             <tr>
                 <th>Rank</th>
                 {get_th("name", "Team")}
-                {get_th("hybrid", "Power Rtg", title="60% Elo, 40% OVR Blend")}
                 {get_th("elo", "Elo")}
+                {get_th("hybrid", "Power Rating", "var(--accent-gold)", "60% Elo / 40% Squad OVR")}
                 {get_th("ovr", "OVR", "var(--accent-blue)", "Overall Squad Rating")}
-                {get_th("att", "ATT", "var(--accent-green)", "Attack Unit")}
-                {get_th("mid", "MID", "var(--accent-green)", "Midfield Unit")}
-                {get_th("def", "DEF", "var(--accent-green)", "Defense Unit")}
-                {get_th("gk", "GK", "var(--accent-green)", "Goalkeeper")}
+                {get_th("att", "ATT", "var(--accent-green)")}
+                {get_th("mid", "MID", "var(--accent-green)")}
+                {get_th("def", "DEF", "var(--accent-green)")}
+                {get_th("gk", "GK", "var(--accent-green)")}
                 <th>Form</th>
                 {get_th("matches", "Matches")}
                 {get_th("gf", "Gls For")}
                 {get_th("ga", "Gls Agst")}
                 {get_th("cs", "CS%")}
                 {get_th("btts", "BTTS%")}
-                {get_th("late", "Late%", title="% of Gls After 75'")}
+                {get_th("late", "Late%")}
             </tr>
         </thead>
         <tbody>
@@ -1243,13 +1240,11 @@ def load_data_view(event=None):
             <td style="font-weight:600">{row['name']}</td>
             <td style="font-weight:bold; color:var(--text-main); font-size:1.1em;">{int(row['elo'])}</td>
             <td style="font-weight:900; color:var(--accent-gold); font-size:1.15em; text-align:center;">{int(row['hybrid'])}</td>
-            
             <td style="font-weight:bold; color:var(--accent-blue); background:rgba(59, 130, 246, 0.05); text-align:center;">{ovr_display}</td>
-            <td style="font-weight:600; text-align:center;">{att_display}</td>
-            <td style="font-weight:600; text-align:center;">{mid_display}</td>
-            <td style="font-weight:600; text-align:center;">{def_display}</td>
-            <td style="font-weight:600; text-align:center;">{gk_display}</td>
-
+            <td style="text-align:center;">{att_display}</td>
+            <td style="text-align:center;">{mid_display}</td>
+            <td style="text-align:center;">{def_display}</td>
+            <td style="text-align:center;">{gk_display}</td>
             <td style="font-family:monospace; letter-spacing:2px;">{row['form_html']}</td>
             <td style="text-align:center;">{row['matches']}</td>
             <td style="color:#2980b9; font-weight:bold;">{row['gf']}</td>
