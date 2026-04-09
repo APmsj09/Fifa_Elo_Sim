@@ -14,6 +14,8 @@ import numpy as np
 LAST_SIM_RESULTS = {}
 EVENT_HANDLERS = []
 BULK_STATE = {} 
+TABLE_SORT_COL = "hybrid"
+TABLE_SORT_DESC = True 
 
 def calculate_ci(count, total):
     p = count / total if total > 0 else 0
@@ -83,7 +85,10 @@ async def initialize_app():
         status_el.innerHTML = "Step 5/5: Setting Up Interface..."
         await asyncio.sleep(0.1)
         setup_interactions()
-        populate_team_dropdown(wc_only=False)
+        
+        cb = js.document.getElementById("hist-filter-wc")
+        is_wc = cb.checked if cb else True
+        populate_team_dropdown(wc_only=is_wc)
 
     except Exception as e:
         import traceback
@@ -139,11 +144,14 @@ def setup_interactions():
     
     bind_click("dark-mode-btn", toggle_dark_mode)
     
-    populate_team_dropdown(target_id="matchup-team-a")
-    populate_team_dropdown(target_id="matchup-team-b")
+    cb = js.document.getElementById("hist-filter-wc")
+    is_wc = cb.checked if cb else True
+
+    populate_team_dropdown(target_id="matchup-team-a", wc_only=is_wc)
+    populate_team_dropdown(target_id="matchup-team-b", wc_only=is_wc)
 
     build_dashboard_shell()
-    populate_team_dropdown(target_id="team-select-dashboard")
+    populate_team_dropdown(target_id="team-select-dashboard", wc_only=is_wc)
 
     # --- Simulation Buttons ---
     bind_click("btn-run-single", run_single_sim)
@@ -160,6 +168,10 @@ def setup_interactions():
     
     # --- Expose Global Functions ---
     
+    proxy_sort = create_proxy(sort_table)
+    EVENT_HANDLERS.append(proxy_sort)
+    js.window.sort_table = proxy_sort
+
     proxy_view_group = create_proxy(open_group_modal)
     EVENT_HANDLERS.append(proxy_view_group)
     js.window.view_group_matches = proxy_view_group
@@ -1078,69 +1090,57 @@ def build_dashboard_shell():
     js.document.getElementById("btn-show-style").onclick = create_proxy(lambda e: toggle_view('style'))
 
 
-def load_data_view(event):
+def sort_table(col):
+    global TABLE_SORT_COL, TABLE_SORT_DESC
+    if TABLE_SORT_COL == col:
+        TABLE_SORT_DESC = not TABLE_SORT_DESC
+    else:
+        TABLE_SORT_COL = col
+        if col == 'name':
+            TABLE_SORT_DESC = False # Default to A-Z for text
+        else:
+            TABLE_SORT_DESC = True  # Default to highest-first for stats
+    load_data_view(None)
+
+def load_data_view(event=None):
+    global TABLE_SORT_COL, TABLE_SORT_DESC
     container = js.document.getElementById("data-table-container")
     if not container: return
     
     container.innerHTML = "<div style='padding:20px; text-align:center;'>Loading raw data...</div>" 
     
-    # 1. READ CHECKBOX (Ensure the ID matches your HTML 'hist-filter-wc')
     sidebar_checkbox = js.document.getElementById("hist-filter-wc")
     wc_only = sidebar_checkbox.checked if sidebar_checkbox else False
     
-    # 2. SLUGIFY WORLD CUP LIST (Critical for comparison)
-    # We do this once outside the loop for speed
     wc_team_slugs = [sim.get_slug(t) for t in sim.WC_TEAMS]
     
-    html = """
-    <div style="margin-bottom:10px; font-size:0.8em; color:#7f8c8d; text-align:right;">
-        *Tactical stats (1H, Late, Pens) based on available scorer data
-    </div>
-    <div style="overflow-x:auto;">
-    <table class="rankings-table">
-        <thead>
-            <tr>
-                <th>Rank</th>
-                <th>Team</th>
-                <th>Elo</th>
-                <th title="Overall Squad Rating" style="color:var(--accent-blue);">OVR</th>
-                <th title="Attack Unit" style="color:var(--accent-green);">ATT</th>
-                <th title="Midfield Unit" style="color:var(--accent-green);">MID</th>
-                <th title="Defense Unit" style="color:var(--accent-green);">DEF</th>
-                <th title="Goalkeeper" style="color:var(--accent-green);">GK</th>
-                <th>Form</th>
-                <th>Matches</th>
-                <th>Gls For</th>
-                <th>Gls Agst</th>
-                <th>CS%</th>
-                <th>BTTS%</th>
-                <th title="% of Gls After 75'">Late%</th>
-            </tr>
-        </thead>
-        <tbody>
-    """
-    
-    sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
-    
+    table_data = []
     DUMMY_GAMES = 10 
     GLOBAL_AVG = sim.AVG_GOALS if sim.AVG_GOALS > 0 else 1.25
 
-    rank_counter = 0
-    for team, stats in sorted_teams:
-        # team is a slug (e.g. 'argentina')
-        
-        if wc_only:
-            if team not in wc_team_slugs:
-                continue # Skip this team if they aren't in the WC
-        
-        # 4. APPLY MINIMUM MATCH FILTER
+    for team, stats in sim.TEAM_STATS.items():
+        if wc_only and team not in wc_team_slugs:
+            continue
+            
         matches = stats.get('matches', 0)
         if matches < 7:
-            # But let them stay if they are a WC team even if they have <7 matches
             if team not in wc_team_slugs:
                 continue
 
-        rank_counter += 1
+        talent = sim.TEAM_TALENT.get(team, {})
+        def fmt(key):
+            v = talent.get(key, 0)
+            return int(round(v)) if v > 0 else 0
+
+        elo = stats.get('elo', 1200)
+        ovr = fmt('talent_score')
+        
+        # Calculate Hybrid Power Rating (60% Elo / 40% OVR)
+        if ovr > 0:
+            talent_elo = 1000 + (ovr - 60) * 40
+            hybrid = (elo * 0.60) + (talent_elo * 0.40)
+        else:
+            hybrid = elo
 
         reg_gf_avg = stats.get('gf_avg', 0)
         reg_ga_avg = stats.get('ga_avg', 0)
@@ -1159,44 +1159,106 @@ def load_data_view(event):
             else: color = "#bdc3c7"
             formatted_form += f"<span style='color:{color}; font-weight:bold;'>{char}</span>"
 
-        # Look up talent using the slug (which 'team' already is)
-        talent = sim.TEAM_TALENT.get(team, {})
-        
-        def fmt(key):
-            v = talent.get(key, 0)
-            return int(round(v)) if v > 0 else '--'
+        table_data.append({
+            'team_slug': team,
+            'name': sim.PRETTY_NAMES.get(team, team.title()),
+            'elo': elo,
+            'ovr': ovr,
+            'hybrid': hybrid,
+            'att': fmt('rating_att'),
+            'mid': fmt('rating_mid'),
+            'def': fmt('rating_def'),
+            'gk': fmt('rating_gk'),
+            'form_html': formatted_form,
+            'matches': matches,
+            'gf': total_gf,
+            'ga': total_ga,
+            'cs': int(stats.get('cs_pct', 0)),
+            'btts': int(stats.get('btts_pct', 0)),
+            'late': int(stats.get('late_pct', 0))
+        })
 
-        ovr = fmt('talent_score')
-        t_att = fmt('rating_att')
-        t_mid = fmt('rating_mid')
-        t_def = fmt('rating_def')
-        t_gk = fmt('rating_gk')
+    # Apply Active Sort
+    if TABLE_SORT_COL == 'name':
+        table_data.sort(key=lambda x: x['name'], reverse=TABLE_SORT_DESC)
+    else:
+        table_data.sort(key=lambda x: x.get(TABLE_SORT_COL, 0), reverse=TABLE_SORT_DESC)
 
-        cs_pct = int(stats.get('cs_pct', 0))
-        btts_pct = int(stats.get('btts_pct', 0))
-        late_pct = int(stats.get('late_pct', 0))
+    # Dynamic Table Header Builder
+    def get_th(col_id, label, color="", title=""):
+        arrow = ""
+        if TABLE_SORT_COL == col_id:
+            arrow = " ▼" if TABLE_SORT_DESC else " ▲"
+        else:
+            arrow = " ↕"
+            
+        style = ""
+        if color: style += f" color:{color};"
+        title_attr = f" title='{title}'" if title else ""
         
-        html += f"""
+        return f'<th class="sortable-th" onclick="window.sort_table(\'{col_id}\')" style="{style}"{title_attr}>{label}<span style="font-size:0.8em; opacity:0.6;">{arrow}</span></th>'
+
+    html = f'''
+    <div style="margin-bottom:10px; font-size:0.8em; color:#7f8c8d; text-align:right;">
+        *Tactical stats (1H, Late, Pens) based on available scorer data
+    </div>
+    <div style="overflow-x:auto;">
+    <table class="rankings-table">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                {get_th("name", "Team")}
+                {get_th("hybrid", "Power Rtg", title="60% Elo, 40% OVR Blend")}
+                {get_th("elo", "Elo")}
+                {get_th("ovr", "OVR", "var(--accent-blue)", "Overall Squad Rating")}
+                {get_th("att", "ATT", "var(--accent-green)", "Attack Unit")}
+                {get_th("mid", "MID", "var(--accent-green)", "Midfield Unit")}
+                {get_th("def", "DEF", "var(--accent-green)", "Defense Unit")}
+                {get_th("gk", "GK", "var(--accent-green)", "Goalkeeper")}
+                <th>Form</th>
+                {get_th("matches", "Matches")}
+                {get_th("gf", "Gls For")}
+                {get_th("ga", "Gls Agst")}
+                {get_th("cs", "CS%")}
+                {get_th("btts", "BTTS%")}
+                {get_th("late", "Late%", title="% of Gls After 75'")}
+            </tr>
+        </thead>
+        <tbody>
+    '''
+
+    rank_counter = 0
+    for row in table_data:
+        rank_counter += 1
+        
+        ovr_display = row['ovr'] if row['ovr'] > 0 else '--'
+        att_display = row['att'] if row['att'] > 0 else '--'
+        mid_display = row['mid'] if row['mid'] > 0 else '--'
+        def_display = row['def'] if row['def'] > 0 else '--'
+        gk_display = row['gk'] if row['gk'] > 0 else '--'
+        
+        html += f'''
         <tr>
             <td style="font-weight:bold;">#{rank_counter}</td>
-            <td style="font-weight:600">{sim.PRETTY_NAMES.get(team, team.title())}</td>
-            <td style="font-weight:bold; color:var(--text-main); font-size:1.1em;">{int(stats['elo'])}</td>
+            <td style="font-weight:600">{row['name']}</td>
+            <td style="font-weight:bold; color:var(--text-main); font-size:1.1em;">{int(row['elo'])}</td>
+            <td style="font-weight:900; color:var(--accent-gold); font-size:1.15em; text-align:center;">{int(row['hybrid'])}</td>
             
-            <td style="font-weight:bold; color:var(--accent-blue); background:rgba(59, 130, 246, 0.05); text-align:center;">{ovr}</td>
-            <td style="font-weight:600; text-align:center;">{t_att}</td>
-            <td style="font-weight:600; text-align:center;">{t_mid}</td>
-            <td style="font-weight:600; text-align:center;">{t_def}</td>
-            <td style="font-weight:600; text-align:center;">{t_gk}</td>
+            <td style="font-weight:bold; color:var(--accent-blue); background:rgba(59, 130, 246, 0.05); text-align:center;">{ovr_display}</td>
+            <td style="font-weight:600; text-align:center;">{att_display}</td>
+            <td style="font-weight:600; text-align:center;">{mid_display}</td>
+            <td style="font-weight:600; text-align:center;">{def_display}</td>
+            <td style="font-weight:600; text-align:center;">{gk_display}</td>
 
-            <td style="font-family:monospace; letter-spacing:2px;">{formatted_form}</td>
-            <td style="text-align:center;">{matches}</td>
-            <td style="color:#2980b9; font-weight:bold;">{total_gf}</td>
-            <td style="color:#c0392b;">{total_ga}</td>
-            <td>{cs_pct}%</td>
-            <td>{btts_pct}%</td>
-            <td style="color:#e67e22;">{late_pct}%</td>
+            <td style="font-family:monospace; letter-spacing:2px;">{row['form_html']}</td>
+            <td style="text-align:center;">{row['matches']}</td>
+            <td style="color:#2980b9; font-weight:bold;">{row['gf']}</td>
+            <td style="color:#c0392b;">{row['ga']}</td>
+            <td>{row['cs']}%</td>
+            <td>{row['btts']}%</td>
+            <td style="color:#e67e22;">{row['late']}%</td>
         </tr>
-        """
+        '''
     
     html += "</tbody></table></div>"
     container.innerHTML = html

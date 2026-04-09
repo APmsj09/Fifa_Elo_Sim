@@ -578,6 +578,20 @@
             background-color: #334155;
         }
 
+        .sortable-th {
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.2s ease;
+        }
+        
+        .sortable-th:hover {
+            background-color: #e2e8f0;
+        }
+        
+        :root.dark-mode .sortable-th:hover {
+            background-color: #334155;
+        }
+
         /* --- 9. TOOLTIP STYLING FOR CONFIDENCE INTERVALS --- */
         .ci-value {
             cursor: help;
@@ -915,7 +929,7 @@
                 <div class="control-group" style="margin-top:15px;">
                     <label>Ranking Filter</label>
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <input type="checkbox" id="hist-filter-wc"
+                        <input type="checkbox" id="hist-filter-wc" checked
                             style="width:16px; height:16px; accent-color:var(--accent-blue);">
                         <span style="font-size:0.85em; color:#cbd5e1;">WC Teams Only</span>
                     </div>
