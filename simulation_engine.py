@@ -364,7 +364,7 @@ def calculate_squad_ratings(player_df, formation_df):
             'rating_mid': final_units['MID'],
             'rating_att': final_units['ATT'],
             'formation': fmt_str,
-            'top_players': group.sort_values('rat', ascending=False).head(4).to_dict('records')
+            'top_players': group.sort_values('rat', ascending=False).head(26).to_dict('records')
         }
             
     return team_ratings

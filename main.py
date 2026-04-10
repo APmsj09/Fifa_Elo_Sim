@@ -1832,30 +1832,52 @@ def update_dashboard_data(event=None):
     talent_info = sim.TEAM_TALENT.get(slug_team, {})
     formation_info = sim.TEAM_FORMATIONS.get(slug_team, {})
 
-    # 1. Build Playmakers List
-    # 1. Build Playmakers List
-    playmakers_html = ""
+    # 1. Build Full Squad Table
+    squad_html = ""
     if 'top_players' in talent_info:
-        for p in talent_info['top_players'][:4]:
-            club = p.get('club', 'Unknown')
+        squad_html = """
+        <div style="max-height: 420px; overflow-y: auto; padding-right: 5px;">
+            <table style="width:100%; border-collapse: collapse; font-size:0.85em;">
+                <thead style="position: sticky; top: 0; background: var(--card-bg); z-index: 10;">
+                    <tr style="text-align: left; border-bottom: 2px solid var(--sidebar-border);">
+                        <th style="padding: 8px 4px; color: var(--text-light);">POS</th>
+                        <th style="padding: 8px 4px; color: var(--text-light);">PLAYER</th>
+                        <th style="padding: 8px 4px; color: var(--text-light); text-align:right;">RAT</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        for i, p in enumerate(talent_info['top_players']):
+            # Logic to determine "Status" (Starters vs Bench based on common squad sizes)
+            is_starter = i < 11
+            opacity = "1.0" if is_starter else "0.7"
+            bg_style = "background: rgba(59, 130, 246, 0.05);" if is_starter else ""
             
-            # --- FIXED RATING PARSER ---
-            rating = '--'
-            raw_rat = p.get('rat')
-            if raw_rat is not None:
-                try:
-                    rat_float = float(raw_rat)
-                    if rat_float > 0:
-                        rating = int(rat_float)
-                except (ValueError, TypeError):
-                    pass
-            # ---------------------------
+            # Position Badge Colors
+            pos = str(p.get('pos', p.get('position', '??'))).upper()
+            unit = p.get('unit', 'MID')
+            pos_colors = {'ATT': '#ef4444', 'MID': '#3b82f6', 'DEF': '#10b981', 'GK': '#f59e0b'}
+            u_col = pos_colors.get(unit, '#64748b')
 
-            playmakers_html += f"""
-            <div style="display:flex; justify-content:space-between; font-size:0.85em; padding:6px 0; border-bottom:1px solid var(--sidebar-border);">
-                <span style="color:var(--text-main); font-weight:600;">{p['name']} <span style="font-size:0.8em; color:var(--text-light); font-weight:normal;">({club})</span></span>
-                <span style="color:var(--accent-blue); font-weight:bold;">{rating}</span>
-            </div>"""
+            rating = int(float(p.get('rat', 70)))
+            # Color-coded rating
+            r_col = "var(--accent-green)" if rating >= 85 else ("var(--accent-blue)" if rating >= 78 else "var(--text-main)")
+
+            squad_html += f"""
+            <tr style="{bg_style} border-bottom: 1px solid var(--sidebar-border); opacity: {opacity};">
+                <td style="padding: 8px 4px;">
+                    <span style="background:{u_col}; color:white; padding:2px 6px; border-radius:4px; font-size:0.75em; font-weight:800;">{pos}</span>
+                </td>
+                <td style="padding: 8px 4px;">
+                    <div style="font-weight:700; color:var(--text-main);">{p['name']}</div>
+                    <div style="font-size:0.85em; color:var(--text-light);">{p.get('club', 'Unknown')}</div>
+                </td>
+                <td style="padding: 8px 4px; text-align:right; font-weight:800; font-size:1.1em; color:{r_col};">
+                    {rating}
+                </td>
+            </tr>
+            """
+        squad_html += "</tbody></table></div>"
 
     # 2. Build Positional Unit Strengths
     r_att = int(talent_info.get('rating_att', 0))
@@ -2016,10 +2038,14 @@ def update_dashboard_data(event=None):
     <!-- PLAYER TALENT AND SQUAD OVERVIEW BLOCK -->
     <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:20px; margin-bottom:20px;">
         <div class="dashboard-card" style="margin:0; padding:20px;">
-            <h4 style="margin:0 0 12px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">🌟 Key Playmakers</h4>
-            {playmakers_html if playmakers_html else "<div style='color:var(--text-light); font-size:0.9em;'>No player data available.</div>"}
-            <div style="margin-top:15px; font-size:0.8em; color:var(--text-light);">
-                <b style="color:var(--text-main);">Primary Formation:</b> {formation_info.get('formation 1', 'Unknown')}
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h4 style="margin:0; color:var(--text-main); font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">📋 Squad List & Depth</h4>
+                <span style="font-size:0.7em; background:var(--sidebar-border); padding:2px 6px; border-radius:4px; color:var(--text-light);">26 MAN SQUAD</span>
+            </div>
+            {squad_html if squad_html else "<div style='color:var(--text-light); font-size:0.9em;'>No player data available.</div>"}
+            <div style="margin-top:15px; padding-top:10px; border-top:1px solid var(--sidebar-border); font-size:0.8em; color:var(--text-light); display:flex; justify-content:space-between;">
+                <span><b>Base:</b> {formation_info.get('formation 1', 'Unknown')}</span>
+                <span>*Top 11 highlighted</span>
             </div>
         </div>
 
