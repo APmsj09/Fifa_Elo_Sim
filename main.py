@@ -18,6 +18,7 @@ TABLE_SORT_COL = "hybrid"
 TABLE_SORT_DESC = True 
 BULK_SORT_COL = "win"
 BULK_SORT_DESC = True
+BULK_TABLE_FORMAT = "pct"
 
 def calculate_ci(count, total):
     p = count / total if total > 0 else 0
@@ -177,6 +178,10 @@ def setup_interactions():
     proxy_bulk_sort = create_proxy(sort_bulk_table)
     EVENT_HANDLERS.append(proxy_bulk_sort)
     js.window.sort_bulk_table = proxy_bulk_sort
+
+    proxy_bulk_format = create_proxy(change_bulk_table_format)
+    EVENT_HANDLERS.append(proxy_bulk_format)
+    js.window.change_bulk_table_format = proxy_bulk_format
 
     js.window.switch_bulk_tab = create_proxy(switch_bulk_tab)
     js.window.show_top_bracket = create_proxy(show_top_bracket)
@@ -834,8 +839,16 @@ def build_bulk_dashboard():
     table_shell = """
         <div id="bulk-table-view" style="display:none;">
             <div class="dashboard-card">
-                <h3 style="margin-top:0;">Raw Data Spreadsheet</h3>
-                <p style="color:var(--text-light); font-size:0.9em; margin-bottom:15px;">Sortable metrics averaged across all simulated tournaments.</p>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <div>
+                        <h3 style="margin:0;">Raw Data Spreadsheet</h3>
+                        <p style="color:var(--text-light); font-size:0.9em; margin:5px 0 0 0;">Sortable metrics from all simulated tournaments.</p>
+                    </div>
+                    <select id="bulk-table-format" onchange="window.change_bulk_table_format()" style="padding:8px 12px; border-radius:6px; border:1px solid var(--sidebar-border); background:var(--card-bg); color:var(--text-main); font-size:0.85em; cursor:pointer;">
+                        <option value="pct">Show Probabilities (%)</option>
+                        <option value="count">Show Raw Counts (#)</option>
+                    </select>
+                </div>
                 <div id="bulk-spreadsheet-container"></div>
             </div>
         </div>
@@ -1260,48 +1273,84 @@ def sort_bulk_table(col):
         BULK_SORT_DESC = False if col == 'team' else True
     render_bulk_spreadsheet()
 
+def change_bulk_table_format():
+    global BULK_TABLE_FORMAT
+    sel = js.document.getElementById("bulk-table-format")
+    if sel:
+        BULK_TABLE_FORMAT = sel.value
+        render_bulk_spreadsheet()
+
 def render_bulk_spreadsheet(event=None):
     state = BULK_STATE
     if not state: return
     num = state['num']
     
+    # Pre-calculate Global Ranks for the Sleeper Index
+    sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
+    team_ranks = {t[0]: i+1 for i, t in enumerate(sorted_teams)}
+    
     table_data = []
+    max_sleeper = 0.01 # Avoid div by zero
+    
     for t, s in state['stats'].items():
         t_name = sim.PRETTY_NAMES.get(t, t.title())
+        rank = team_ranks.get(t, 24)
         
         # Expected matches: 3 Group stage + probabilities of reaching each KO round
-        # Making SF guarantees an extra match (Final or 3rd Place)
         exp_matches = 3.0 + (s['r32']/num) + (s['r16']/num) + (s['qf']/num) + (s['sf']/num) * 2
-        
         exp_pts = s['grp_pts'] / num
         exp_gf = state['goals'][t] / num
         exp_ga = state['ga'].get(t, 0) / num
         
+        # --- SLEEPER METRIC CALCULATION ---
+        qf_pct = (s['qf'] / num) * 100
+        sf_pct = (s['sf'] / num) * 100
+        fin_pct = (s['final'] / num) * 100
+        
+        # Formula: Deep runs weighted heavily by how low their global rank is
+        # Top 10 teams get penalized, rank 30+ teams get heavily boosted.
+        sleeper_raw = (qf_pct * 1 + sf_pct * 3 + fin_pct * 5) * (rank / 10.0)**1.5
+        
+        if sleeper_raw > max_sleeper:
+            max_sleeper = sleeper_raw
+            
         table_data.append({
             'team': t_name,
-            'grp_1st': (s['grp_1st'] / num) * 100,
-            'r32': (s['r32'] / num) * 100,
-            'r16': (s['r16'] / num) * 100,
-            'qf': (s['qf'] / num) * 100,
-            'sf': (s['sf'] / num) * 100,
-            'final': (s['final'] / num) * 100,
-            'win': (s['win'] / num) * 100,
+            'grp_1st_count': s['grp_1st'], 'grp_1st_pct': (s['grp_1st'] / num) * 100,
+            'r32_count': s['r32'], 'r32_pct': (s['r32'] / num) * 100,
+            'r16_count': s['r16'], 'r16_pct': (s['r16'] / num) * 100,
+            'qf_count': s['qf'], 'qf_pct': qf_pct,
+            'sf_count': s['sf'], 'sf_pct': sf_pct,
+            'final_count': s['final'], 'final_pct': fin_pct,
+            'win_count': s['win'], 'win_pct': (s['win'] / num) * 100,
             'exp_pts': exp_pts,
             'exp_gf': exp_gf,
             'exp_ga': exp_ga,
-            'exp_matches': exp_matches
+            'exp_matches': exp_matches,
+            'sleeper_raw': sleeper_raw # Normalized below
         })
         
+    # Normalize sleeper score to 0-100
+    for row in table_data:
+        row['sleeper_idx'] = (row['sleeper_raw'] / max_sleeper) * 100
+        
     # Apply Sort
-    table_data.sort(key=lambda x: x[BULK_SORT_COL], reverse=BULK_SORT_DESC)
+    table_data.sort(key=lambda x: x[BULK_SORT_COL] if BULK_SORT_COL not in ['grp_1st', 'r32', 'r16', 'qf', 'sf', 'final', 'win'] else x[f"{BULK_SORT_COL}_count"], reverse=BULK_SORT_DESC)
     
-    def get_th(col_id, label):
+    def get_th(col_id, label, title=""):
         arrow = ""
         if BULK_SORT_COL == col_id:
             arrow = " ▼" if BULK_SORT_DESC else " ▲"
         else:
             arrow = " ↕"
-        return f'<th class="sortable-th" onclick="window.sort_bulk_table(\'{col_id}\')" style="white-space:nowrap; padding:12px 10px; font-size:0.85em;">{label}<span style="font-size:0.8em; opacity:0.6;">{arrow}</span></th>'
+        title_attr = f' title="{title}"' if title else ""
+        return f'<th class="sortable-th" onclick="window.sort_bulk_table(\'{col_id}\')" style="white-space:nowrap; padding:12px 10px; font-size:0.85em;"{title_attr}>{label}<span style="font-size:0.8em; opacity:0.6;">{arrow}</span></th>'
+
+    def fmt(row, col_base):
+        if BULK_TABLE_FORMAT == "count":
+            return f"{row[f'{col_base}_count']:,}"
+        else:
+            return f"{row[f'{col_base}_pct']:.1f}%"
 
     html = f'''
     <div style="overflow-x:auto;">
@@ -1309,6 +1358,7 @@ def render_bulk_spreadsheet(event=None):
             <thead>
                 <tr>
                     {get_th("team", "Team")}
+                    {get_th("sleeper_idx", "Sleeper Idx", "Identifies lower-ranked teams making deep runs (0-100 scale)")}
                     {get_th("exp_pts", "Exp. Grp Pts")}
                     {get_th("grp_1st", "1st in Grp")}
                     {get_th("r32", "R32")}
@@ -1326,17 +1376,25 @@ def render_bulk_spreadsheet(event=None):
     '''
     
     for row in table_data:
+        # Format Sleeper Index colors dynamically
+        s_idx = row['sleeper_idx']
+        if s_idx >= 80: s_color = "#8b5cf6"       # Purple (Elite Sleeper)
+        elif s_idx >= 50: s_color = "#3b82f6"     # Blue
+        elif s_idx >= 20: s_color = "#10b981"     # Green
+        else: s_color = "var(--text-light)"       # Slate
+        
         html += f'''
         <tr style="font-size:0.9em;">
             <td style="font-weight:600; white-space:nowrap;">{row['team']}</td>
+            <td style="color:{s_color}; font-weight:bold; text-align:center;">{s_idx:.1f}</td>
             <td style="color:var(--accent-blue); font-weight:bold; text-align:center;">{row['exp_pts']:.2f}</td>
-            <td style="text-align:right;">{row['grp_1st']:.1f}%</td>
-            <td style="text-align:right;">{row['r32']:.1f}%</td>
-            <td style="text-align:right;">{row['r16']:.1f}%</td>
-            <td style="text-align:right;">{row['qf']:.1f}%</td>
-            <td style="text-align:right;">{row['sf']:.1f}%</td>
-            <td style="text-align:right;">{row['final']:.1f}%</td>
-            <td style="color:var(--accent-gold); font-weight:bold; text-align:right;">{row['win']:.1f}%</td>
+            <td style="text-align:right;">{fmt(row, 'grp_1st')}</td>
+            <td style="text-align:right;">{fmt(row, 'r32')}</td>
+            <td style="text-align:right;">{fmt(row, 'r16')}</td>
+            <td style="text-align:right;">{fmt(row, 'qf')}</td>
+            <td style="text-align:right;">{fmt(row, 'sf')}</td>
+            <td style="text-align:right;">{fmt(row, 'final')}</td>
+            <td style="color:var(--accent-gold); font-weight:bold; text-align:right;">{fmt(row, 'win')}</td>
             <td style="text-align:center; font-weight:600;">{row['exp_matches']:.2f}</td>
             <td style="color:var(--accent-green); text-align:center; font-weight:600;">{row['exp_gf']:.2f}</td>
             <td style="color:var(--accent-red); text-align:center; font-weight:600;">{row['exp_ga']:.2f}</td>
