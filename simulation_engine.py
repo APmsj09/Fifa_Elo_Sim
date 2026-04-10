@@ -134,7 +134,6 @@ def load_r32_combinations():
             }
         js.console.log(f"Loaded {len(R32_LOOKUP)} 3rd-place combinations.")
     except Exception as e:
-        import js
         js.console.error(f"Error loading possible_matchups.csv: {e}")
 
 # =============================================================================
