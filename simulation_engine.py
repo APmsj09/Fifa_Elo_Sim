@@ -339,7 +339,9 @@ def calculate_squad_ratings(player_df, formation_df):
             starter_avg = sum(starters) / len(starters)
 
             # --- 2. FACTOR IN SQUAD DEPTH (BACKUPS) ---
-            num_backups = 1 if unit == 'GK' else max(1, count // 2)
+            # Demand a full "second string" (1-to-1 backup) for outfielders, and 2 backup GKs.
+            # This perfectly mimics a 23-26 man tournament squad.
+            num_backups = 2 if unit == 'GK' else count
             backups = natural_list[count : count + num_backups]
             
             if len(backups) < num_backups:

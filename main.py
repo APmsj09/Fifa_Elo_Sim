@@ -1853,8 +1853,13 @@ def update_dashboard_data(event=None):
             opacity = "1.0" if is_starter else "0.7"
             bg_style = "background: rgba(59, 130, 246, 0.05);" if is_starter else ""
             
-            # Position Badge Colors
-            pos = str(p.get('pos', p.get('position', '??'))).upper()
+            # Position Badge Logic
+            raw_pos = p.get('pos') or p.get('position') or p.get('unit') or '??'
+            pos = str(raw_pos).upper()
+            
+            # If the CSV has long names (e.g. "Center Back"), shorten them for the badge
+            pos_map = {"CENTRE-BACK": "CB", "CENTRE-FORWARD": "ST", "ATTACKING MIDFIELD": "CAM", "DEFENSIVE MIDFIELD": "CDM"}
+            pos = pos_map.get(pos, pos)[:3] # Limit to 3 chars
             unit = p.get('unit', 'MID')
             pos_colors = {'ATT': '#ef4444', 'MID': '#3b82f6', 'DEF': '#10b981', 'GK': '#f59e0b'}
             u_col = pos_colors.get(unit, '#64748b')
