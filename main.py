@@ -419,7 +419,7 @@ async def run_bulk_sim(event):
     sorted_elos = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
     top_5_teams = [t[0] for t in sorted_elos[:5]]
     
-     def init_team(t):
+    def init_team(t):
         if t not in team_stats:
             team_stats[t] = {'apps': 0, 'grp_1st': 0, 'r32': 0, 'r16':0, 'qf':0, 'sf': 0, 'final': 0, 'win': 0, 'grp_pts': 0} # Added grp_pts
             goals_tracker[t] = 0
