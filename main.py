@@ -16,6 +16,8 @@ EVENT_HANDLERS = []
 BULK_STATE = {} 
 TABLE_SORT_COL = "hybrid"
 TABLE_SORT_DESC = True 
+BULK_SORT_COL = "win"
+BULK_SORT_DESC = True
 
 def calculate_ci(count, total):
     p = count / total if total > 0 else 0
@@ -172,6 +174,10 @@ def setup_interactions():
     EVENT_HANDLERS.append(proxy_sort)
     js.window.sort_table = proxy_sort
 
+    proxy_bulk_sort = create_proxy(sort_bulk_table)
+    EVENT_HANDLERS.append(proxy_bulk_sort)
+    js.window.sort_bulk_table = proxy_bulk_sort
+
     js.window.switch_bulk_tab = create_proxy(switch_bulk_tab)
     js.window.show_top_bracket = create_proxy(show_top_bracket)
 
@@ -205,20 +211,25 @@ def setup_interactions():
 # --- 2. SINGLE SIMULATION ---
 # =============================================================================
 def switch_bulk_tab(tab_id):
-    if tab_id == 'agg':
-        js.document.getElementById('bulk-agg-view').style.display = 'block'
-        js.document.getElementById('bulk-brackets-view').style.display = 'none'
-        js.document.getElementById('btn-bulk-agg').classList.add('active')
-        js.document.getElementById('btn-bulk-brackets').classList.remove('active')
-    else:
-        js.document.getElementById('bulk-agg-view').style.display = 'none'
-        js.document.getElementById('bulk-brackets-view').style.display = 'block'
-        js.document.getElementById('btn-bulk-agg').classList.remove('active')
-        js.document.getElementById('btn-bulk-brackets').classList.add('active')
-        
+    views = ['agg', 'brackets', 'table']
+    
+    for v in views:
+        el = js.document.getElementById(f'bulk-{v}-view')
+        btn = js.document.getElementById(f'btn-bulk-{v}')
+        if el and btn:
+            if v == tab_id:
+                el.style.display = 'block'
+                btn.classList.add('active')
+            else:
+                el.style.display = 'none'
+                btn.classList.remove('active')
+                
+    if tab_id == 'brackets':
         container = js.document.getElementById('top-bracket-render-area')
         if container and container.innerHTML.strip() == "":
             show_top_bracket(0)
+    elif tab_id == 'table':
+        render_bulk_spreadsheet()
 
 def show_top_bracket(index):
     state = BULK_STATE
@@ -408,10 +419,11 @@ async def run_bulk_sim(event):
     sorted_elos = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
     top_5_teams = [t[0] for t in sorted_elos[:5]]
     
-    def init_team(t):
+     def init_team(t):
         if t not in team_stats:
-            team_stats[t] = {'apps': 0, 'grp_1st': 0, 'r32': 0, 'r16':0, 'qf':0, 'sf': 0, 'final': 0, 'win': 0}
+            team_stats[t] = {'apps': 0, 'grp_1st': 0, 'r32': 0, 'r16':0, 'qf':0, 'sf': 0, 'final': 0, 'win': 0, 'grp_pts': 0} # Added grp_pts
             goals_tracker[t] = 0
+            ga_tracker[t] = 0
             matchups[t] = {
                 'Round of 32': {}, 
                 'Round of 16': {}, 
@@ -466,8 +478,10 @@ async def run_bulk_sim(event):
                     t = row['team']
                     init_team(t)
                     team_stats[t]['apps'] += 1
+                    team_stats[t]['grp_pts'] += row['p'] # NEW
                     group_mapping[grp]['teams'][t] = True
                     goals_tracker[t] += row['gf']
+                    ga_tracker[t] += (row['gf'] - row['gd']) # NEW (Goals against = GF - GD)
                     if i == 0: group_mapping[grp]['total_elo'] += sim.TEAM_STATS.get(t, {}).get('elo', 1200)
             
             for grp, matches in res['group_matches'].items():
@@ -491,7 +505,9 @@ async def run_bulk_sim(event):
                             
                         goals_tracker[t1] += m['g1']
                         goals_tracker[t2] += m['g2']
-                        
+                        ga_tracker[t1] += m['g2'] # NEW
+                        ga_tracker[t2] += m['g1'] # NEW
+
                         matchups[t1][r_name][t2] = matchups[t1][r_name].get(t2, 0) + 1
                         matchups[t2][r_name][t1] = matchups[t2][r_name].get(t1, 0) + 1
                         
@@ -541,8 +557,8 @@ async def run_bulk_sim(event):
 
         BULK_STATE = {
             'num': num, 'stats': team_stats, 'matchups': matchups, 
-            'goals': goals_tracker, 'groups': group_mapping, 'chaos': chaos_events,
-            'h2h': h2h_tracker, 'top_brackets': top_brackets # Added top_brackets
+            'goals': goals_tracker, 'ga': ga_tracker, 'groups': group_mapping, 'chaos': chaos_events, # Added 'ga': ga_tracker
+            'h2h': h2h_tracker, 'top_brackets': top_brackets
         }
 
         build_bulk_dashboard()
@@ -555,6 +571,102 @@ def build_bulk_dashboard():
     state = BULK_STATE
     num = state['num']
     out_div = js.document.getElementById("bulk-results")
+
+    def sort_bulk_table(col):
+    global BULK_SORT_COL, BULK_SORT_DESC
+    if BULK_SORT_COL == col:
+        BULK_SORT_DESC = not BULK_SORT_DESC
+    else:
+        BULK_SORT_COL = col
+        BULK_SORT_DESC = False if col == 'team' else True
+    render_bulk_spreadsheet()
+
+    def render_bulk_spreadsheet(event=None):
+    state = BULK_STATE
+    if not state: return
+    num = state['num']
+    
+    table_data = []
+    for t, s in state['stats'].items():
+        t_name = sim.PRETTY_NAMES.get(t, t.title())
+        
+        # Expected matches: 3 Group stage + probabilities of reaching each KO round
+        # Making SF guarantees an extra match (Final or 3rd Place)
+        exp_matches = 3.0 + (s['r32']/num) + (s['r16']/num) + (s['qf']/num) + (s['sf']/num) * 2
+        
+        exp_pts = s['grp_pts'] / num
+        exp_gf = state['goals'][t] / num
+        exp_ga = state['ga'][t] / num
+        
+        table_data.append({
+            'team': t_name,
+            'grp_1st': (s['grp_1st'] / num) * 100,
+            'r32': (s['r32'] / num) * 100,
+            'r16': (s['r16'] / num) * 100,
+            'qf': (s['qf'] / num) * 100,
+            'sf': (s['sf'] / num) * 100,
+            'final': (s['final'] / num) * 100,
+            'win': (s['win'] / num) * 100,
+            'exp_pts': exp_pts,
+            'exp_gf': exp_gf,
+            'exp_ga': exp_ga,
+            'exp_matches': exp_matches
+        })
+        
+    # Apply Sort
+    table_data.sort(key=lambda x: x[BULK_SORT_COL], reverse=BULK_SORT_DESC)
+    
+    def get_th(col_id, label):
+        arrow = ""
+        if BULK_SORT_COL == col_id:
+            arrow = " ▼" if BULK_SORT_DESC else " ▲"
+        else:
+            arrow = " ↕"
+        return f'<th class="sortable-th" onclick="window.sort_bulk_table(\'{col_id}\')" style="white-space:nowrap; padding:12px 10px;">{label}<span style="font-size:0.8em; opacity:0.6;">{arrow}</span></th>'
+
+    html = f'''
+    <div class="dashboard-card" style="padding:0; overflow:hidden;">
+        <div style="overflow-x:auto;">
+            <table class="rankings-table" style="margin:0; border:none; box-shadow:none;">
+                <thead>
+                    <tr>
+                        {get_th("team", "Team")}
+                        {get_th("exp_pts", "Exp. Grp Pts")}
+                        {get_th("grp_1st", "1st in Grp")}
+                        {get_th("r32", "R32")}
+                        {get_th("r16", "R16")}
+                        {get_th("qf", "QF")}
+                        {get_th("sf", "SF")}
+                        {get_th("final", "Final")}
+                        {get_th("win", "Win")}
+                        {get_th("exp_matches", "Exp. Matches")}
+                        {get_th("exp_gf", "Exp. GF")}
+                        {get_th("exp_ga", "Exp. GA")}
+                    </tr>
+                </thead>
+                <tbody>
+    '''
+    
+    for row in table_data:
+        html += f'''
+        <tr>
+            <td style="font-weight:600; white-space:nowrap;">{row['team']}</td>
+            <td style="color:var(--accent-blue); font-weight:bold; text-align:center;">{row['exp_pts']:.2f}</td>
+            <td style="text-align:right;">{row['grp_1st']:.1f}%</td>
+            <td style="text-align:right;">{row['r32']:.1f}%</td>
+            <td style="text-align:right;">{row['r16']:.1f}%</td>
+            <td style="text-align:right;">{row['qf']:.1f}%</td>
+            <td style="text-align:right;">{row['sf']:.1f}%</td>
+            <td style="text-align:right;">{row['final']:.1f}%</td>
+            <td style="color:var(--accent-gold); font-weight:bold; text-align:right;">{row['win']:.1f}%</td>
+            <td style="text-align:center;">{row['exp_matches']:.2f}</td>
+            <td style="color:var(--accent-green); text-align:center;">{row['exp_gf']:.2f}</td>
+            <td style="color:var(--accent-red); text-align:center;">{row['exp_ga']:.2f}</td>
+        </tr>
+        '''
+    html += "</tbody></table></div></div>"
+    
+    js.document.getElementById("bulk-spreadsheet-container").innerHTML = html
     
     # 1. CALCULATE TOP-LEVEL TEAM STATS
     chaos_pct = (state['chaos'] / num) * 100
@@ -787,6 +899,7 @@ def build_bulk_dashboard():
     <div class="sub-tab-container">
         <button id="btn-bulk-agg" class="sub-tab-btn active" onclick="window.switch_bulk_tab('agg')">📊 Aggregates</button>
         <button id="btn-bulk-brackets" class="sub-tab-btn" onclick="window.switch_bulk_tab('brackets')">🔮 Most Likely Scenarios</button>
+        <button id="btn-bulk-table" class="sub-tab-btn" onclick="window.switch_bulk_tab('table')">📑 Spreadsheet</button>
     </div>
     """
     
@@ -812,8 +925,17 @@ def build_bulk_dashboard():
         <div id="top-bracket-render-area" style="overflow-x:auto; padding-bottom: 20px;"></div>
     </div>
     """
+
+    # Build the Spreadsheet shell
+    table_shell = """
+    <div id="bulk-table-view" style="display:none;">
+        <h3 style="margin-top:0;">Raw Data Spreadsheet</h3>
+        <p style="color:var(--text-light); font-size:0.9em; margin-bottom:15px;">Sortable metrics averaged across all simulated tournaments.</p>
+        <div id="bulk-spreadsheet-container"></div>
+    </div>
+    """
     
-    out_div.innerHTML = tabs_html + html + brackets_shell
+    out_div.innerHTML = tabs_html + html + brackets_shell + table_shell
     render_favorites_table()
 
 def render_favorites_table(event=None):
