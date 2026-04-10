@@ -841,8 +841,8 @@ def build_bulk_dashboard():
         </div>
         """
         
-        out_div.innerHTML = tabs_html + html + brackets_shell + table_shell
-        render_favorites_table()
+    out_div.innerHTML = tabs_html + html + brackets_shell + table_shell
+    render_favorites_table()
 
 def render_favorites_table(event=None):
     state = BULK_STATE
