@@ -831,7 +831,7 @@ def build_bulk_dashboard():
         </div>
         """
         
-        table_shell = """
+    table_shell = """
         <div id="bulk-table-view" style="display:none;">
             <div class="dashboard-card">
                 <h3 style="margin-top:0;">Raw Data Spreadsheet</h3>
