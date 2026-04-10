@@ -412,6 +412,7 @@ async def run_bulk_sim(event):
     team_stats = {}   
     group_mapping = {} 
     goals_tracker = {}
+    ga_tracker = {}
     matchups = {}
     h2h_tracker = {} 
     chaos_events = 0 
@@ -421,7 +422,7 @@ async def run_bulk_sim(event):
     
     def init_team(t):
         if t not in team_stats:
-            team_stats[t] = {'apps': 0, 'grp_1st': 0, 'r32': 0, 'r16':0, 'qf':0, 'sf': 0, 'final': 0, 'win': 0, 'grp_pts': 0} # Added grp_pts
+            team_stats[t] = {'apps': 0, 'grp_1st': 0, 'r32': 0, 'r16':0, 'qf':0, 'sf': 0, 'final': 0, 'win': 0, 'grp_pts': 0}
             goals_tracker[t] = 0
             ga_tracker[t] = 0
             matchups[t] = {
@@ -478,10 +479,10 @@ async def run_bulk_sim(event):
                     t = row['team']
                     init_team(t)
                     team_stats[t]['apps'] += 1
-                    team_stats[t]['grp_pts'] += row['p'] # NEW
+                    team_stats[t]['grp_pts'] += row['p']
                     group_mapping[grp]['teams'][t] = True
                     goals_tracker[t] += row['gf']
-                    ga_tracker[t] += (row['gf'] - row['gd']) # NEW (Goals against = GF - GD)
+                    ga_tracker[t] += (row['gf'] - row['gd'])
                     if i == 0: group_mapping[grp]['total_elo'] += sim.TEAM_STATS.get(t, {}).get('elo', 1200)
             
             for grp, matches in res['group_matches'].items():
@@ -505,9 +506,9 @@ async def run_bulk_sim(event):
                             
                         goals_tracker[t1] += m['g1']
                         goals_tracker[t2] += m['g2']
-                        ga_tracker[t1] += m['g2'] # NEW
-                        ga_tracker[t2] += m['g1'] # NEW
-
+                        ga_tracker[t1] += m['g2']
+                        ga_tracker[t2] += m['g1']
+                        
                         matchups[t1][r_name][t2] = matchups[t1][r_name].get(t2, 0) + 1
                         matchups[t2][r_name][t1] = matchups[t2][r_name].get(t1, 0) + 1
                         
@@ -557,7 +558,7 @@ async def run_bulk_sim(event):
 
         BULK_STATE = {
             'num': num, 'stats': team_stats, 'matchups': matchups, 
-            'goals': goals_tracker, 'ga': ga_tracker, 'groups': group_mapping, 'chaos': chaos_events, # Added 'ga': ga_tracker
+            'goals': goals_tracker, 'ga': ga_tracker, 'groups': group_mapping, 'chaos': chaos_events,
             'h2h': h2h_tracker, 'top_brackets': top_brackets
         }
 
@@ -571,102 +572,6 @@ def build_bulk_dashboard():
     state = BULK_STATE
     num = state['num']
     out_div = js.document.getElementById("bulk-results")
-
-    def sort_bulk_table(col):
-        global BULK_SORT_COL, BULK_SORT_DESC
-        if BULK_SORT_COL == col:
-            BULK_SORT_DESC = not BULK_SORT_DESC
-        else:
-            BULK_SORT_COL = col
-            BULK_SORT_DESC = False if col == 'team' else True
-        render_bulk_spreadsheet()
-
-    def render_bulk_spreadsheet(event=None):
-        state = BULK_STATE
-        if not state: return
-        num = state['num']
-    
-        table_data = []
-        for t, s in state['stats'].items():
-            t_name = sim.PRETTY_NAMES.get(t, t.title())
-        
-            # Expected matches: 3 Group stage + probabilities of reaching each KO round
-            # Making SF guarantees an extra match (Final or 3rd Place)
-            exp_matches = 3.0 + (s['r32']/num) + (s['r16']/num) + (s['qf']/num) + (s['sf']/num) * 2
-        
-            exp_pts = s['grp_pts'] / num
-            exp_gf = state['goals'][t] / num
-            exp_ga = state['ga'][t] / num
-        
-            table_data.append({
-                'team': t_name,
-                'grp_1st': (s['grp_1st'] / num) * 100,
-                'r32': (s['r32'] / num) * 100,
-                'r16': (s['r16'] / num) * 100,
-                'qf': (s['qf'] / num) * 100,
-                'sf': (s['sf'] / num) * 100,
-                'final': (s['final'] / num) * 100,
-                'win': (s['win'] / num) * 100,
-                'exp_pts': exp_pts,
-                'exp_gf': exp_gf,
-                'exp_ga': exp_ga,
-                'exp_matches': exp_matches
-            })
-
-        # Apply Sort
-        table_data.sort(key=lambda x: x[BULK_SORT_COL], reverse=BULK_SORT_DESC)
-    
-        def get_th(col_id, label):
-            arrow = ""
-            if BULK_SORT_COL == col_id:
-                arrow = " ▼" if BULK_SORT_DESC else " ▲"
-            else:
-                arrow = " ↕"
-            return f'<th class="sortable-th" onclick="window.sort_bulk_table(\'{col_id}\')" style="white-space:nowrap; padding:12px 10px;">{label}<span style="font-size:0.8em; opacity:0.6;">{arrow}</span></th>'
-
-        html = f'''
-        <div class="dashboard-card" style="padding:0; overflow:hidden;">
-            <div style="overflow-x:auto;">
-                <table class="rankings-table" style="margin:0; border:none; box-shadow:none;">
-                    <thead>
-                        <tr>
-                            {get_th("team", "Team")}
-                            {get_th("exp_pts", "Exp. Grp Pts")}
-                            {get_th("grp_1st", "1st in Grp")}
-                            {get_th("r32", "R32")}
-                            {get_th("r16", "R16")}
-                            {get_th("qf", "QF")}
-                            {get_th("sf", "SF")}
-                            {get_th("final", "Final")}
-                            {get_th("win", "Win")}
-                            {get_th("exp_matches", "Exp. Matches")}
-                            {get_th("exp_gf", "Exp. GF")}
-                            {get_th("exp_ga", "Exp. GA")}
-                        </tr>
-                    </thead>
-                    <tbody>
-        '''
-    
-        for row in table_data:
-            html += f'''
-            <tr>
-                <td style="font-weight:600; white-space:nowrap;">{row['team']}</td>
-                <td style="color:var(--accent-blue); font-weight:bold; text-align:center;">{row['exp_pts']:.2f}</td>
-                <td style="text-align:right;">{row['grp_1st']:.1f}%</td>
-                <td style="text-align:right;">{row['r32']:.1f}%</td>
-                <td style="text-align:right;">{row['r16']:.1f}%</td>
-                <td style="text-align:right;">{row['qf']:.1f}%</td>
-                <td style="text-align:right;">{row['sf']:.1f}%</td>
-                <td style="text-align:right;">{row['final']:.1f}%</td>
-                <td style="color:var(--accent-gold); font-weight:bold; text-align:right;">{row['win']:.1f}%</td>
-                <td style="text-align:center;">{row['exp_matches']:.2f}</td>
-                <td style="color:var(--accent-green); text-align:center;">{row['exp_gf']:.2f}</td>
-                <td style="color:var(--accent-red); text-align:center;">{row['exp_ga']:.2f}</td>
-            </tr>
-            '''
-        html += "</tbody></table></div></div>"
-    
-        js.document.getElementById("bulk-spreadsheet-container").innerHTML = html
     
     # 1. CALCULATE TOP-LEVEL TEAM STATS
     chaos_pct = (state['chaos'] / num) * 100
@@ -920,23 +825,24 @@ def build_bulk_dashboard():
         brackets_shell += f'<button id="btn-scenario-{i}" class="scenario-btn {act_class}" onclick="window.show_top_bracket({i})">Scenario {i+1}</button>'
         
     brackets_shell += """
+                </div>
+            </div>
+            <div id="top-bracket-render-area" style="overflow-x:auto; padding-bottom: 20px;"></div>
+        </div>
+        """
+        
+        table_shell = """
+        <div id="bulk-table-view" style="display:none;">
+            <div class="dashboard-card">
+                <h3 style="margin-top:0;">Raw Data Spreadsheet</h3>
+                <p style="color:var(--text-light); font-size:0.9em; margin-bottom:15px;">Sortable metrics averaged across all simulated tournaments.</p>
+                <div id="bulk-spreadsheet-container"></div>
             </div>
         </div>
-        <div id="top-bracket-render-area" style="overflow-x:auto; padding-bottom: 20px;"></div>
-    </div>
-    """
-
-    # Build the Spreadsheet shell
-    table_shell = """
-    <div id="bulk-table-view" style="display:none;">
-        <h3 style="margin-top:0;">Raw Data Spreadsheet</h3>
-        <p style="color:var(--text-light); font-size:0.9em; margin-bottom:15px;">Sortable metrics averaged across all simulated tournaments.</p>
-        <div id="bulk-spreadsheet-container"></div>
-    </div>
-    """
-    
-    out_div.innerHTML = tabs_html + html + brackets_shell + table_shell
-    render_favorites_table()
+        """
+        
+        out_div.innerHTML = tabs_html + html + brackets_shell + table_shell
+        render_favorites_table()
 
 def render_favorites_table(event=None):
     state = BULK_STATE
@@ -1345,6 +1251,100 @@ def build_dashboard_shell():
     js.document.getElementById("btn-show-dashboard").onclick = create_proxy(lambda e: toggle_view('profile'))
     js.document.getElementById("btn-show-style").onclick = create_proxy(lambda e: toggle_view('style'))
 
+def sort_bulk_table(col):
+    global BULK_SORT_COL, BULK_SORT_DESC
+    if BULK_SORT_COL == col:
+        BULK_SORT_DESC = not BULK_SORT_DESC
+    else:
+        BULK_SORT_COL = col
+        BULK_SORT_DESC = False if col == 'team' else True
+    render_bulk_spreadsheet()
+
+def render_bulk_spreadsheet(event=None):
+    state = BULK_STATE
+    if not state: return
+    num = state['num']
+    
+    table_data = []
+    for t, s in state['stats'].items():
+        t_name = sim.PRETTY_NAMES.get(t, t.title())
+        
+        # Expected matches: 3 Group stage + probabilities of reaching each KO round
+        # Making SF guarantees an extra match (Final or 3rd Place)
+        exp_matches = 3.0 + (s['r32']/num) + (s['r16']/num) + (s['qf']/num) + (s['sf']/num) * 2
+        
+        exp_pts = s['grp_pts'] / num
+        exp_gf = state['goals'][t] / num
+        exp_ga = state['ga'].get(t, 0) / num
+        
+        table_data.append({
+            'team': t_name,
+            'grp_1st': (s['grp_1st'] / num) * 100,
+            'r32': (s['r32'] / num) * 100,
+            'r16': (s['r16'] / num) * 100,
+            'qf': (s['qf'] / num) * 100,
+            'sf': (s['sf'] / num) * 100,
+            'final': (s['final'] / num) * 100,
+            'win': (s['win'] / num) * 100,
+            'exp_pts': exp_pts,
+            'exp_gf': exp_gf,
+            'exp_ga': exp_ga,
+            'exp_matches': exp_matches
+        })
+        
+    # Apply Sort
+    table_data.sort(key=lambda x: x[BULK_SORT_COL], reverse=BULK_SORT_DESC)
+    
+    def get_th(col_id, label):
+        arrow = ""
+        if BULK_SORT_COL == col_id:
+            arrow = " ▼" if BULK_SORT_DESC else " ▲"
+        else:
+            arrow = " ↕"
+        return f'<th class="sortable-th" onclick="window.sort_bulk_table(\'{col_id}\')" style="white-space:nowrap; padding:12px 10px; font-size:0.85em;">{label}<span style="font-size:0.8em; opacity:0.6;">{arrow}</span></th>'
+
+    html = f'''
+    <div style="overflow-x:auto;">
+        <table class="rankings-table" style="margin:0; width:100%;">
+            <thead>
+                <tr>
+                    {get_th("team", "Team")}
+                    {get_th("exp_pts", "Exp. Grp Pts")}
+                    {get_th("grp_1st", "1st in Grp")}
+                    {get_th("r32", "R32")}
+                    {get_th("r16", "R16")}
+                    {get_th("qf", "QF")}
+                    {get_th("sf", "SF")}
+                    {get_th("final", "Final")}
+                    {get_th("win", "Win")}
+                    {get_th("exp_matches", "Exp. Matches")}
+                    {get_th("exp_gf", "Exp. GF")}
+                    {get_th("exp_ga", "Exp. GA")}
+                </tr>
+            </thead>
+            <tbody>
+    '''
+    
+    for row in table_data:
+        html += f'''
+        <tr style="font-size:0.9em;">
+            <td style="font-weight:600; white-space:nowrap;">{row['team']}</td>
+            <td style="color:var(--accent-blue); font-weight:bold; text-align:center;">{row['exp_pts']:.2f}</td>
+            <td style="text-align:right;">{row['grp_1st']:.1f}%</td>
+            <td style="text-align:right;">{row['r32']:.1f}%</td>
+            <td style="text-align:right;">{row['r16']:.1f}%</td>
+            <td style="text-align:right;">{row['qf']:.1f}%</td>
+            <td style="text-align:right;">{row['sf']:.1f}%</td>
+            <td style="text-align:right;">{row['final']:.1f}%</td>
+            <td style="color:var(--accent-gold); font-weight:bold; text-align:right;">{row['win']:.1f}%</td>
+            <td style="text-align:center; font-weight:600;">{row['exp_matches']:.2f}</td>
+            <td style="color:var(--accent-green); text-align:center; font-weight:600;">{row['exp_gf']:.2f}</td>
+            <td style="color:var(--accent-red); text-align:center; font-weight:600;">{row['exp_ga']:.2f}</td>
+        </tr>
+        '''
+    html += "</tbody></table></div>"
+    
+    js.document.getElementById("bulk-spreadsheet-container").innerHTML = html
 
 def sort_table(col):
     global TABLE_SORT_COL, TABLE_SORT_DESC
