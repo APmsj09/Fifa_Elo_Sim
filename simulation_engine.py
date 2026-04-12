@@ -267,54 +267,50 @@ def load_data():
 def calculate_squad_ratings(player_df, formation_df):
     if player_df is None: return {}
     import re
+    import numpy as np
     
     # 1. Clean column names
     player_df.columns = [str(c).strip().lower() for c in player_df.columns]
     
-    # 2. Smartly find the position column (handles 'pos' or 'position')
-    pos_col = None
-    for col in player_df.columns:
-        if col in ['pos', 'position', 'positions']:
-            pos_col = col
-            break
-            
-    if not pos_col:
-        # Final fallback in case of weird formatting
-        pos_col = next((c for c in player_df.columns if 'pos' in c), None)
-    if not pos_col: return {}
-
-    # 3. Clean ratings
+    # Ensure 'rat' column is captured
+    if 'rat' not in player_df.columns and 'rating' in player_df.columns:
+        player_df['rat'] = player_df['rating']
     player_df['rat'] = pd.to_numeric(player_df['rat'].astype(str).str.extract(r'(\d+)')[0], errors='coerce').fillna(70)
 
-    # 4. The Bulletproof Regex Position Scanner
-    def get_unit(pos_str):
-        if pd.isna(pos_str): return 'MID'
+    # --- 2. THE SMART SCANNER ---
+    def assign_roles(row):
+        # Fetch data from the columns
+        p_val = str(row.get('position(s)', row.get('position', row.get('pos', '')))).upper()
+        c_val = str(row.get('club', '')).upper()
         
-        # Extract ONLY alphabetical letters (removes quotes, commas, spaces)
-        # e.g., '"AMR, AMC, ST"' perfectly becomes ['AMR', 'AMC', 'ST']
-        tokens = set(re.findall(r'[A-Z]+', str(pos_str).upper()))
+        # SMART SWAP: Check if columns are accidentally swapped in the CSV
+        display_pos = p_val
+        display_club = c_val
         
-        # Check Goalkeepers
-        if 'GK' in tokens or 'GOALKEEPER' in tokens: 
-            return 'GK'
-            
-        # Check Defenders
-        def_keys = {'DC', 'DL', 'DR', 'WBL', 'WBR', 'CB', 'LB', 'RB', 'SW', 'LWB', 'RWB', 'DEF'}
-        if any(t in def_keys for t in tokens): 
-            return 'DEF'
-            
-        # Check Attackers
-        att_keys = {'ST', 'AML', 'AMR', 'CF', 'FW', 'LW', 'RW', 'ATT'}
-        if any(t in att_keys for t in tokens): 
-            return 'ATT'
-            
-        # THIS IS WHERE 'MID' IS ASSIGNED (If no Defenders or Attackers are found)
-        return 'MID'
+        # If 'club' contains commas or known acronyms, it's actually the position column!
+        if ',' in c_val or c_val in ['GK', 'ST', 'DC', 'MC', 'DL', 'DR', 'AML', 'AMR', 'AMC']:
+            if ',' not in p_val: 
+                display_pos = c_val
+                display_club = p_val
 
-    # 5. Apply the mapping
-    player_df['unit'] = player_df[pos_col].apply(get_unit)
+        # Extract only alphabetical characters to find the Unit (GK/DEF/MID/ATT)
+        combined = display_pos + " " + display_club
+        combined = combined.replace("DC UNITED", "").replace("FC ", "")
+        
+        tokens = set(re.findall(r'[A-Z]+', combined))
+        
+        # Mathematical Tie-Breaker (Attackers > Defenders > Midfielders)
+        if any(t in {'GK', 'GOALKEEPER'} for t in tokens): unit = 'GK'
+        elif any(t in {'ST', 'AML', 'AMR', 'CF', 'FW', 'LW', 'RW', 'ATT'} for t in tokens): unit = 'ATT'
+        elif any(t in {'DC', 'DL', 'DR', 'WBL', 'WBR', 'CB', 'LB', 'RB', 'SW', 'LWB', 'RWB', 'DEF'} for t in tokens): unit = 'DEF'
+        else: unit = 'MID'
+        
+        return pd.Series([unit, display_pos, display_club])
+
+    # Apply mapping to every row
+    player_df[['unit', 'ui_pos', 'ui_club']] = player_df.apply(assign_roles, axis=1)
+
     team_ratings = {}
-    
     for nation, group in player_df.groupby('nation'):
         n_key = get_slug(nation)
         
@@ -336,14 +332,14 @@ def calculate_squad_ratings(player_df, formation_df):
 
             starters = natural_list[:count]
             
-            # --- 1. FILL STARTERS IF SHORTAGE ---
+            # --- FILL STARTERS ---
             if len(starters) < count:
                 if unit == 'GK':
                     starters.extend([max(60, squad_avg - 10)] * (count - len(starters)))
                 else:
                     needed = count - len(starters)
                     fillers = group[group['unit'] != unit].sort_values('rat', ascending=False)
-                    fillers = fillers[fillers['unit'] != 'GK'] # Exclude GKs
+                    fillers = fillers[fillers['unit'] != 'GK']
                     filler_list = (fillers.head(needed)['rat'] - 5).tolist()
                     starters.extend(filler_list)
                     
@@ -352,7 +348,7 @@ def calculate_squad_ratings(player_df, formation_df):
 
             starter_avg = sum(starters) / len(starters)
 
-            # --- 2. FACTOR IN SQUAD DEPTH (BACKUPS) ---
+            # --- SQUAD DEPTH ---
             num_backups = 2 if unit == 'GK' else count
             backups = natural_list[count : count + num_backups]
             
@@ -362,12 +358,20 @@ def calculate_squad_ratings(player_df, formation_df):
                 
             backup_avg = sum(backups) / len(backups)
             
-            # --- 3. BLEND STARTERS (85%) AND BACKUPS (15%) ---
             final_units[unit] = (starter_avg * 0.85) + (backup_avg * 0.15)
 
-        # Final Overall Score (Weighted toward the outfield starters)
         overall_talent = (final_units['GK']*0.1 + final_units['DEF']*0.3 + 
                           final_units['MID']*0.3 + final_units['ATT']*0.3)
+        
+        # 3. Format the players specifically for the UI Dictionary
+        def format_player(row):
+            d = row.to_dict()
+            # Overwrite the broken CSV columns with our fixed 'Smart Swap' strings
+            d['pos'] = d['ui_pos']
+            d['club'] = d['ui_club']
+            return d
+            
+        fixed_top_players = [format_player(row) for _, row in group.sort_values('rat', ascending=False).head(26).iterrows()]
         
         team_ratings[n_key] = {
             'talent_score': overall_talent,
@@ -377,7 +381,7 @@ def calculate_squad_ratings(player_df, formation_df):
             'rating_mid': final_units['MID'],
             'rating_att': final_units['ATT'],
             'formation': fmt_str,
-            'top_players': group.sort_values('rat', ascending=False).head(26).to_dict('records')
+            'top_players': fixed_top_players
         }
             
     return team_ratings
