@@ -270,42 +270,47 @@ def calculate_squad_ratings(player_df, formation_df):
     
     # Cleaning columns
     player_df.columns = [c.strip().lower() for c in player_df.columns]
-    pos_col = next((c for c in player_df.columns if 'position' in c), None)
-    if not pos_col: return {}
+    
+    # 1. Smarter Position Column Targeting
+    pos_cols = [c for c in player_df.columns if c in ['pos', 'position', 'positions']]
+    if not pos_cols:
+        pos_cols = [c for c in player_df.columns if 'position' in c or 'pos' in c]
+    if not pos_cols: return {}
 
     # Cleaning ratings
     player_df['rat'] = pd.to_numeric(player_df['rat'].astype(str).str.extract(r'(\d+)')[0], errors='coerce').fillna(70)
 
-    # Position mapping helper
-    def get_unit(pos_str):
-        p_orig = str(pos_str).upper()
-        # Replace common separators with spaces to make splitting reliable
-        p_parts = p_orig.replace(',', ' ').replace('/', ' ').replace('|', ' ').split()
+    # 2. Highly Robust Position Regex Mapper
+    def get_unit(row):
+        # Merge all potential position columns to ensure we catch the string
+        p_orig = ""
+        for col in pos_cols:
+            val = str(row[col]).upper()
+            if val and val != 'NAN':
+                p_orig += " " + val
+                
+        # Extract only alphabetical characters (handles "D/WB (L)" -> "D", "WB", "L")
+        p_parts = set(re.findall(r'[A-Z]+', p_orig))
 
         # 1. Check for Goalkeepers
         if 'GK' in p_parts or 'GOALKEEPER' in p_parts: 
             return 'GK'
 
         # 2. Check for Defenders
-        def_keys = {'DC', 'DL', 'DR', 'WBL', 'WBR', 'DF', 'CB', 'LB', 'RB', 'SW', 'LWB', 'RWB', 'CENTRE-BACK'}
-        if any(part in def_keys for part in p_parts) or 'DEFENDER' in p_parts: 
+        def_keys = {'DC', 'DL', 'DR', 'WBL', 'WBR', 'DF', 'CB', 'LB', 'RB', 'SW', 'LWB', 'RWB', 'DEFENDER', 'BACK', 'D', 'WB', 'DEF'}
+        if any(part in def_keys for part in p_parts): 
             return 'DEF'
 
-        # 3. Check for Attackers (Strikers and Wingers)
-        att_keys = {'ST', 'AML', 'AMR', 'CF', 'FW', 'STRIKER', 'FORWARD', 'WF', 'LW', 'RW', 'CENTRE-FORWARD'}
-        if any(part in att_keys for part in p_parts) or 'ATTACKER' in p_parts: 
+        # 3. Check for Attackers (Strikers, Wingers, Attacking Mids)
+        att_keys = {'ST', 'AML', 'AMR', 'CF', 'FW', 'F', 'STRIKER', 'FORWARD', 'WF', 'LW', 'RW', 'AMC', 'CAM', 'AM', 'ATTACKER', 'ATT'}
+        if any(part in att_keys for part in p_parts): 
             return 'ATT'
     
-        # 4. Check for Attacking Mids (often counted as ATT in 4-2-3-1 etc)
-        # If the formation logic treats them as ATT, we check them here
-        am_keys = {'AMC', 'CAM', 'AM'}
-        if any(part in am_keys for part in p_parts):
-            return 'ATT'
-
-        # 5. Default to Midfield
+        # 4. Default to Midfield
         return 'MID'
 
-    player_df['unit'] = player_df[pos_col].apply(get_unit)
+    # Apply the new mapping
+    player_df['unit'] = player_df.apply(get_unit, axis=1)
     team_ratings = {}
     
     for nation, group in player_df.groupby('nation'):
