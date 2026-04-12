@@ -270,46 +270,57 @@ def calculate_squad_ratings(player_df, formation_df):
     
     # Cleaning columns
     player_df.columns = [c.strip().lower() for c in player_df.columns]
-    
-    # 1. Smarter Position Column Targeting
-    pos_cols = [c for c in player_df.columns if c in ['pos', 'position', 'positions']]
-    if not pos_cols:
-        pos_cols = [c for c in player_df.columns if 'position' in c or 'pos' in c]
-    if not pos_cols: return {}
 
     # Cleaning ratings
     player_df['rat'] = pd.to_numeric(player_df['rat'].astype(str).str.extract(r'(\d+)')[0], errors='coerce').fillna(70)
 
-    # 2. Highly Robust Position Regex Mapper
+    # --- THE BULLETPROOF POSITION SCANNER ---
     def get_unit(row):
-        # Merge all potential position columns to ensure we catch the string
+        # 1. Gather all text from the row (except Name and Rating)
         p_orig = ""
-        for col in pos_cols:
-            val = str(row[col]).upper()
-            if val and val != 'NAN':
-                p_orig += " " + val
+        for col in row.index:
+            col_str = str(col).lower()
+            if col_str not in ['name', 'nation', 'rat', 'rating']:
+                val = str(row[col]).upper()
+                if val and val != 'NAN':
+                    p_orig += " " + val
+                    
+        # Prevent false positives from team names (e.g. DC United triggering Defender)
+        p_orig = p_orig.replace("DC UNITED", "").replace("FC", "")
+        
+        # 2. Extract acronyms
+        tokens = set(re.findall(r'[A-Z]+', p_orig))
+
+        # 3. Define the dictionaries
+        gk_keys = {'GK', 'GOALKEEPER'}
+        def_keys = {'DC', 'DL', 'DR', 'WBL', 'WBR', 'CB', 'LB', 'RB', 'SW', 'LWB', 'RWB', 'DEF', 'DEFENDER'}
+        att_keys = {'ST', 'AML', 'AMR', 'CF', 'FW', 'LW', 'RW', 'STRIKER', 'FORWARD', 'ATT', 'ATTACKER'}
+        mid_keys = {'MC', 'ML', 'MR', 'DM', 'CM', 'LM', 'RM', 'CDM', 'AMC', 'CAM', 'MID', 'MIDFIELDER'}
+
+        # 4. Score the player
+        scores = {'GK': 0, 'DEF': 0, 'MID': 0, 'ATT': 0}
+        
+        for t in tokens:
+            if t in gk_keys: scores['GK'] += 10 # GKs are undeniable
+            if t in def_keys: scores['DEF'] += 1
+            if t in att_keys: scores['ATT'] += 1
+            if t in mid_keys: scores['MID'] += 1
+
+        best_unit = 'MID'
+        max_score = -1
+        
+        # 5. Evaluate (Attackers and Defenders break ties over Midfielders)
+        for u in ['MID', 'DEF', 'ATT', 'GK']:
+            if scores[u] >= max_score and scores[u] > 0:
+                best_unit = u
+                max_score = scores[u]
                 
-        # Extract only alphabetical characters (handles "D/WB (L)" -> "D", "WB", "L")
-        p_parts = set(re.findall(r'[A-Z]+', p_orig))
+        # Fallback if no position text was found at all
+        if max_score == -1: return 'MID'
+            
+        return best_unit
 
-        # 1. Check for Goalkeepers
-        if 'GK' in p_parts or 'GOALKEEPER' in p_parts: 
-            return 'GK'
-
-        # 2. Check for Defenders
-        def_keys = {'DC', 'DL', 'DR', 'WBL', 'WBR', 'DF', 'CB', 'LB', 'RB', 'SW', 'LWB', 'RWB', 'DEFENDER', 'BACK', 'D', 'WB', 'DEF'}
-        if any(part in def_keys for part in p_parts): 
-            return 'DEF'
-
-        # 3. Check for Attackers (Strikers, Wingers, Attacking Mids)
-        att_keys = {'ST', 'AML', 'AMR', 'CF', 'FW', 'F', 'STRIKER', 'FORWARD', 'WF', 'LW', 'RW', 'AMC', 'CAM', 'AM', 'ATTACKER', 'ATT'}
-        if any(part in att_keys for part in p_parts): 
-            return 'ATT'
-    
-        # 4. Default to Midfield
-        return 'MID'
-
-    # Apply the new mapping
+    # Apply the new universal mapping
     player_df['unit'] = player_df.apply(get_unit, axis=1)
     team_ratings = {}
     
@@ -352,13 +363,10 @@ def calculate_squad_ratings(player_df, formation_df):
             starter_avg = sum(starters) / len(starters)
 
             # --- 2. FACTOR IN SQUAD DEPTH (BACKUPS) ---
-            # Demand a full "second string" (1-to-1 backup) for outfielders, and 2 backup GKs.
-            # This perfectly mimics a 23-26 man tournament squad.
             num_backups = 2 if unit == 'GK' else count
             backups = natural_list[count : count + num_backups]
             
             if len(backups) < num_backups:
-                # Penalize lack of depth
                 missing_backups = num_backups - len(backups)
                 backups.extend([max(50, squad_avg - 8)] * missing_backups)
                 
