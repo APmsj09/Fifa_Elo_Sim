@@ -1848,34 +1848,35 @@ def update_dashboard_data(event=None):
                 <tbody>
         """
         for i, p in enumerate(talent_info['top_players']):
-            # Logic to determine "Status" (Starters vs Bench based on common squad sizes)
             is_starter = i < 11
             opacity = "1.0" if is_starter else "0.7"
             bg_style = "background: rgba(59, 130, 246, 0.05);" if is_starter else ""
             
-            # Position Badge Logic
-            raw_pos = p.get('pos') or p.get('position') or p.get('unit') or '??'
-            pos = str(raw_pos).upper()
-            
-            # If the CSV has long names (e.g. "Center Back"), shorten them for the badge
-            pos_map = {"CENTRE-BACK": "CB", "CENTRE-FORWARD": "ST", "ATTACKING MIDFIELD": "CAM", "DEFENSIVE MIDFIELD": "CDM"}
-            pos = pos_map.get(pos, pos)[:3] # Limit to 3 chars
+            # --- FIX STARTS HERE ---
+            # Get the unit (GK, ATT, DEF, MID)
             unit = p.get('unit', 'MID')
+            
+            # Get the specific position code (AMR, ST, etc.)
+            # We look for 'pos' or 'position' which come from your CSV columns
+            raw_pos_detail = p.get('pos') or p.get('position') or unit
+            
+            # Position Badge Colors
             pos_colors = {'ATT': '#ef4444', 'MID': '#3b82f6', 'DEF': '#10b981', 'GK': '#f59e0b'}
             u_col = pos_colors.get(unit, '#64748b')
 
             rating = int(float(p.get('rat', 70)))
-            # Color-coded rating
             r_col = "var(--accent-green)" if rating >= 85 else ("var(--accent-blue)" if rating >= 78 else "var(--text-main)")
 
             squad_html += f"""
             <tr style="{bg_style} border-bottom: 1px solid var(--sidebar-border); opacity: {opacity};">
                 <td style="padding: 8px 4px;">
-                    <span style="background:{u_col}; color:white; padding:2px 6px; border-radius:4px; font-size:0.75em; font-weight:800;">{pos}</span>
+                    <!-- Badge now shows the Unit Category (e.g., ATT) -->
+                    <span style="background:{u_col}; color:white; padding:2px 6px; border-radius:4px; font-size:0.75em; font-weight:800; min-width:30px; display:inline-block; text-align:center;">{unit}</span>
                 </td>
                 <td style="padding: 8px 4px;">
                     <div style="font-weight:700; color:var(--text-main);">{p['name']}</div>
-                    <div style="font-size:0.85em; color:var(--text-light);">{p.get('club', 'Unknown')}</div>
+                    <!-- Detailed position (e.g., AMR) shown here -->
+                    <div style="font-size:0.85em; color:var(--text-light);">{raw_pos_detail} • {p.get('club', 'Unknown')}</div>
                 </td>
                 <td style="padding: 8px 4px; text-align:right; font-weight:800; font-size:1.1em; color:{r_col};">
                     {rating}

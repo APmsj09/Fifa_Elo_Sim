@@ -279,22 +279,30 @@ def calculate_squad_ratings(player_df, formation_df):
     # Position mapping helper
     def get_unit(pos_str):
         p_orig = str(pos_str).upper()
-        p_parts = p_orig.replace(',', ' ').replace('/', ' ').split()
-    
-        if 'GK' in p_parts: 
+        # Replace common separators with spaces to make splitting reliable
+        p_parts = p_orig.replace(',', ' ').replace('/', ' ').replace('|', ' ').split()
+
+        # 1. Check for Goalkeepers
+        if 'GK' in p_parts or 'GOALKEEPER' in p_parts: 
             return 'GK'
-    
-        # ATTACK: Strikers, Wingers, and Attacking Mids
-        att_keys = {'ST', 'AML', 'AMR', 'CF', 'FW', 'STRIKER', 'FORWARD', 'WF', 'AMC', 'CAM', 'AM', 'LW', 'RW'}
-        if any(part in att_keys for part in p_parts): 
-            return 'ATT'
-        
-        # DEFENSE: Center Backs, Fullbacks, Wingbacks
-        def_keys = {'DC', 'DL', 'DR', 'WBL', 'WBR', 'DF', 'CB', 'LB', 'RB', 'SW', 'LWB', 'RWB'}
-        if any(part in def_keys for part in p_parts): 
+
+        # 2. Check for Defenders
+        def_keys = {'DC', 'DL', 'DR', 'WBL', 'WBR', 'DF', 'CB', 'LB', 'RB', 'SW', 'LWB', 'RWB', 'CENTRE-BACK'}
+        if any(part in def_keys for part in p_parts) or 'DEFENDER' in p_parts: 
             return 'DEF'
+
+        # 3. Check for Attackers (Strikers and Wingers)
+        att_keys = {'ST', 'AML', 'AMR', 'CF', 'FW', 'STRIKER', 'FORWARD', 'WF', 'LW', 'RW', 'CENTRE-FORWARD'}
+        if any(part in att_keys for part in p_parts) or 'ATTACKER' in p_parts: 
+            return 'ATT'
     
-        # MIDFIELD: CDMs, CMs, LM/RM
+        # 4. Check for Attacking Mids (often counted as ATT in 4-2-3-1 etc)
+        # If the formation logic treats them as ATT, we check them here
+        am_keys = {'AMC', 'CAM', 'AM'}
+        if any(part in am_keys for part in p_parts):
+            return 'ATT'
+
+        # 5. Default to Midfield
         return 'MID'
 
     player_df['unit'] = player_df[pos_col].apply(get_unit)
