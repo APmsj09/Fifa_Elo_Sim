@@ -266,62 +266,53 @@ def load_data():
 
 def calculate_squad_ratings(player_df, formation_df):
     if player_df is None: return {}
-    import re, unicodedata
+    import re
     
-    # Cleaning columns
-    player_df.columns = [c.strip().lower() for c in player_df.columns]
+    # 1. Clean column names
+    player_df.columns = [str(c).strip().lower() for c in player_df.columns]
+    
+    # 2. Smartly find the position column (handles 'pos' or 'position')
+    pos_col = None
+    for col in player_df.columns:
+        if col in ['pos', 'position', 'positions']:
+            pos_col = col
+            break
+            
+    if not pos_col:
+        # Final fallback in case of weird formatting
+        pos_col = next((c for c in player_df.columns if 'pos' in c), None)
+    if not pos_col: return {}
 
-    # Cleaning ratings
+    # 3. Clean ratings
     player_df['rat'] = pd.to_numeric(player_df['rat'].astype(str).str.extract(r'(\d+)')[0], errors='coerce').fillna(70)
 
-    # --- THE BULLETPROOF POSITION SCANNER ---
-    def get_unit(row):
-        # 1. Gather all text from the row (except Name and Rating)
-        p_orig = ""
-        for col in row.index:
-            col_str = str(col).lower()
-            if col_str not in ['name', 'nation', 'rat', 'rating']:
-                val = str(row[col]).upper()
-                if val and val != 'NAN':
-                    p_orig += " " + val
-                    
-        # Prevent false positives from team names (e.g. DC United triggering Defender)
-        p_orig = p_orig.replace("DC UNITED", "").replace("FC", "")
+    # 4. The Bulletproof Regex Position Scanner
+    def get_unit(pos_str):
+        if pd.isna(pos_str): return 'MID'
         
-        # 2. Extract acronyms
-        tokens = set(re.findall(r'[A-Z]+', p_orig))
-
-        # 3. Define the dictionaries
-        gk_keys = {'GK', 'GOALKEEPER'}
-        def_keys = {'DC', 'DL', 'DR', 'WBL', 'WBR', 'CB', 'LB', 'RB', 'SW', 'LWB', 'RWB', 'DEF', 'DEFENDER'}
-        att_keys = {'ST', 'AML', 'AMR', 'CF', 'FW', 'LW', 'RW', 'STRIKER', 'FORWARD', 'ATT', 'ATTACKER'}
-        mid_keys = {'MC', 'ML', 'MR', 'DM', 'CM', 'LM', 'RM', 'CDM', 'AMC', 'CAM', 'MID', 'MIDFIELDER'}
-
-        # 4. Score the player
-        scores = {'GK': 0, 'DEF': 0, 'MID': 0, 'ATT': 0}
+        # Extract ONLY alphabetical letters (removes quotes, commas, spaces)
+        # e.g., '"AMR, AMC, ST"' perfectly becomes ['AMR', 'AMC', 'ST']
+        tokens = set(re.findall(r'[A-Z]+', str(pos_str).upper()))
         
-        for t in tokens:
-            if t in gk_keys: scores['GK'] += 10 # GKs are undeniable
-            if t in def_keys: scores['DEF'] += 1
-            if t in att_keys: scores['ATT'] += 1
-            if t in mid_keys: scores['MID'] += 1
-
-        best_unit = 'MID'
-        max_score = -1
-        
-        # 5. Evaluate (Attackers and Defenders break ties over Midfielders)
-        for u in ['MID', 'DEF', 'ATT', 'GK']:
-            if scores[u] >= max_score and scores[u] > 0:
-                best_unit = u
-                max_score = scores[u]
-                
-        # Fallback if no position text was found at all
-        if max_score == -1: return 'MID'
+        # Check Goalkeepers
+        if 'GK' in tokens or 'GOALKEEPER' in tokens: 
+            return 'GK'
             
-        return best_unit
+        # Check Defenders
+        def_keys = {'DC', 'DL', 'DR', 'WBL', 'WBR', 'CB', 'LB', 'RB', 'SW', 'LWB', 'RWB', 'DEF'}
+        if any(t in def_keys for t in tokens): 
+            return 'DEF'
+            
+        # Check Attackers
+        att_keys = {'ST', 'AML', 'AMR', 'CF', 'FW', 'LW', 'RW', 'ATT'}
+        if any(t in att_keys for t in tokens): 
+            return 'ATT'
+            
+        # THIS IS WHERE 'MID' IS ASSIGNED (If no Defenders or Attackers are found)
+        return 'MID'
 
-    # Apply the new universal mapping
-    player_df['unit'] = player_df.apply(get_unit, axis=1)
+    # 5. Apply the mapping
+    player_df['unit'] = player_df[pos_col].apply(get_unit)
     team_ratings = {}
     
     for nation, group in player_df.groupby('nation'):
@@ -356,7 +347,6 @@ def calculate_squad_ratings(player_df, formation_df):
                     filler_list = (fillers.head(needed)['rat'] - 5).tolist()
                     starters.extend(filler_list)
                     
-                    # Absolute worst case fallback (database missing players)
                     while len(starters) < count:
                         starters.append(max(50, squad_avg - 10))
 
