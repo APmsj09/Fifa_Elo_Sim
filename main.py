@@ -539,6 +539,7 @@ async def run_bulk_sim(event):
             if not b: continue
             score = 0
             sig_parts = []
+            
             for r in b:
                 r_name = r['round']
                 if r_name == 'Round of 32': metric = 'r16'
@@ -553,8 +554,17 @@ async def run_bulk_sim(event):
                     # Add the probability of this team reaching this far
                     score += (team_stats[w][metric] / num)
                     sig_parts.append(w)
+                    
+                    # --- NEW: AESTHETIC PENALTY ---
+                    # Penalizes iterations with freak scorelines so the top scenarios 
+                    # displayed to the user look like realistic football matches.
+                    g1, g2 = m['g1'], m['g2']
+                    if g1 > 3: score -= (g1 - 3) * 0.25
+                    if g2 > 3: score -= (g2 - 3) * 0.25
+                    if abs(g1 - g2) >= 4: score -= 0.25 # Penalize heavy blowouts
             
             sig = "|".join(sig_parts)
+            # Find the most realistic instance of this specific bracket topology
             if sig not in unique_brackets or unique_brackets[sig]['score'] < score:
                 unique_brackets[sig] = {'score': score, 'bracket': b}
                 
