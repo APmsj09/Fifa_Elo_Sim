@@ -2464,9 +2464,9 @@ Egypt,58,63,Mahmoud Gad,27,Pyramids,GK,06-2030,€4K,€1M - €2M,TBD
 Egypt,58,68,Omar Kamal,32,Al-Ahly,"DR, WBR",06-2027,€174,€1M - €2M,TBD
 Egypt,58,68,Amr El Soleya,35,C. Cleopatra,"DM, MC",07-2026,€3K,€278M - €521M,No
 Egypt,58,64,Oufa,29,National Bank,ST,06-2028,€7K,€2M - €3M,No
-Jordan,68,68,Musa Al-Tamari,28,Rennes,AMR,06-2028,€16K,€5M - €9M,Yes
-Jordan,65,65,Yazan Al-Arab,29,FC Seoul,DC,12-2026,€5K,€769K - €1M,Yes
-Jordan,60,65,Tammer Bany,22,West Brom,"AMC, ST",06-2028,€7K,€3M - €5M,Likely
+Jordan,71,71,Musa Al-Tamari,28,Rennes,AMR,06-2028,€16K,€5M - €9M,Yes
+Jordan,70,70,Yazan Al-Arab,29,FC Seoul,DC,12-2026,€5K,€769K - €1M,Yes
+Jordan,62,65,Tammer Bany,22,West Brom,"AMC, ST",06-2028,€7K,€3M - €5M,Likely
 Jordan,53,55,Bahaa Faisal,30,Al-Waab,ST,06-2026,€12K,€2M - €3M,Likely
 Jordan,53,55,Ehsan Haddad,31,Al-Hussein,"DR, WBR",06-2026,€3K,€90K - €168K,Yes
 Jordan,53,55,Mohannad Semreen,23,Al-Gharrafa,AML,06-2026,€771,€129K - €241K,No
@@ -2581,13 +2581,13 @@ Czech Republic,60,65,Filip Kubala,26,Baník Ostrava,"AMC, ST",06-2027,€1K,€6
 Czech Republic,60,65,Daniel Holzer,30,Baník Ostrava,"WBL, ML",06-2028,€3K,€879K - €2M,No
 Czech Republic,60,65,Jakub Markovič,24,Slavia Prague,GK,06-2029,€2K,€518K - €971K,No
 Czech Republic,56,70,Kryštof Daněk,22,Sparta Prague,AMC,06-2027,€3K,€3M - €5M,No
-New Zealand,68,69,Chris Wood,34,Nottm Forest,ST,06-2027,€93K,€8M - €15M,Yes
-New Zealand,62,65,Joe Bell,26,Viking,DM,12-2027,€4K,€3M - €5M,Yes
-New Zealand,62,67,Liberato Cacace,25,Wrexham,"DL, WBL",06-2028,€29K,€7M - €13M,Yes
-New Zealand,62,-,Tyler Bindon,20,Nottm Forest,DC,06-2028,€21K,€10M - €19M,Yes
-New Zealand,59,68,Marko Stamenić,23,Swansea,"DM, MC",06-2028,€17K,€4M - €8M,Yes
-New Zealand,59,60,Callum McCowatt,26,Silkeborg IF,"AMR, AML",12-2027,€4K,€1M - €3M,Likely
-New Zealand,58,60,Max Crocombe,32,Millwall,GK,06-2027,€6K,€975K - €2M,Yes
+New Zealand,75,75,Chris Wood,34,Nottm Forest,ST,06-2027,€93K,€8M - €15M,Yes
+New Zealand,68,68,Joe Bell,26,Viking,DM,12-2027,€4K,€3M - €5M,Yes
+New Zealand,67,67,Liberato Cacace,25,Wrexham,"DL, WBL",06-2028,€29K,€7M - €13M,Yes
+New Zealand,64,-,Tyler Bindon,20,Nottm Forest,DC,06-2028,€21K,€10M - €19M,Yes
+New Zealand,67,68,Marko Stamenić,23,Swansea,"DM, MC",06-2028,€17K,€4M - €8M,Yes
+New Zealand,60,60,Callum McCowatt,26,Silkeborg IF,"AMR, AML",12-2027,€4K,€1M - €3M,Likely
+New Zealand,59,60,Max Crocombe,32,Millwall,GK,06-2027,€6K,€975K - €2M,Yes
 New Zealand,57,58,Elijah Just,25,Motherwell,"AMR, AML",05-2027,€2K,€1M - €2M,Yes
 New Zealand,57,60,Bill Tuiloma,30,Well. Phoenix,"DC, DM",06-2028,€1K,€1M - €2M,Likely
 New Zealand,56,65,Matthew Garbett,23,Peterborough,"MC, AMC",06-2027,€5K,€3M - €5M,Yes
@@ -2603,7 +2603,7 @@ New Zealand,53,55,Nando Pijnaker,26,Auckland FC,DC,06-2027,€916,€252K - €4
 New Zealand,53,54,Michael Boxall,37,Minnesota,DC,12-2026,€14K,€133K - €250K,Likely
 New Zealand,53,55,George Stanger,25,Kilmarnock,DC,05-2027,€1K,€300K - €562K,No
 New Zealand,53,58,K. Barbarouses,35,W.S. Wanderers,"AMR, ST",06-2026,€1K,€278M - €521M,No
-New Zealand,53,64,Finn Surman,22,Portland,DC,12-2026,€4K,€2M - €4M,Likely
+New Zealand,60,64,Finn Surman,22,Portland,DC,12-2026,€4K,€2M - €4M,Likely
 New Zealand,52,60,Jesse Randall,23,Auckland FC,"AMR, ST",06-2026,€958,€700K - €1M,TBD
 New Zealand,52,54,Clayton Lewis,28,Expired,MC,-,€0,0 - 0,No
 New Zealand,52,58,Joey Champness,28,Expired,AML,-,€0,0 - 0,No
@@ -3071,32 +3071,32 @@ Cape Verde,53,60,Ilano S. Timas,23,MVV Maastricht,"AML, AMC",06-2027,€1K,—,Y
 Cape Verde,53,58,Willy Semedo,31,Omonoia,AML,05-2026,€2K,—,Yes
 Cape Verde,53,58,Jeffry Fortes,36,FC Den Bosch,"DR, DM",06-2027,€1K,—,Yes
 Cape Verde,53,60,Rúben Pina,25,Leixões,AML,06-2027,€2K,—,Yes
-Bosnia And Herzegovina,73,75,Sead Kolašinac,32,Atalanta,DC,06-2026,€49K,€278M - €521M,Yes
-Bosnia And Herzegovina,71,73,Ermedin Demirović,27,Stuttgart,ST,06-2028,€67K,€16M - €31M,Yes
+Bosnia And Herzegovina,72,75,Sead Kolašinac,32,Atalanta,DC,06-2026,€49K,€278M - €521M,Yes
+Bosnia And Herzegovina,76,76,Ermedin Demirović,27,Stuttgart,ST,06-2028,€67K,€16M - €31M,Yes
 Bosnia And Herzegovina,70,76,Amar Dedić,23,Benfica,"DR, WBR",06-2030,€41K,€40M - €75M,Yes
-Bosnia And Herzegovina,69,84,Edin Džeko,39,Schalke 04,ST,06-2026,€14K,€278M - €521M,Yes
+Bosnia And Herzegovina,67,84,Edin Džeko,39,Schalke 04,ST,06-2026,€14K,€278M - €521M,Yes
 Bosnia And Herzegovina,68,69,Nikola Vasilj,30,St. Pauli,GK,06-2026,€16K,€5M - €9M,Yes
 Bosnia And Herzegovina,68,70,Haris Tabaković,31,Hoffenheim,ST,06-2027,€35K,€7M - €14M,Yes
-Bosnia And Herzegovina,67,69,Anel Ahmedhodžić,26,Feyenoord,DC,06-2029,€20K,€13M - €24M,Yes
-Bosnia And Herzegovina,66,76,Tarik Muharemović,22,Sassuolo,DC,06-2031,€9K,€9M - €17M,Yes
-Bosnia And Herzegovina,64,70,Adrian L. Barišić,24,FC Basel,DC,06-2027,€23K,€3M - €6M,Yes
+Bosnia And Herzegovina,69,69,Anel Ahmedhodžić,26,Feyenoord,DC,06-2029,€20K,€13M - €24M,Yes
+Bosnia And Herzegovina,70,76,Tarik Muharemović,22,Sassuolo,DC,06-2031,€9K,€9M - €17M,Yes
+Bosnia And Herzegovina,66,70,Adrian L. Barišić,24,FC Basel,DC,06-2027,€23K,€3M - €6M,Yes
 Bosnia And Herzegovina,64,72,Rade Krunić,32,Crvena zvezda,"DM, MC",06-2027,€4K,€278M - €521M,Yes
 Bosnia And Herzegovina,63,66,Nikola Katić,29,Schalke 04,DC,06-2028,€10K,€2M - €4M,Yes
-Bosnia And Herzegovina,63,67,Amar Memić,24,Viktoria Plzeň,"WBR, MR",06-2029,€3K,€3M - €6M,Yes
+Bosnia And Herzegovina,65,67,Amar Memić,24,Viktoria Plzeň,"WBR, MR",06-2029,€3K,€3M - €6M,Yes
 Bosnia And Herzegovina,63,68,Milan Đurić,35,Cremonese,ST,06-2027,€18K,€286K - €537K,Yes
-Bosnia And Herzegovina,62,69,Armin Gigović,23,Young Boys,"DM, MC",06-2029,€13K,€3M - €7M,Yes
-Bosnia And Herzegovina,62,70,Denis Huseinbašić,24,FC Köln,"DM, MC",06-2028,€23K,€2M - €5M,Yes
+Bosnia And Herzegovina,63,69,Armin Gigović,23,Young Boys,"DM, MC",06-2029,€13K,€3M - €7M,Yes
+Bosnia And Herzegovina,64,70,Denis Huseinbašić,24,FC Köln,"DM, MC",06-2028,€23K,€2M - €5M,Yes
 Bosnia And Herzegovina,61,64,N. Mulahusejnović,27,FC Noah,ST,06-2028,€4K,€1M - €2M,No
-Bosnia And Herzegovina,61,68,M. Stevanović,35,Servette FC,"MR, AMR",06-2026,€8K,€278M - €521M,Yes
-Bosnia And Herzegovina,61,—,Esmir Bajraktarević,20,PSV,"AMR, AML",06-2029,€15K,€6M - €11M,Yes
+Bosnia And Herzegovina,61,68,Miroslav Stevanović,35,Servette FC,"MR, AMR",06-2026,€8K,€278M - €521M,Yes
+Bosnia And Herzegovina,63,—,Esmir Bajraktarević,20,PSV,"AMR, AML",06-2029,€15K,€6M - €11M,Yes
 Bosnia And Herzegovina,61,69,Jusuf Gazibegović,25,FC Köln,DR,06-2028,€23K,€2M - €3M,Yes
 Bosnia And Herzegovina,61,63,Emir Karić,28,Sturm Graz,"DL, WBL",06-2027,€6K,€2M - €4M,No
 Bosnia And Herzegovina,60,85,Miralem Pjanić,35,—,"DM, MC",Expired,0,0,Yes
 Bosnia And Herzegovina,60,75,Asmir Begović,38,Leicester City,GK,06-2026,€12K,€400K - €750K,Yes
 Bosnia And Herzegovina,60,70,Edin Višća,35,Trabzonspor,"MR, AMR",06-2026,€36K,€211K - €396K,Yes
 Bosnia And Herzegovina,60,65,Haris Hajradinović,31,Kasımpaşa,"MC, AMC",06-2026,€12K,€3M - €5M,Yes
-Bosnia And Herzegovina,60,—,Kerim Alajbegović,18,RB Salzburg,AML,06-2029,€12K,€15M - €28M,Yes
-Bosnia And Herzegovina,60,70,Samed Baždar,21,Zaragoza,"AMC, ST",06-2029,€6K,€5M - €10M,Yes
+Bosnia And Herzegovina,66,—,Kerim Alajbegović,18,RB Salzburg,AML,06-2029,€12K,€15M - €28M,Yes
+Bosnia And Herzegovina,63,70,Samed Baždar,21,Zaragoza,"AMC, ST",06-2029,€6K,€5M - €10M,Yes
 Bosnia And Herzegovina,60,60,Stjepan Radeljić,28,HNK Rijeka,DC,06-2026,€4K,€2M - €4M,No
 Bosnia And Herzegovina,59,60,Jovo Lukić,27,U Cluj,ST,06-2027,€3K,€1M - €2M,No
 Bosnia And Herzegovina,59,62,Dženis Burnić,27,Karlsruhe SC,"DM, MC",06-2026,€7K,€673K - €1M,Yes
@@ -3105,7 +3105,7 @@ Bosnia And Herzegovina,59,59,Martin Zlomislić,27,HNK Rijeka,GK,06-2027,€3K,�
 Bosnia And Herzegovina,59,62,Eldar Ćivić,29,Baltika,"DL, WBL",06-2028,€14K,€2M - €4M,Yes
 Bosnia And Herzegovina,58,—,Arjan Malić,20,Sturm Graz,DR,06-2027,€3K,€4M - €7M,No
 Bosnia And Herzegovina,58,67,A. Hadžiahmetović,28,Beşiktaş,"DM, MC",06-2027,€28K,€836K - €2M,Yes
-Bosnia And Herzegovina,58,—,Benjamin Tahirović,22,Brøndby IF,"DM, MC",06-2028,€17K,€3M - €6M,Yes
+Bosnia And Herzegovina,65,—,Benjamin Tahirović,22,Brøndby IF,"DM, MC",06-2028,€17K,€3M - €6M,Yes
 Bosnia And Herzegovina,58,60,Ifet Đakovac,28,Akron,MC,06-2028,€8K,€1M - €3M,No
 Bosnia And Herzegovina,58,68,Ibrahim Sehic,37,Çorum FK,GK,06-2026,€10K,€278M - €521M,No
 Bosnia And Herzegovina,58,63,Kenan Kodro,32,Ferencváros,ST,06-2026,€7K,€649K - €1M,No
