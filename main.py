@@ -1291,20 +1291,36 @@ def change_bulk_table_format():
         render_bulk_spreadsheet()
 
 def render_bulk_spreadsheet(event=None):
+    global BULK_SORT_COL
     state = BULK_STATE
     if not state: return
     num = state['num']
     
-    # Pre-calculate Global Ranks for the Sleeper Index
-    sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
-    team_ranks = {t[0]: i+1 for i, t in enumerate(sorted_teams)}
+    # 1. Pre-calculate Global Ranks for the ELO Sleeper Index
+    sorted_teams_elo = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1]['elo'], reverse=True)
+    team_ranks_elo = {t[0]: i+1 for i, t in enumerate(sorted_teams_elo)}
+    
+    # 2. Pre-calculate Global Ranks for the POWER RANKING (Hybrid) Sleeper Index
+    def get_hybrid(team):
+        elo = sim.TEAM_STATS.get(team, {}).get('elo', 1200)
+        ovr = sim.TEAM_TALENT.get(team, {}).get('talent_score', 0)
+        if ovr > 0:
+            overall_rating_z_score = (ovr - 70.0) / 8.0
+            talent_elo = 1500.0 + (overall_rating_z_score * 200.0)
+            return (elo * 0.60) + (talent_elo * 0.40)
+        return elo
+        
+    sorted_teams_hybrid = sorted(sim.TEAM_STATS.keys(), key=lambda t: get_hybrid(t), reverse=True)
+    team_ranks_hybrid = {t: i+1 for i, t in enumerate(sorted_teams_hybrid)}
     
     table_data = []
-    max_sleeper = 0.01 # Avoid div by zero
+    max_sleeper_elo = 0.01 # Avoid div by zero
+    max_sleeper_hybrid = 0.01 
     
     for t, s in state['stats'].items():
         t_name = sim.PRETTY_NAMES.get(t, t.title())
-        rank = team_ranks.get(t, 24)
+        rank_elo = team_ranks_elo.get(t, 24)
+        rank_hybrid = team_ranks_hybrid.get(t, 24)
         
         # Expected matches: 3 Group stage + probabilities of reaching each KO round
         exp_matches = 3.0 + (s['r32']/num) + (s['r16']/num) + (s['qf']/num) + (s['sf']/num) * 2
@@ -1318,11 +1334,11 @@ def render_bulk_spreadsheet(event=None):
         fin_pct = (s['final'] / num) * 100
         
         # Formula: Deep runs weighted heavily by how low their global rank is
-        # Top 10 teams get penalized, rank 30+ teams get heavily boosted.
-        sleeper_raw = (qf_pct * 1 + sf_pct * 3 + fin_pct * 5) * (rank / 10.0)**1.5
+        sleeper_raw_elo = (qf_pct * 1 + sf_pct * 3 + fin_pct * 5) * (rank_elo / 10.0)**1.5
+        sleeper_raw_hybrid = (qf_pct * 1 + sf_pct * 3 + fin_pct * 5) * (rank_hybrid / 10.0)**1.5
         
-        if sleeper_raw > max_sleeper:
-            max_sleeper = sleeper_raw
+        if sleeper_raw_elo > max_sleeper_elo: max_sleeper_elo = sleeper_raw_elo
+        if sleeper_raw_hybrid > max_sleeper_hybrid: max_sleeper_hybrid = sleeper_raw_hybrid
             
         table_data.append({
             'team': t_name,
@@ -1337,13 +1353,18 @@ def render_bulk_spreadsheet(event=None):
             'exp_gf': exp_gf,
             'exp_ga': exp_ga,
             'exp_matches': exp_matches,
-            'sleeper_raw': sleeper_raw # Normalized below
+            'sleeper_raw_elo': sleeper_raw_elo, 
+            'sleeper_raw_hybrid': sleeper_raw_hybrid 
         })
         
-    # Normalize sleeper score to 0-100
+    # Normalize sleeper scores to 0-100
     for row in table_data:
-        row['sleeper_idx'] = (row['sleeper_raw'] / max_sleeper) * 100
+        row['sleeper_idx_elo'] = (row['sleeper_raw_elo'] / max_sleeper_elo) * 100
+        row['sleeper_idx_hybrid'] = (row['sleeper_raw_hybrid'] / max_sleeper_hybrid) * 100
         
+    # Catch old sorting state to prevent crashes
+    if BULK_SORT_COL == 'sleeper_idx': BULK_SORT_COL = 'sleeper_idx_elo'
+    
     # Apply Sort
     table_data.sort(key=lambda x: x[BULK_SORT_COL] if BULK_SORT_COL not in ['grp_1st', 'r32', 'r16', 'qf', 'sf', 'final', 'win'] else x[f"{BULK_SORT_COL}_count"], reverse=BULK_SORT_DESC)
     
@@ -1368,7 +1389,8 @@ def render_bulk_spreadsheet(event=None):
             <thead>
                 <tr>
                     {get_th("team", "Team")}
-                    {get_th("sleeper_idx", "Sleeper Idx", "Identifies lower-ranked teams making deep runs (0-100 scale)")}
+                    {get_th("sleeper_idx_elo", "Elo Sleeper", "Deep runs relative to historical Elo Ranking (0-100)")}
+                    {get_th("sleeper_idx_hybrid", "Power Sleeper", "Deep runs relative to Hybrid Power Ranking (Elo + Squad OVR)")}
                     {get_th("exp_pts", "Exp. Grp Pts")}
                     {get_th("grp_1st", "1st in Grp")}
                     {get_th("r32", "R32")}
@@ -1385,18 +1407,21 @@ def render_bulk_spreadsheet(event=None):
             <tbody>
     '''
     
+    def get_sleeper_color(s_idx):
+        if s_idx >= 80: return "#8b5cf6"       # Purple (Elite Sleeper)
+        elif s_idx >= 50: return "#3b82f6"     # Blue
+        elif s_idx >= 20: return "#10b981"     # Green
+        return "var(--text-light)"             # Slate
+    
     for row in table_data:
-        # Format Sleeper Index colors dynamically
-        s_idx = row['sleeper_idx']
-        if s_idx >= 80: s_color = "#8b5cf6"       # Purple (Elite Sleeper)
-        elif s_idx >= 50: s_color = "#3b82f6"     # Blue
-        elif s_idx >= 20: s_color = "#10b981"     # Green
-        else: s_color = "var(--text-light)"       # Slate
+        elo_color = get_sleeper_color(row['sleeper_idx_elo'])
+        hyb_color = get_sleeper_color(row['sleeper_idx_hybrid'])
         
         html += f'''
         <tr style="font-size:0.9em;">
             <td style="font-weight:600; white-space:nowrap;">{row['team']}</td>
-            <td style="color:{s_color}; font-weight:bold; text-align:center;">{s_idx:.1f}</td>
+            <td style="color:{elo_color}; font-weight:bold; text-align:center;">{row['sleeper_idx_elo']:.1f}</td>
+            <td style="color:{hyb_color}; font-weight:bold; text-align:center;">{row['sleeper_idx_hybrid']:.1f}</td>
             <td style="color:var(--accent-blue); font-weight:bold; text-align:center;">{row['exp_pts']:.2f}</td>
             <td style="text-align:right;">{fmt(row, 'grp_1st')}</td>
             <td style="text-align:right;">{fmt(row, 'r32')}</td>
