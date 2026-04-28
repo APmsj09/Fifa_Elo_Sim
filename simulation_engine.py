@@ -369,37 +369,71 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
     # 4. Standardize Positional Units & Names
     def resolve_row(row):
         name = get_merged_val(row, 'name', 'Unknown Player')
-        p_pos = str(row.get('position(s)', row.get('pos', ''))).upper()
-        c_pos = str(row.get('pos.', '')).upper()
         
-        if p_pos == 'NAN': p_pos = ''
-        if c_pos == 'NAN': c_pos = ''
+        # 1. Gather all potential fields that might contain Position or Club data
+        raw_p_pos = str(row.get('position(s)', '')).upper()
+        raw_p_pos2 = str(row.get('pos', '')).upper()
+        raw_p_pos3 = str(row.get('position a', '')).upper()
+        raw_c_pos = str(row.get('pos.', '')).upper()
         
-        club = str(get_merged_val(row, 'club', 'Unknown')).upper()
-        if ',' in club or club in ['GK', 'ST', 'DC', 'MC', 'DL', 'DR', 'AML', 'AMR', 'AMC']:
-            p_pos = club
-            club = str(row.get('pos', 'Unknown')).upper()
-
-        if 'GK' in c_pos or 'GK' == p_pos: unit = 'GK'
-        elif 'DF' in c_pos: unit = 'DEF'
-        elif 'FW' in c_pos: unit = 'ATT'
-        elif 'MF' in c_pos: unit = 'MID'
-        else: unit = map_pos_to_unit(p_pos)
-
-        display_pos = p_pos if len(p_pos) > 1 else c_pos
-        if not display_pos or display_pos == 'NAN': display_pos = unit
+        raw_club = str(row.get('club', '')).upper()
+        raw_club_c = str(row.get('club_c', '')).upper()
+        
+        # Combine them all and remove empties
+        all_vals = [raw_p_pos, raw_p_pos2, raw_p_pos3, raw_c_pos, raw_club, raw_club_c]
+        valid_vals = [v.strip() for v in all_vals if v.strip() and v.strip() != 'NAN']
+        
+        # A master list of known position acronyms
+        known_pos = ['GK', 'ST', 'CF', 'FW', 'LW', 'RW', 'AML', 'AMR', 'AMC', 'CAM', 'DM', 'CDM', 'MC', 'CM', 'LM', 'RM', 'CB', 'DC', 'LB', 'RB', 'DL', 'DR', 'LWB', 'RWB', 'WB', 'DEF', 'MID', 'ATT', 'MF', 'DF']
+        
+        pos_cands = []
+        club_cands = []
+        
+        # 2. Smartly sort the text into "Positions" vs "Clubs"
+        for v in valid_vals:
+            # It is a position if it's an exact acronym, or a short comma list (e.g., "DM, MC")
+            if any(p == v for p in known_pos) or (',' in v and len(v) < 15):
+                if v not in pos_cands: pos_cands.append(v)
+            else:
+                if v not in club_cands: club_cands.append(v)
+                
+        # 3. Pick the most descriptive Position
+        detailed_pos = [p for p in pos_cands if ',' in p]
+        if detailed_pos:
+            true_pos = detailed_pos[0]
+        elif pos_cands:
+            true_pos = pos_cands[0]
+        else:
+            true_pos = ""
+            
+        # 4. Pick the most accurate Club
+        if raw_club_c in club_cands:
+            true_club = raw_club_c # Prefer the club from Recent Callups
+        elif club_cands:
+            true_club = club_cands[-1]
+        else:
+            true_club = "Unknown"
+            
+        # 5. Map to Core Unit for engine logic
+        if 'GK' in true_pos or 'GK' == raw_c_pos: unit = 'GK'
+        elif 'DF' in raw_c_pos or 'DEF' in true_pos: unit = 'DEF'
+        elif 'FW' in raw_c_pos or 'ATT' in true_pos: unit = 'ATT'
+        elif 'MF' in raw_c_pos or 'MID' in true_pos: unit = 'MID'
+        else: unit = map_pos_to_unit(true_pos)
+        
+        display_pos = true_pos if true_pos else unit
 
         # --- APPLY DYNAMIC FALLBACK RATING ---
         t_slug = row.get('team_slug', '')
-        # Give unknown players the team's median rating minus 4 points (fringe player penalty)
-        fallback_rat = team_medians.get(t_slug, 64.0) - 4.0
+        fallback_rat = team_medians.get(t_slug, 64.0) - 2.0
         
         try: rat = float(row.get('rat', fallback_rat))
         except: rat = fallback_rat
         if pd.isna(rat): rat = fallback_rat 
         
-        return pd.Series([name, display_pos, club.title(), unit, rat])
-
+        # Format the club name nicely (e.g. "West Ham" instead of "WEST HAM")
+        return pd.Series([name, display_pos, true_club.title(), unit, rat])
+        
     pool[['display_name', 'display_pos', 'display_club', 'unit', 'rat']] = pool.apply(resolve_row, axis=1)
 
     # 5. Calculate SELECTION SCORE
