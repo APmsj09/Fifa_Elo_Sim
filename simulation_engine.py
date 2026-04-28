@@ -65,6 +65,7 @@ def get_player_slug(name):
     if not name or pd.isna(name): return ""
     n = str(name).strip().lower()
     n = unicodedata.normalize('NFKD', n).encode('ascii', 'ignore').decode('utf-8')
+    n = re.sub(r'\(.*?\)', '', n) # Remove text in parenthesis
     n = re.sub(r'[^a-z]', '', n)
     n = n.replace('jr', '').replace('sr', '')
     return n
@@ -72,10 +73,19 @@ def get_player_slug(name):
 def map_pos_to_unit(pos_str):
     """Maps varied position acronyms from squad files into our 4 core units"""
     p = str(pos_str).upper()
+    
     if 'GK' in p: return 'GK'
-    if 'DF' in p or 'DEF' in p or 'B' in p: return 'DEF'
-    if 'MF' in p or 'MID' in p or 'M' in p: return 'MID'
-    if 'FW' in p or 'ATT' in p or 'ST' in p or 'W' in p: return 'ATT'
+    
+    # Attackers: Strikers, Center Forwards, Wingers, Forwards
+    if any(x in p for x in ['ST', 'CF', 'FW', 'ATT', 'LW', 'RW', 'AML', 'AMR', 'WF']): 
+        return 'ATT'
+        
+    # Defenders: Center Backs, Full Backs, Wing Backs, Sweepers
+    if any(x in p for x in ['DF', 'DEF', 'CB', 'LB', 'RB', 'WB', 'DC', 'DL', 'DR', 'SW']): 
+        return 'DEF'
+        
+    # Midfielders: Central, Defensive, Attacking, Wide
+    # DM, MC, AMC, ML, MR, CM, CAM, CDM, LM, RM, MF, MID
     return 'MID'
 
 def parse_formation_to_targets(fmt_str):
@@ -328,17 +338,36 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
     # 4. Standardize Positional Units & Names
     def resolve_row(row):
         name = row.get('name') if pd.notna(row.get('name')) else row.get('name_c')
-        pos = str(row.get('position(s)', row.get('pos', row.get('pos.', '')))).upper()
-        club = str(row.get('club', row.get('club_c', ''))).upper()
         
+        # Player Data position (e.g., "MR, AMR")
+        p_pos = str(row.get('position(s)', row.get('pos', ''))).upper()
+        
+        # Callup Data position (e.g., "FW", "DF")
+        c_pos = str(row.get('pos.', '')).upper()
+        
+        # Catch accidental position-in-club-column issues from dirty CSVs
+        club = str(row.get('club', row.get('club_c', ''))).upper()
         if ',' in club or club in ['GK', 'ST', 'DC', 'MC', 'DL', 'DR', 'AML', 'AMR', 'AMC']:
-            pos = club
+            p_pos = club
+            club = str(row.get('pos', ''))
 
-        unit = map_pos_to_unit(pos)
+        # Determine true tactical unit, prioritizing the National Team's official designation
+        if 'GK' in c_pos or 'GK' == p_pos: unit = 'GK'
+        elif 'DF' in c_pos: unit = 'DEF'
+        elif 'FW' in c_pos: unit = 'ATT'
+        elif 'MF' in c_pos: unit = 'MID'
+        else:
+            # Fallback to parsing Player_Data's granular position
+            unit = map_pos_to_unit(p_pos)
+            
+        # UI Display Position: Prefer the detailed one (e.g. "AMR, ST") over just "FW"
+        display_pos = p_pos if (len(p_pos) > 1 and p_pos != 'NAN') else c_pos
+        if display_pos == 'NAN' or not display_pos: display_pos = unit
+
         rat = row.get('rat')
         if pd.isna(rat): rat = 68.0 
         
-        return pd.Series([name, pos, club, unit, rat])
+        return pd.Series([name, display_pos, club, unit, rat])
 
     pool[['display_name', 'display_pos', 'display_club', 'unit', 'rat']] = pool.apply(resolve_row, axis=1)
 
