@@ -60,6 +60,24 @@ def get_slug(name):
     # and 'United States' into 'unitedstates'
     return re.sub(r'[^a-z0-9]', '', name.lower())
 
+def get_player_slug(name):
+    """Aggressive slugifying for player names to maximize matching across disjoint datasets"""
+    if not name or pd.isna(name): return ""
+    n = str(name).strip().lower()
+    n = unicodedata.normalize('NFKD', n).encode('ascii', 'ignore').decode('utf-8')
+    n = re.sub(r'[^a-z]', '', n)
+    n = n.replace('jr', '').replace('sr', '')
+    return n
+
+def map_pos_to_unit(pos_str):
+    """Maps varied position acronyms from squad files into our 4 core units"""
+    p = str(pos_str).upper()
+    if 'GK' in p: return 'GK'
+    if 'DF' in p or 'DEF' in p or 'B' in p: return 'DEF'
+    if 'MF' in p or 'MID' in p or 'M' in p: return 'MID'
+    if 'FW' in p or 'ATT' in p or 'ST' in p or 'W' in p: return 'ATT'
+    return 'MID'
+
 def parse_formation_to_targets(fmt_str):
     """
     Explicitly maps modern formations to their true unit counts.
@@ -237,8 +255,6 @@ def load_data():
     import unicodedata
     try:
         def safe_read(file):
-            
-            # utf-8-sig handles files with or without a "BOM" marker
             try:
                 df = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip')
             except:
@@ -259,121 +275,195 @@ def load_data():
         formation_df = safe_read("Formations.csv")
         player_df = safe_read("Player_Data.csv")
         
-        return results_df, goalscorers_df, former_names_df, player_df, formation_df
+        # New Call-up Data
+        current_df = safe_read("Current_Squad.csv")
+        recent_df = safe_read("Recent_Call_Ups.csv")
+        
+        return results_df, goalscorers_df, former_names_df, player_df, formation_df, current_df, recent_df
     except Exception as e:
         js.console.error(f"DATA LOAD ERROR: {e}")
         raise RuntimeError(f"Could not load CSV files: {e}")
 
-def calculate_squad_ratings(player_df, formation_df):
+def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
     if player_df is None: return {}
     import re
     import numpy as np
     
-    # 1. Clean column names
+    # 1. Clean Player Data
     player_df.columns = [str(c).strip().lower() for c in player_df.columns]
+    if 'rat' not in player_df.columns and 'rating' in player_df.columns: player_df['rat'] = player_df['rating']
+    player_df['rat'] = pd.to_numeric(player_df['rat'].astype(str).str.extract(r'(\d+)')[0], errors='coerce').fillna(68)
+    player_df['player_slug'] = player_df.get('name', '').apply(get_player_slug)
+    player_df['team_slug'] = player_df.get('nation', '').apply(get_slug)
+
+    # 2. Process & Combine Call-Up Data
+    if current_df is not None: current_df['callup_tier'] = 'Current'
+    if recent_df is not None: recent_df['callup_tier'] = 'Recent'
     
-    # Ensure 'rat' column is captured
-    if 'rat' not in player_df.columns and 'rating' in player_df.columns:
-        player_df['rat'] = player_df['rating']
-    player_df['rat'] = pd.to_numeric(player_df['rat'].astype(str).str.extract(r'(\d+)')[0], errors='coerce').fillna(70)
+    callups = pd.concat([df for df in [current_df, recent_df] if df is not None], ignore_index=True)
+    if not callups.empty:
+        callups.columns = [str(c).strip().lower() for c in callups.columns]
+        callups['player_slug'] = callups.get('name', '').apply(get_player_slug)
+        callups['team_slug'] = callups.get('team', '').apply(get_slug)
+        
+        # EXTRACT NEW STATS: Caps, Age, and Squad Number
+        callups['caps'] = pd.to_numeric(callups.get('caps', 0), errors='coerce').fillna(0)
+        callups['age'] = pd.to_numeric(callups.get('age', 28), errors='coerce').fillna(28)
+        # Handle 'No.' column which might be named 'no.' or 'no'
+        squad_no_col = 'no.' if 'no.' in callups.columns else ('no' if 'no' in callups.columns else None)
+        if squad_no_col:
+            callups['squad_no'] = pd.to_numeric(callups[squad_no_col], errors='coerce').fillna(999)
+        else:
+            callups['squad_no'] = 999
+            
+        # Drop duplicates, keeping 'Current' over 'Recent'
+        callups = callups.sort_values('callup_tier').drop_duplicates(subset=['team_slug', 'player_slug'])
 
-    # --- 2. THE SMART SCANNER ---
-    def assign_roles(row):
-        # Fetch data from the columns
-        p_val = str(row.get('position(s)', row.get('position', row.get('pos', '')))).upper()
-        c_val = str(row.get('club', '')).upper()
-        
-        # SMART SWAP: Check if columns are accidentally swapped in the CSV
-        display_pos = p_val
-        display_club = c_val
-        
-        # If 'club' contains commas or known acronyms, it's actually the position column!
-        if ',' in c_val or c_val in ['GK', 'ST', 'DC', 'MC', 'DL', 'DR', 'AML', 'AMR', 'AMC']:
-            if ',' not in p_val: 
-                display_pos = c_val
-                display_club = p_val
+        # 3. Merge Datasets
+        pool = pd.merge(player_df, callups, on=['team_slug', 'player_slug'], how='outer', suffixes=('', '_c'))
+    else:
+        pool = player_df.copy()
+        pool['caps'], pool['age'], pool['squad_no'], pool['status'], pool['callup_tier'] = 0, 28, 999, '', 'None'
 
-        # Extract only alphabetical characters to find the Unit (GK/DEF/MID/ATT)
-        combined = display_pos + " " + display_club
-        combined = combined.replace("DC UNITED", "").replace("FC ", "")
+    # 4. Standardize Positional Units & Names
+    def resolve_row(row):
+        name = row.get('name') if pd.notna(row.get('name')) else row.get('name_c')
+        pos = str(row.get('position(s)', row.get('pos', row.get('pos.', '')))).upper()
+        club = str(row.get('club', row.get('club_c', ''))).upper()
         
-        tokens = set(re.findall(r'[A-Z]+', combined))
-        
-        # Mathematical Tie-Breaker (Attackers > Defenders > Midfielders)
-        if any(t in {'GK', 'GOALKEEPER'} for t in tokens): unit = 'GK'
-        elif any(t in {'ST', 'AML', 'AMR', 'CF', 'FW', 'LW', 'RW', 'ATT'} for t in tokens): unit = 'ATT'
-        elif any(t in {'DC', 'DL', 'DR', 'WBL', 'WBR', 'CB', 'LB', 'RB', 'SW', 'LWB', 'RWB', 'DEF'} for t in tokens): unit = 'DEF'
-        else: unit = 'MID'
-        
-        return pd.Series([unit, display_pos, display_club])
+        if ',' in club or club in ['GK', 'ST', 'DC', 'MC', 'DL', 'DR', 'AML', 'AMR', 'AMC']:
+            pos = club
 
-    # Apply mapping to every row
-    player_df[['unit', 'ui_pos', 'ui_club']] = player_df.apply(assign_roles, axis=1)
+        unit = map_pos_to_unit(pos)
+        rat = row.get('rat')
+        if pd.isna(rat): rat = 68.0 
+        
+        return pd.Series([name, pos, club, unit, rat])
+
+    pool[['display_name', 'display_pos', 'display_club', 'unit', 'rat']] = pool.apply(resolve_row, axis=1)
+
+    # 5. Calculate SELECTION SCORE (The core engine for who makes the squad)
+    def calc_score(row):
+        base_rat = row['rat']
+        caps = row.get('caps', 0)
+        age = row.get('age', 28)
+        squad_no = row.get('squad_no', 999)
+        status = str(row.get('status', '')).lower()
+        tier = row.get('callup_tier', 'None')
+        unit = row['unit']
+        
+        if 'retired' in status: return -999.0
+        
+        score = base_rat
+        
+        # A. Call-up Proximity Bonus
+        if tier == 'Current': score += 5.0
+        elif tier == 'Recent': score += 2.0
+        
+        # B. Squad Number Indicator (The "Starting XI" jersey logic)
+        if tier == 'Current':
+            if unit == 'GK' and squad_no == 1:
+                score += 8.0 # Explicit #1 GK
+            elif squad_no <= 11:
+                score += 3.0 # Traditional starting XI numbers
+        
+        # C. "Passing the Torch" Caps & Age Dynamics
+        if age >= 35:
+            # Veterans get diminished returns on caps for starting spots, and age decay
+            score += min(caps * 0.05, 4.0) 
+            score -= (age - 34) * 1.5 # e.g. Age 40 = -9 points
+        elif age <= 23:
+            # Emerging prospects get youth upside
+            score += min(caps * 0.20, 6.0) 
+            score += 2.0 
+        else:
+            # Prime age players get full cap benefits
+            score += min(caps * 0.15, 8.0)
+            
+        # D. Injury Penalty
+        if 'injured' in status:
+            if caps > 40: score -= 3.0 # Vets kept around for locker room presence
+            else: score -= 10.0 # Fringe players dropped entirely
+            
+        return score
+
+    pool['selection_score'] = pool.apply(calc_score, axis=1)
+    pool = pool[pool['selection_score'] > 0]
 
     team_ratings = {}
-    for nation, group in player_df.groupby('nation'):
-        n_key = get_slug(nation)
-        
-        fmt_data = TEAM_FORMATIONS.get(n_key, {})
-        fmt_str = fmt_data.get('formation 1', '4-4-2') 
-        if pd.isna(fmt_str) or not fmt_str:
-            fmt_str = '4-4-2'
-            
+    
+    # 6. Squad Building per Team
+    for team_slug, group in pool.groupby('team_slug'):
+        fmt_data = TEAM_FORMATIONS.get(team_slug, {})
+        fmt_str = fmt_data.get('formation 1', '4-2-3-1') 
         targets = parse_formation_to_targets(fmt_str)
-        
-        squad_top_18 = group.sort_values('rat', ascending=False).head(18)
-        squad_avg = squad_top_18['rat'].mean() if not squad_top_18.empty else 70
+        squad_avg = group['rat'].mean() if not group.empty else 68
+
+        gks = group[group['unit'] == 'GK'].sort_values('selection_score', ascending=False)
+        outfield = group[group['unit'] != 'GK'].sort_values('selection_score', ascending=False)
+        defs = outfield[outfield['unit'] == 'DEF']
+        mids = outfield[outfield['unit'] == 'MID']
+        atts = outfield[outfield['unit'] == 'ATT']
+
+        selected_players = []
+
+        def pick_players(pool_df, count, role):
+            picks = pool_df.head(count).copy()
+            if not picks.empty:
+                picks['roster_status'] = role
+                selected_players.extend(picks.to_dict('records'))
+            return pool_df.iloc[count:]
+
+        # --- A. STARTERS (11 Players) ---
+        gks = pick_players(gks, targets['GK'], 'Starter')
+        defs = pick_players(defs, targets['DEF'], 'Starter')
+        mids = pick_players(mids, targets['MID'], 'Starter')
+        atts = pick_players(atts, targets['ATT'], 'Starter')
+
+        # --- B. BACKUPS (15 Players to hit 26-man roster) ---
+        gks = pick_players(gks, 2, 'Backup') # 2 Backup GKs
+        rem_outfield = pd.concat([defs, mids, atts]).sort_values('selection_score', ascending=False)
+        rem_outfield = pick_players(rem_outfield, 13, 'Backup')
+
+        # --- C. FRINGE / MAYBES (Next 6 Players: 1 GK, 5 Outfielders) ---
+        pick_players(gks, 1, 'Fringe')
+        pick_players(rem_outfield, 5, 'Fringe')
+
+        final_squad = pd.DataFrame(selected_players)
+        if final_squad.empty: continue
 
         final_units = {}
-        
-        for unit, count in targets.items():
-            natural_players = group[group['unit'] == unit].sort_values('rat', ascending=False)
-            natural_list = natural_players['rat'].tolist()
+        for unit in ['GK', 'DEF', 'MID', 'ATT']:
+            unit_df = final_squad[final_squad['unit'] == unit]
+            s_rat = unit_df[unit_df['roster_status'] == 'Starter']['rat'].mean()
+            b_rat = unit_df[unit_df['roster_status'] == 'Backup']['rat'].mean()
+            f_rat = unit_df[unit_df['roster_status'] == 'Fringe']['rat'].mean()
 
-            starters = natural_list[:count]
-            
-            # --- FILL STARTERS ---
-            if len(starters) < count:
-                if unit == 'GK':
-                    starters.extend([max(60, squad_avg - 10)] * (count - len(starters)))
-                else:
-                    needed = count - len(starters)
-                    fillers = group[group['unit'] != unit].sort_values('rat', ascending=False)
-                    fillers = fillers[fillers['unit'] != 'GK']
-                    filler_list = (fillers.head(needed)['rat'] - 5).tolist()
-                    starters.extend(filler_list)
-                    
-                    while len(starters) < count:
-                        starters.append(max(50, squad_avg - 10))
+            if pd.isna(s_rat): s_rat = squad_avg
+            if pd.isna(b_rat): b_rat = max(50, s_rat - 5)
+            if pd.isna(f_rat): f_rat = max(50, b_rat - 3)
 
-            starter_avg = sum(starters) / len(starters)
-
-            # --- SQUAD DEPTH ---
-            num_backups = 2 if unit == 'GK' else count
-            backups = natural_list[count : count + num_backups]
-            
-            if len(backups) < num_backups:
-                missing_backups = num_backups - len(backups)
-                backups.extend([max(50, squad_avg - 8)] * missing_backups)
-                
-            backup_avg = sum(backups) / len(backups)
-            
-            final_units[unit] = (starter_avg * 0.85) + (backup_avg * 0.15)
+            # WEIGHTING: Starters dictate 70%, Backups 25%, Fringe 5%
+            final_units[unit] = (s_rat * 0.70) + (b_rat * 0.25) + (f_rat * 0.05)
 
         overall_talent = (final_units['GK']*0.1 + final_units['DEF']*0.3 + 
                           final_units['MID']*0.3 + final_units['ATT']*0.3)
         
-        # 3. Format the players specifically for the UI Dictionary
-        def format_player(row):
-            d = row.to_dict()
-            # Overwrite the broken CSV columns with our fixed 'Smart Swap' strings
-            d['pos'] = d['ui_pos']
-            d['club'] = d['ui_club']
-            return d
-            
-        fixed_top_players = [format_player(row) for _, row in group.sort_values('rat', ascending=False).head(26).iterrows()]
+        fixed_top_players = []
+        for _, row in final_squad.sort_values(by=['roster_status', 'rat'], ascending=[False, False]).iterrows():
+            fixed_top_players.append({
+                'name': row['display_name'],
+                'pos': row['display_pos'],
+                'club': row['display_club'],
+                'unit': row['unit'],
+                'rat': row['rat'],
+                'caps': row.get('caps', 0),
+                'age': row.get('age', 28),
+                'status': row.get('status', ''),
+                'roster_status': row['roster_status']
+            })
         
-        team_ratings[n_key] = {
+        team_ratings[team_slug] = {
             'talent_score': overall_talent,
             'talent_weight': np.clip(overall_talent / 75.0, 0.85, 1.25),
             'rating_gk': final_units['GK'],
@@ -494,7 +584,7 @@ def _initialize_engine_impl():
     # This guarantees that the keys perfectly match the match slugs later!
     TEAM_CONFEDS = {get_slug(k): v for k, v in TEAM_CONFEDS.items()}
     
-    results_df, scorers_df, df_names, player_df, formation_df = load_data()
+    results_df, scorers_df, df_names, player_df, formation_df, current_df, recent_df = load_data()
 
     load_r32_combinations()
     
@@ -504,11 +594,10 @@ def _initialize_engine_impl():
         formation_df.columns = [str(c).strip().lower() for c in formation_df.columns]
         if 'nation' in formation_df.columns:
             for _, row in formation_df.iterrows():
-                # FIXED: Use get_slug here!
                 TEAM_FORMATIONS[get_slug(row['nation'])] = row.to_dict()
 
     # 3. THEN CALCULATE SQUAD RATINGS
-    TEAM_TALENT = calculate_squad_ratings(player_df, formation_df) 
+    TEAM_TALENT = calculate_squad_ratings(player_df, formation_df, current_df, recent_df)
 
     try:
         if df_names is not None and 'old_name' in df_names.columns and 'new_name' in df_names.columns:
