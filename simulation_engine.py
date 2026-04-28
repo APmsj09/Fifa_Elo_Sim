@@ -298,6 +298,7 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
     if player_df is None: return {}
     import re
     import numpy as np
+    import difflib
     
     # 1. Clean Player Data
     player_df.columns = [str(c).strip().lower() for c in player_df.columns]
@@ -311,88 +312,102 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
     if recent_df is not None: recent_df['callup_tier'] = 'Recent'
     
     callups = pd.concat([df for df in [current_df, recent_df] if df is not None], ignore_index=True)
+    
     if not callups.empty:
         callups.columns = [str(c).strip().lower() for c in callups.columns]
         callups['player_slug'] = callups.get('name', '').apply(get_player_slug)
         callups['team_slug'] = callups.get('team', '').apply(get_slug)
         
-        # EXTRACT NEW STATS: Caps, Age, and Squad Number
+        # EXTRACT NEW STATS
         callups['caps'] = pd.to_numeric(callups.get('caps', 0), errors='coerce').fillna(0)
         callups['age'] = pd.to_numeric(callups.get('age', 28), errors='coerce').fillna(28)
-        # Handle 'No.' column which might be named 'no.' or 'no'
         squad_no_col = 'no.' if 'no.' in callups.columns else ('no' if 'no' in callups.columns else None)
-        if squad_no_col:
-            callups['squad_no'] = pd.to_numeric(callups[squad_no_col], errors='coerce').fillna(999)
-        else:
-            callups['squad_no'] = 999
+        callups['squad_no'] = pd.to_numeric(callups[squad_no_col], errors='coerce').fillna(999) if squad_no_col else 999
             
-        # Drop duplicates, keeping 'Current' over 'Recent'
         callups = callups.sort_values('callup_tier').drop_duplicates(subset=['team_slug', 'player_slug'])
+
+        # --- SMART NAME ALIGNMENT (Fixes the missing rating bug) ---
+        player_slugs_by_team = player_df.groupby('team_slug')['player_slug'].apply(list).to_dict()
+        
+        def align_slug(row):
+            t_slug = row['team_slug']
+            p_slug = row['player_slug']
+            if t_slug not in player_slugs_by_team: return p_slug
+            
+            valid_slugs = player_slugs_by_team[t_slug]
+            if p_slug in valid_slugs: return p_slug
+            
+            # Substring match (catches "timream" inside "timothyream")
+            for v in valid_slugs:
+                if len(p_slug) > 4 and len(v) > 4:
+                    if p_slug in v or v in p_slug: return v
+                    
+            # Difflib fuzzy match (catches typos)
+            matches = difflib.get_close_matches(p_slug, valid_slugs, n=1, cutoff=0.8)
+            if matches: return matches[0]
+            return p_slug
+
+        callups['player_slug'] = callups.apply(align_slug, axis=1)
 
         # 3. Merge Datasets
         pool = pd.merge(player_df, callups, on=['team_slug', 'player_slug'], how='outer', suffixes=('', '_c'))
     else:
         pool = player_df.copy()
-        pool['caps'], pool['age'], pool['squad_no'], pool['status'], pool['callup_tier'] = 0, 28, 999, '', 'None'
+        pool['caps'], pool['age'], pool['squad_no'], pool['status'], pool['callup_tier'], pool['captain'] = 0, 28, 999, '', 'None', ''
+
+    # Helper for resolving merged columns
+    def get_merged_val(row, col_name, default_val):
+        val_c = row.get(f'{col_name}_c')
+        if pd.notna(val_c) and str(val_c).strip().upper() != 'NAN' and str(val_c).strip() != '': return val_c
+        val = row.get(col_name)
+        if pd.notna(val) and str(val).strip().upper() != 'NAN' and str(val).strip() != '': return val
+        return default_val
 
     # 4. Standardize Positional Units & Names
     def resolve_row(row):
-        name = row.get('name') if pd.notna(row.get('name')) else row.get('name_c')
-        
-        # Player Data position (e.g., "MR, AMR")
+        name = get_merged_val(row, 'name', 'Unknown Player')
         p_pos = str(row.get('position(s)', row.get('pos', ''))).upper()
-        
-        # Callup Data position (e.g., "FW", "DF")
         c_pos = str(row.get('pos.', '')).upper()
         
-        # Catch accidental position-in-club-column issues from dirty CSVs
-        club = str(row.get('club', row.get('club_c', ''))).upper()
+        if p_pos == 'NAN': p_pos = ''
+        if c_pos == 'NAN': c_pos = ''
+        
+        club = str(get_merged_val(row, 'club', 'Unknown')).upper()
         if ',' in club or club in ['GK', 'ST', 'DC', 'MC', 'DL', 'DR', 'AML', 'AMR', 'AMC']:
             p_pos = club
-            club = str(row.get('pos', ''))
+            club = str(row.get('pos', 'Unknown')).upper()
 
-        # Determine true tactical unit, prioritizing the National Team's official designation
         if 'GK' in c_pos or 'GK' == p_pos: unit = 'GK'
         elif 'DF' in c_pos: unit = 'DEF'
         elif 'FW' in c_pos: unit = 'ATT'
         elif 'MF' in c_pos: unit = 'MID'
-        else:
-            # Fallback to parsing Player_Data's granular position
-            unit = map_pos_to_unit(p_pos)
-            
-        # UI Display Position: Prefer the detailed one (e.g. "AMR, ST") over just "FW"
-        display_pos = p_pos if (len(p_pos) > 1 and p_pos != 'NAN') else c_pos
-        if display_pos == 'NAN' or not display_pos: display_pos = unit
+        else: unit = map_pos_to_unit(p_pos)
 
-        rat = row.get('rat')
+        display_pos = p_pos if len(p_pos) > 1 else c_pos
+        if not display_pos or display_pos == 'NAN': display_pos = unit
+
+        try: rat = float(row.get('rat', 68.0))
+        except: rat = 68.0
         if pd.isna(rat): rat = 68.0 
         
-        return pd.Series([name, display_pos, club, unit, rat])
+        return pd.Series([name, display_pos, club.title(), unit, rat])
 
     pool[['display_name', 'display_pos', 'display_club', 'unit', 'rat']] = pool.apply(resolve_row, axis=1)
 
-    # 5. Calculate SELECTION SCORE (The core engine for who makes the squad)
+    # 5. Calculate SELECTION SCORE
     def calc_score(row):
-        # Bulletproof Type Casting
-        try: base_rat = float(row.get('rat', 68.0))
-        except: base_rat = 68.0
-        if pd.isna(base_rat): base_rat = 68.0
-
-        try: caps = float(row.get('caps', 0))
+        base_rat = row['rat']
+        try: caps = float(get_merged_val(row, 'caps', 0.0))
         except: caps = 0.0
-        if pd.isna(caps): caps = 0.0
-
-        try: age = float(row.get('age', 28))
+        try: age = float(get_merged_val(row, 'age', 28.0))
         except: age = 28.0
-        if pd.isna(age): age = 28.0
-
-        try: squad_no = float(row.get('squad_no', 999))
+        try: squad_no = float(get_merged_val(row, 'squad_no', 999.0))
         except: squad_no = 999.0
-        if pd.isna(squad_no): squad_no = 999.0
 
-        status = str(row.get('status', '')).lower()
+        status = str(get_merged_val(row, 'status', '')).lower()
         tier = str(row.get('callup_tier', 'None'))
-        unit = str(row.get('unit', 'MID'))
+        unit = row['unit']
+        captain = str(get_merged_val(row, 'captain', '')).lower()
         
         if 'retired' in status: return -999.0
         
@@ -402,30 +417,29 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
         if tier == 'Current': score += 5.0
         elif tier == 'Recent': score += 2.0
         
-        # B. Squad Number Indicator (The "Starting XI" jersey logic)
+        # B. Prestige Jersey Numbers (#1 GK and #10 Star)
         if tier == 'Current':
-            if unit == 'GK' and squad_no == 1.0:
-                score += 8.0 # Explicit #1 GK
-            elif squad_no <= 11.0:
-                score += 3.0 # Traditional starting XI numbers
+            if unit == 'GK' and squad_no == 1.0: score += 5.0
+            elif squad_no == 10.0: score += 2.0
         
-        # C. "Passing the Torch" Caps & Age Dynamics
-        if age >= 35.0:
-            # Veterans get diminished returns on caps for starting spots, and age decay
-            score += min(caps * 0.05, 4.0) 
-            score -= (age - 34.0) * 1.5 
-        elif age <= 23.0:
-            # Emerging prospects get youth upside
-            score += min(caps * 0.20, 6.0) 
-            score += 2.0 
-        else:
-            # Prime age players get full cap benefits
-            score += min(caps * 0.15, 8.0)
+        # C. Universal Caps & Veteran Decay
+        cap_bonus = min(caps * 0.15, 8.0) # Standard prime/youth cap scaling
+        
+        if age >= 34.0:
+            # Veterans get slightly diminished returns on caps and gradual age penalty
+            cap_bonus = min(caps * 0.10, 5.0) 
+            score -= (age - 33.0) * 1.0  # e.g., Age 35 = -2 pts. Age 38 = -5 pts.
+            
+        score += cap_bonus
             
         # D. Injury Penalty
         if 'injured' in status:
-            if caps > 40.0: score -= 3.0 # Vets kept around
+            if caps > 40.0: score -= 3.0 # Keep veteran locker room guys around
             else: score -= 10.0 # Fringe players dropped entirely
+            
+        # E. Protect Team Captains
+        if 'captain' in captain:
+            score += 8.0 
             
         return score
 
@@ -456,18 +470,18 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
                 selected_players.extend(picks.to_dict('records'))
             return pool_df.iloc[count:]
 
-        # --- A. STARTERS (11 Players) ---
+        # Starters
         gks = pick_players(gks, targets['GK'], 'Starter')
         defs = pick_players(defs, targets['DEF'], 'Starter')
         mids = pick_players(mids, targets['MID'], 'Starter')
         atts = pick_players(atts, targets['ATT'], 'Starter')
 
-        # --- B. BACKUPS (15 Players to hit 26-man roster) ---
-        gks = pick_players(gks, 2, 'Backup') # 2 Backup GKs
+        # Backups
+        gks = pick_players(gks, 2, 'Backup')
         rem_outfield = pd.concat([defs, mids, atts]).sort_values('selection_score', ascending=False)
         rem_outfield = pick_players(rem_outfield, 13, 'Backup')
 
-        # --- C. FRINGE / MAYBES (Next 6 Players: 1 GK, 5 Outfielders) ---
+        # Fringe
         pick_players(gks, 1, 'Fringe')
         pick_players(rem_outfield, 5, 'Fringe')
 
@@ -485,7 +499,6 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
             if pd.isna(b_rat): b_rat = max(50, s_rat - 5)
             if pd.isna(f_rat): f_rat = max(50, b_rat - 3)
 
-            # WEIGHTING: Starters dictate 70%, Backups 25%, Fringe 5%
             final_units[unit] = (s_rat * 0.70) + (b_rat * 0.25) + (f_rat * 0.05)
 
         overall_talent = (final_units['GK']*0.1 + final_units['DEF']*0.3 + 
@@ -494,26 +507,22 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
         fixed_top_players = []
         for _, row in final_squad.sort_values(by=['roster_status', 'rat'], ascending=[False, False]).iterrows():
             
-            # Safe parsing for UI Dictionary
-            try: final_rat = float(row.get('rat', 68.0))
-            except: final_rat = 68.0
-            
-            try: final_caps = int(float(row.get('caps', 0)))
+            try: final_caps = int(float(get_merged_val(row, 'caps', 0)))
             except: final_caps = 0
                 
-            try: final_age = int(float(row.get('age', 28)))
+            try: final_age = int(float(get_merged_val(row, 'age', 28)))
             except: final_age = 28
             
             fixed_top_players.append({
-                'name': str(row.get('display_name', 'Unknown')),
-                'pos': str(row.get('display_pos', 'MID')),
-                'club': str(row.get('display_club', 'Unknown')),
-                'unit': str(row.get('unit', 'MID')),
-                'rat': final_rat,
+                'name': str(row['display_name']),
+                'pos': str(row['display_pos']),
+                'club': str(row['display_club']),
+                'unit': str(row['unit']),
+                'rat': float(row['rat']),
                 'caps': final_caps,
                 'age': final_age,
-                'status': str(row.get('status', '')),
-                'roster_status': str(row.get('roster_status', 'Unknown'))
+                'status': str(get_merged_val(row, 'status', '')),
+                'roster_status': str(row['roster_status'])
             })
         
         team_ratings[team_slug] = {
