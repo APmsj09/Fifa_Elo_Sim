@@ -303,9 +303,15 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
     # 1. Clean Player Data
     player_df.columns = [str(c).strip().lower() for c in player_df.columns]
     if 'rat' not in player_df.columns and 'rating' in player_df.columns: player_df['rat'] = player_df['rating']
-    player_df['rat'] = pd.to_numeric(player_df['rat'].astype(str).str.extract(r'(\d+)')[0], errors='coerce').fillna(68)
+    
+    # Do NOT default to 68 yet, leave as NaN to calculate true team averages
+    player_df['rat'] = pd.to_numeric(player_df['rat'].astype(str).str.extract(r'(\d+)')[0], errors='coerce')
     player_df['player_slug'] = player_df.get('name', '').apply(get_player_slug)
     player_df['team_slug'] = player_df.get('nation', '').apply(get_slug)
+
+    # --- DYNAMIC FALLBACK CALCULATION ---
+    # Calculate the median rating for each team to dynamically scale missing players
+    team_medians = player_df.groupby('team_slug')['rat'].median().to_dict()
 
     # 2. Process & Combine Call-Up Data
     if current_df is not None: current_df['callup_tier'] = 'Current'
@@ -318,7 +324,6 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
         callups['player_slug'] = callups.get('name', '').apply(get_player_slug)
         callups['team_slug'] = callups.get('team', '').apply(get_slug)
         
-        # EXTRACT NEW STATS
         callups['caps'] = pd.to_numeric(callups.get('caps', 0), errors='coerce').fillna(0)
         callups['age'] = pd.to_numeric(callups.get('age', 28), errors='coerce').fillna(28)
         squad_no_col = 'no.' if 'no.' in callups.columns else ('no' if 'no' in callups.columns else None)
@@ -326,7 +331,7 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
             
         callups = callups.sort_values('callup_tier').drop_duplicates(subset=['team_slug', 'player_slug'])
 
-        # --- SMART NAME ALIGNMENT (Fixes the missing rating bug) ---
+        # Smart Name Alignment
         player_slugs_by_team = player_df.groupby('team_slug')['player_slug'].apply(list).to_dict()
         
         def align_slug(row):
@@ -337,12 +342,10 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
             valid_slugs = player_slugs_by_team[t_slug]
             if p_slug in valid_slugs: return p_slug
             
-            # Substring match (catches "timream" inside "timothyream")
             for v in valid_slugs:
                 if len(p_slug) > 4 and len(v) > 4:
                     if p_slug in v or v in p_slug: return v
                     
-            # Difflib fuzzy match (catches typos)
             matches = difflib.get_close_matches(p_slug, valid_slugs, n=1, cutoff=0.8)
             if matches: return matches[0]
             return p_slug
@@ -355,7 +358,6 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
         pool = player_df.copy()
         pool['caps'], pool['age'], pool['squad_no'], pool['status'], pool['callup_tier'], pool['captain'] = 0, 28, 999, '', 'None', ''
 
-    # Helper for resolving merged columns
     def get_merged_val(row, col_name, default_val):
         val_c = row.get(f'{col_name}_c')
         if pd.notna(val_c) and str(val_c).strip().upper() != 'NAN' and str(val_c).strip() != '': return val_c
@@ -386,9 +388,14 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
         display_pos = p_pos if len(p_pos) > 1 else c_pos
         if not display_pos or display_pos == 'NAN': display_pos = unit
 
-        try: rat = float(row.get('rat', 68.0))
-        except: rat = 68.0
-        if pd.isna(rat): rat = 68.0 
+        # --- APPLY DYNAMIC FALLBACK RATING ---
+        t_slug = row.get('team_slug', '')
+        # Give unknown players the team's median rating minus 4 points (fringe player penalty)
+        fallback_rat = team_medians.get(t_slug, 64.0) - 4.0
+        
+        try: rat = float(row.get('rat', fallback_rat))
+        except: rat = fallback_rat
+        if pd.isna(rat): rat = fallback_rat 
         
         return pd.Series([name, display_pos, club.title(), unit, rat])
 
@@ -413,31 +420,24 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
         
         score = base_rat
         
-        # A. Call-up Proximity Bonus
         if tier == 'Current': score += 5.0
         elif tier == 'Recent': score += 2.0
         
-        # B. Prestige Jersey Numbers (#1 GK and #10 Star)
         if tier == 'Current':
             if unit == 'GK' and squad_no == 1.0: score += 5.0
             elif squad_no == 10.0: score += 2.0
         
-        # C. Universal Caps & Veteran Decay
-        cap_bonus = min(caps * 0.15, 8.0) # Standard prime/youth cap scaling
-        
+        cap_bonus = min(caps * 0.15, 8.0) 
         if age >= 34.0:
-            # Veterans get slightly diminished returns on caps and gradual age penalty
             cap_bonus = min(caps * 0.10, 5.0) 
-            score -= (age - 33.0) * 1.0  # e.g., Age 35 = -2 pts. Age 38 = -5 pts.
+            score -= (age - 33.0) * 1.0  
             
         score += cap_bonus
             
-        # D. Injury Penalty
         if 'injured' in status:
-            if caps > 40.0: score -= 3.0 # Keep veteran locker room guys around
-            else: score -= 10.0 # Fringe players dropped entirely
+            if caps > 40.0: score -= 3.0
+            else: score -= 10.0
             
-        # E. Protect Team Captains
         if 'captain' in captain:
             score += 8.0 
             
