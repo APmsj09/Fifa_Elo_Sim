@@ -416,7 +416,7 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
         unit = row['unit']
         captain = str(get_merged_val(row, 'captain', '')).lower()
         
-        if 'retired' in status: return -999.0
+        if 'RET' in status: return -999.0
         
         score = base_rat
         
@@ -424,7 +424,7 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
         elif tier == 'Recent': score += 2.0
         
         if tier == 'Current':
-            if unit == 'GK' and squad_no == 1.0: score += 5.0
+            if unit == 'GK' and squad_no == 1.0: score += 2.0
             elif squad_no == 10.0: score += 2.0
         
         cap_bonus = min(caps * 0.15, 8.0) 
@@ -434,7 +434,7 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
             
         score += cap_bonus
             
-        if 'injured' in status:
+        if 'INJ' in status:
             if caps > 40.0: score -= 3.0
             else: score -= 10.0
             
