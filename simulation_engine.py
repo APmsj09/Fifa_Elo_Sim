@@ -344,13 +344,26 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
 
     # 5. Calculate SELECTION SCORE (The core engine for who makes the squad)
     def calc_score(row):
-        base_rat = row['rat']
-        caps = row.get('caps', 0)
-        age = row.get('age', 28)
-        squad_no = row.get('squad_no', 999)
+        # Bulletproof Type Casting
+        try: base_rat = float(row.get('rat', 68.0))
+        except: base_rat = 68.0
+        if pd.isna(base_rat): base_rat = 68.0
+
+        try: caps = float(row.get('caps', 0))
+        except: caps = 0.0
+        if pd.isna(caps): caps = 0.0
+
+        try: age = float(row.get('age', 28))
+        except: age = 28.0
+        if pd.isna(age): age = 28.0
+
+        try: squad_no = float(row.get('squad_no', 999))
+        except: squad_no = 999.0
+        if pd.isna(squad_no): squad_no = 999.0
+
         status = str(row.get('status', '')).lower()
-        tier = row.get('callup_tier', 'None')
-        unit = row['unit']
+        tier = str(row.get('callup_tier', 'None'))
+        unit = str(row.get('unit', 'MID'))
         
         if 'retired' in status: return -999.0
         
@@ -362,17 +375,17 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
         
         # B. Squad Number Indicator (The "Starting XI" jersey logic)
         if tier == 'Current':
-            if unit == 'GK' and squad_no == 1:
+            if unit == 'GK' and squad_no == 1.0:
                 score += 8.0 # Explicit #1 GK
-            elif squad_no <= 11:
+            elif squad_no <= 11.0:
                 score += 3.0 # Traditional starting XI numbers
         
         # C. "Passing the Torch" Caps & Age Dynamics
-        if age >= 35:
+        if age >= 35.0:
             # Veterans get diminished returns on caps for starting spots, and age decay
             score += min(caps * 0.05, 4.0) 
-            score -= (age - 34) * 1.5 # e.g. Age 40 = -9 points
-        elif age <= 23:
+            score -= (age - 34.0) * 1.5 
+        elif age <= 23.0:
             # Emerging prospects get youth upside
             score += min(caps * 0.20, 6.0) 
             score += 2.0 
@@ -382,7 +395,7 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
             
         # D. Injury Penalty
         if 'injured' in status:
-            if caps > 40: score -= 3.0 # Vets kept around for locker room presence
+            if caps > 40.0: score -= 3.0 # Vets kept around
             else: score -= 10.0 # Fringe players dropped entirely
             
         return score
@@ -451,16 +464,27 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
         
         fixed_top_players = []
         for _, row in final_squad.sort_values(by=['roster_status', 'rat'], ascending=[False, False]).iterrows():
+            
+            # Safe parsing for UI Dictionary
+            try: final_rat = float(row.get('rat', 68.0))
+            except: final_rat = 68.0
+            
+            try: final_caps = int(float(row.get('caps', 0)))
+            except: final_caps = 0
+                
+            try: final_age = int(float(row.get('age', 28)))
+            except: final_age = 28
+            
             fixed_top_players.append({
-                'name': row['display_name'],
-                'pos': row['display_pos'],
-                'club': row['display_club'],
-                'unit': row['unit'],
-                'rat': row['rat'],
-                'caps': row.get('caps', 0),
-                'age': row.get('age', 28),
-                'status': row.get('status', ''),
-                'roster_status': row['roster_status']
+                'name': str(row.get('display_name', 'Unknown')),
+                'pos': str(row.get('display_pos', 'MID')),
+                'club': str(row.get('display_club', 'Unknown')),
+                'unit': str(row.get('unit', 'MID')),
+                'rat': final_rat,
+                'caps': final_caps,
+                'age': final_age,
+                'status': str(row.get('status', '')),
+                'roster_status': str(row.get('roster_status', 'Unknown'))
             })
         
         team_ratings[team_slug] = {
