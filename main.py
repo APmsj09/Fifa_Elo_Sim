@@ -1871,31 +1871,48 @@ def update_dashboard_data(event=None):
     squad_html = ""
     if 'top_players' in talent_info:
         squad_html = """
-        <div style="max-height: 420px; overflow-y: auto; padding-right: 5px;">
+        <div style="max-height: 460px; overflow-y: auto; padding-right: 5px;">
             <table style="width:100%; border-collapse: collapse; font-size:0.85em;">
                 <thead style="position: sticky; top: 0; background: var(--card-bg); z-index: 10;">
                     <tr style="text-align: left; border-bottom: 2px solid var(--sidebar-border);">
-                        <th style="padding: 8px 4px; color: var(--text-light);">POS</th>
+                        <th style="padding: 8px 4px; color: var(--text-light); width:40px;">ROLE</th>
                         <th style="padding: 8px 4px; color: var(--text-light);">PLAYER</th>
+                        <th style="padding: 8px 4px; color: var(--text-light); text-align:center;">AGE</th>
+                        <th style="padding: 8px 4px; color: var(--text-light); text-align:center;">CAPS</th>
                         <th style="padding: 8px 4px; color: var(--text-light); text-align:right;">RAT</th>
                     </tr>
                 </thead>
                 <tbody>
         """
-        for i, p in enumerate(talent_info['top_players']):
-            is_starter = i < 11
-            opacity = "1.0" if is_starter else "0.7"
-            bg_style = "background: rgba(59, 130, 246, 0.05);" if is_starter else ""
+        for p in talent_info['top_players']:
+            role = p.get('roster_status', 'Unknown')
+            caps = int(p.get('caps', 0))
+            age = int(p.get('age', 28))
+            status_text = str(p.get('status', '')).lower()
             
-            # --- FIX STARTS HERE ---
-            # Get the unit (GK, ATT, DEF, MID)
+            # Styling based on Projected Role
+            if role == 'Starter':
+                role_col = "var(--accent-green)"
+                bg_style = "background: rgba(16, 185, 129, 0.05);"
+                opacity = "1.0"
+                role_icon = "⭐"
+            elif role == 'Backup':
+                role_col = "var(--accent-blue)"
+                bg_style = ""
+                opacity = "0.95"
+                role_icon = "🔄"
+            else: # Fringe
+                role_col = "var(--text-light)"
+                bg_style = "background: rgba(0, 0, 0, 0.02);"
+                opacity = "0.6"
+                role_icon = "❓"
+
+            # Injured Badge
+            inj_badge = " <span style='background:var(--accent-red); color:white; font-size:0.65em; padding:2px 4px; border-radius:3px; font-weight:bold;'>INJ</span>" if 'injured' in status_text else ""
+
             unit = p.get('unit', 'MID')
-            
-            # Get the specific position code (AMR, ST, etc.)
-            # We look for 'pos' or 'position' which come from your CSV columns
             raw_pos_detail = p.get('pos') or p.get('position') or unit
             
-            # Position Badge Colors
             pos_colors = {'ATT': '#ef4444', 'MID': '#3b82f6', 'DEF': '#10b981', 'GK': '#f59e0b'}
             u_col = pos_colors.get(unit, '#64748b')
 
@@ -1904,14 +1921,20 @@ def update_dashboard_data(event=None):
 
             squad_html += f"""
             <tr style="{bg_style} border-bottom: 1px solid var(--sidebar-border); opacity: {opacity};">
-                <td style="padding: 8px 4px;">
-                    <!-- Badge now shows the Unit Category (e.g., ATT) -->
-                    <span style="background:{u_col}; color:white; padding:2px 6px; border-radius:4px; font-size:0.75em; font-weight:800; min-width:30px; display:inline-block; text-align:center;">{unit}</span>
+                <td style="padding: 8px 4px; text-align:center;" title="{role}">
+                    <span style="font-size:1.2em;">{role_icon}</span>
                 </td>
                 <td style="padding: 8px 4px;">
-                    <div style="font-weight:700; color:var(--text-main);">{p['name']}</div>
-                    <!-- Detailed position (e.g., AMR) shown here -->
-                    <div style="font-size:0.85em; color:var(--text-light);">{raw_pos_detail} • {p.get('club', 'Unknown')}</div>
+                    <div style="font-weight:700; color:var(--text-main);">{p['name']}{inj_badge}</div>
+                    <div style="font-size:0.85em; color:var(--text-light);">
+                        <span style="color:{u_col}; font-weight:bold;">{raw_pos_detail}</span> • {p.get('club', 'Unknown')}
+                    </div>
+                </td>
+                <td style="padding: 8px 4px; text-align:center; font-weight:600; color:var(--text-light);">
+                    {age}
+                </td>
+                <td style="padding: 8px 4px; text-align:center; font-weight:600; color:var(--text-main);">
+                    {caps}
                 </td>
                 <td style="padding: 8px 4px; text-align:right; font-weight:800; font-size:1.1em; color:{r_col};">
                     {rating}
@@ -1928,7 +1951,6 @@ def update_dashboard_data(event=None):
 
     def make_unit_bar(label, val):
         if val == 0: return ""
-        # Dynamic color mapping based on how strong the unit is
         color = "#10b981" if val >= 83 else ("#3b82f6" if val >= 77 else ("#f59e0b" if val >= 72 else "#ef4444"))
         return f"""
         <div style="margin-bottom:8px;">
@@ -1942,103 +1964,92 @@ def update_dashboard_data(event=None):
         </div>
         """
 
-    # --- NEW DYNAMIC SQUAD OVERVIEW GENERATOR ---
+    # --- DYNAMIC SQUAD OVERVIEW GENERATOR ---
     csv_overview = formation_info.get('wc 2026 squad overview', '')
-    if not isinstance(csv_overview, str) or csv_overview.lower() == 'nan':
-        csv_overview = ''
+    if not isinstance(csv_overview, str) or csv_overview.lower() == 'nan': csv_overview = ''
 
-    # 1. Smart Player Phrasing based on FIFA Ratings
     top_players = talent_info.get('top_players',[])
     star_text = ""
-    if len(top_players) >= 2:
-        p1 = top_players[0]
-        p2 = top_players[1]
+    
+    # Calculate Age & Caps for the core 26-man roster (Starters + Backups)
+    core_roster = [p for p in top_players if p.get('roster_status') in ['Starter', 'Backup']]
+    exp_text = ""
+    if core_roster:
+        avg_age = sum(p.get('age', 28) for p in core_roster) / len(core_roster)
+        total_caps = sum(p.get('caps', 0) for p in core_roster)
         
-        def safe_rat(p):
-            try: return float(p.get('rat', 0))
-            except: return 0
-            
-        r1 = safe_rat(p1)
+        if avg_age > 28.5: age_desc = "veteran-heavy"
+        elif avg_age < 25.5: age_desc = "youthful"
+        else: age_desc = "prime-age"
+        
+        if total_caps > 1100: exp_desc = "highly experienced"
+        elif total_caps < 450: exp_desc = "relatively inexperienced"
+        else: exp_desc = "solidly experienced"
+        
+        exp_text = f" The projected 26-man core is {age_desc} (avg age: {avg_age:.1f}) and {exp_desc} ({int(total_caps)} combined caps)."
+
+    if len(top_players) >= 2:
+        p1, p2 = top_players[0], top_players[1]
+        try: r1 = float(p1.get('rat', 0))
+        except: r1 = 0
         
         if r1 >= 84:
             star_phrases = [
                 f", headlined by world-class talents like {p1['name']} and {p2['name']},",
-                f", boasting global superstars like {p1['name']} and {p2['name']},",
-                f", driven by the elite quality of {p1['name']} and {p2['name']},"
+                f", boasting global superstars like {p1['name']} and {p2['name']},"
             ]
         elif r1 >= 76:
             star_phrases = [
                 f", led by standout figures like {p1['name']} and {p2['name']},",
-                f", featuring key difference-makers like {p1['name']} and {p2['name']},",
                 f", relying on the proven quality of {p1['name']} and {p2['name']},"
             ]
         else:
             star_phrases =[
                 f", anchored by key contributors like {p1['name']} and {p2['name']},",
-                f", characterized by the hard work of {p1['name']} and {p2['name']},",
                 f", depending on the chemistry of players like {p1['name']} and {p2['name']},"
             ]
         star_text = random.choice(star_phrases)
 
-    # 2. Smart Unit Phrasing
     unit_dict = {'Attack': r_att, 'Midfield': r_mid, 'Defense': r_def, 'Goalkeeping': r_gk}
     best_unit = max(unit_dict, key=unit_dict.get) if sum(unit_dict.values()) > 0 else "balanced core"
     max_unit_val = unit_dict.get(best_unit, 0)
     
-    if max_unit_val >= 83:
-        unit_adj = random.choice(["dominant", "fearsome", "world-class", "formidable"])
-    elif max_unit_val >= 75:
-        unit_adj = random.choice(["capable", "reliable", "solid", "well-rounded"])
-    else:
-        unit_adj = random.choice(["hard-working", "gritty", "scrappy", "determined"])
+    if max_unit_val >= 83: unit_adj = random.choice(["dominant", "world-class", "formidable"])
+    elif max_unit_val >= 75: unit_adj = random.choice(["capable", "reliable", "solid"])
+    else: unit_adj = random.choice(["hard-working", "gritty", "determined"])
 
-    # 3. Smart Elo/Threat Phrasing
     elo_val = int(stats.get('elo', 1200))
     if elo_val >= 1800:
-        elo_desc = random.choice(["an imposing", "an elite", "a terrifying"])
-        challenge_desc = random.choice([
-            "a massive tactical challenge for any opponent",
-            "a nightmare matchup for almost anyone in the draw",
-            "a dominant force on the global stage"
-        ])
+        elo_desc = "an elite"
+        challenge_desc = "a massive tactical challenge for any opponent"
     elif elo_val >= 1600:
-        elo_desc = random.choice(["a strong", "a highly respectable", "a dangerous"])
-        challenge_desc = random.choice([
-            "a stiff test for most teams on the global stage",
-            "a tricky opponent capable of deep tournament runs",
-            "a proven competitive setup"
-        ])
+        elo_desc = "a strong"
+        challenge_desc = "a tricky opponent capable of deep tournament runs"
     else:
-        elo_desc = random.choice(["a developing", "a modest", "an emerging"])
-        challenge_desc = random.choice([
-            "a scrappy and determined setup",
-            "an underdog unit looking to shock the world",
-            "a team relying on chemistry and effort over raw talent"
-        ])
+        elo_desc = "a modest"
+        challenge_desc = "an underdog unit looking to shock the world"
 
     form_string = formation_info.get('formation 1', 'fluid')
     sys_phrases =[
         f"Operating primarily out of a <b>{form_string}</b> system",
-        f"Deploying a <b>{form_string}</b> base formation",
-        f"Set up tactically in a <b>{form_string}</b> shape"
+        f"Deploying a <b>{form_string}</b> base formation"
     ]
     
-    # 4. Generate the final adaptive text
-    dynamic_overview = f"{random.choice(sys_phrases)}, the #{global_rank} globally ranked {display_name} squad is built around a {unit_adj} <b>{best_unit}</b> unit. With {elo_desc} Elo rating of {elo_val}{star_text} they present {challenge_desc}."
+    dynamic_overview = f"{random.choice(sys_phrases)}, the #{global_rank} globally ranked {display_name} squad is built around a {unit_adj} <b>{best_unit}</b> unit. With {elo_desc} Elo rating of {elo_val}{star_text} they present {challenge_desc}.{exp_text}"
     
     if csv_overview:
         dynamic_overview += f"<div style='margin-top:12px; padding-top:12px; border-top:1px dashed #cbd5e1;'><b style='color:var(--accent-blue);'>Scout's Notebook:</b> {csv_overview}</div>"
-    # ---------------------------------------------
 
     unit_bars_html = ""
     if r_att > 0:
         unit_bars_html = f"""
         <div style="margin-top:15px; padding-top:15px; border-top:1px dashed #cbd5e1;">
-            <h5 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">📊 Unit Strengths</h5>
+            <h5 style="margin:0 0 10px 0; color:var(--text-main); font-size:0.85em; text-transform:uppercase;">📊 Weighted Unit Strengths</h5>
             {make_unit_bar('Attack', r_att)}
             {make_unit_bar('Midfield', r_mid)}
             {make_unit_bar('Defense', r_def)}
             {make_unit_bar('Goalkeeper', r_gk)}
+            <div style="font-size:0.7em; color:var(--text-light); text-align:right; margin-top:5px;">*70% Starters / 25% Backups / 5% Fringe</div>
         </div>
         """
 
@@ -2080,13 +2091,14 @@ def update_dashboard_data(event=None):
     <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:20px; margin-bottom:20px;">
         <div class="dashboard-card" style="margin:0; padding:20px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <h4 style="margin:0; color:var(--text-main); font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">📋 Squad List & Depth</h4>
-                <span style="font-size:0.7em; background:var(--sidebar-border); padding:2px 6px; border-radius:4px; color:var(--text-light);">26 MAN SQUAD</span>
+                <h4 style="margin:0; color:var(--text-main); font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">📋 32-Man Pool Projection</h4>
+                <span style="font-size:0.7em; background:var(--sidebar-border); padding:2px 6px; border-radius:4px; color:var(--text-light); font-weight:bold;">{len(top_players)} PLAYERS</span>
             </div>
             {squad_html if squad_html else "<div style='color:var(--text-light); font-size:0.9em;'>No player data available.</div>"}
-            <div style="margin-top:15px; padding-top:10px; border-top:1px solid var(--sidebar-border); font-size:0.8em; color:var(--text-light); display:flex; justify-content:space-between;">
-                <span><b>Base:</b> {formation_info.get('formation 1', 'Unknown')}</span>
-                <span>*Top 11 highlighted</span>
+            <div style="margin-top:15px; padding-top:10px; border-top:1px solid var(--sidebar-border); font-size:0.75em; color:var(--text-light); display:flex; justify-content:center; gap:15px;">
+                <span>⭐ Starter (11)</span>
+                <span>🔄 Backup (15)</span>
+                <span>❓ Fringe (6)</span>
             </div>
         </div>
 
