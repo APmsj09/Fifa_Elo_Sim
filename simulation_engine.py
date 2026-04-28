@@ -311,7 +311,9 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
 
     # --- DYNAMIC FALLBACK CALCULATION ---
     # Calculate the median rating for each team to dynamically scale missing players
-    team_medians = player_df.groupby('team_slug')['rat'].median().to_dict()
+    # Filter out stars (rating > 85) so missing fringe players get realistic ratings
+    normal_players = player_df[player_df['rat'] <= 86]
+    team_medians = normal_players.groupby('team_slug')['rat'].median().to_dict()
 
     # 2. Process & Combine Call-Up Data
     if current_df is not None: current_df['callup_tier'] = 'Current'
@@ -341,13 +343,12 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
             
             valid_slugs = player_slugs_by_team[t_slug]
             if p_slug in valid_slugs: return p_slug
-            
-            for v in valid_slugs:
-                if len(p_slug) > 4 and len(v) > 4:
-                    if p_slug in v or v in p_slug: return v
                     
-            matches = difflib.get_close_matches(p_slug, valid_slugs, n=1, cutoff=0.8)
+            # Make the spell-checker much stricter (0.92 instead of 0.8) 
+            # so "Mohamed Alaa" doesn't turn into "Mohamed Salah"
+            matches = difflib.get_close_matches(p_slug, valid_slugs, n=1, cutoff=0.92)
             if matches: return matches[0]
+            
             return p_slug
 
         callups['player_slug'] = callups.apply(align_slug, axis=1)
