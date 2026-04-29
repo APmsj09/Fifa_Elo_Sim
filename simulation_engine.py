@@ -551,7 +551,7 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
             if pd.isna(b_rat): b_rat = max(50, s_rat - 5)
             if pd.isna(f_rat): f_rat = max(50, b_rat - 3)
 
-            final_units[unit] = (s_rat * 0.70) + (b_rat * 0.25) + (f_rat * 0.05)
+            final_units[unit] = (s_rat * 0.75) + (b_rat * 0.20) + (f_rat * 0.05)
 
         overall_talent = (final_units['GK']*0.1 + final_units['DEF']*0.3 + 
                           final_units['MID']*0.3 + final_units['ATT']*0.3)
