@@ -1361,7 +1361,7 @@ Mexico,63,73,Iván Rodríguez,29,León,DM,-,244,€3M - €5M,No
 Mexico,63,74,Fernando Tapia,24,Club América,GK,-,481,€2M - €4M,No
 Mexico,63,75,Héctor Moreno,37,Free Agent,DC,-,338,0,No
 Mexico,62,-,Mateo Chávez,21,AZ,DL,-,1K,€17M - €31M,TBD
-Mexico,67,69,Gilberto Mora,17,Tijuana,AMC,-,14K,€2M - €4M,TBD
+Mexico,68,73,Gilberto Mora,17,Tijuana,AMC,-,14K,€8M - €12M,TBD
 Mexico,62,66,Alan Mozo,28,Pachuca,DR,-,351,€3M - €6M,No
 Mexico,62,66,J. A. Rodríguez,33,Tijuana,GK,-,226,€278M-€521M,No
 Mexico,62,74,Guillermo Martínez,30,Pumas,ST,-,260,€2M - €4M,No
@@ -2466,14 +2466,14 @@ Egypt,58,68,Amr El Soleya,35,C. Cleopatra,"DM, MC",07-2026,€3K,€278M - €52
 Egypt,58,64,Oufa,29,National Bank,ST,06-2028,€7K,€2M - €3M,No
 Jordan,75,75,Musa Al-Tamari,28,Rennes,AMR,06-2028,€16K,€5M - €9M,Yes
 Jordan,71,71,Yazan Al-Arab,29,FC Seoul,DC,12-2026,€5K,€769K - €1M,Yes
-Jordan,62,65,Tammer Bany,22,West Brom,"AMC, ST",06-2028,€7K,€3M - €5M,Likely
-Jordan,55,55,Bahaa Faisal,30,Al-Waab,ST,06-2026,€12K,€2M - €3M,Likely
-Jordan,55,55,Ehsan Haddad,31,Al-Hussein,"DR, WBR",06-2026,€3K,€90K - €168K,Yes
+Jordan,58,65,Tammer Bany,22,West Brom,"AMC, ST",06-2028,€7K,€3M - €5M,Likely
+Jordan,55,55,Baha'a Faisal,30,Al-Waab,ST,06-2026,€12K,€2M - €3M,Likely
+Jordan,55,55,Ihsan Haddad,31,Al-Hussein,"DR, WBR",06-2026,€3K,€90K - €168K,Yes
 Jordan,53,55,Mohannad Semreen,23,Al-Gharrafa,AML,06-2026,€771,€129K - €241K,No
 Jordan,55,55,Abdullah Nasib,31,Al-Hussein,DC,07-2026,€3K,€91K - €170K,Yes
 Jordan,55,55,Mahmoud Al-Mardi,32,Al-Hussein,AML,06-2026,€2K,€41K - €77K,Yes
 Jordan,55,55,Yazid Abulaila,32,Al-Hussein,GK,06-2026,€634,€278M - €521M,Yes
-Jordan,53,58,Yazan Al-Naimat,26,Al-Arabi,ST,06-2027,€14K,€1M - €2M,Yes
+Jordan,58,58,Yazan Al-Naimat,26,Al-Arabi,ST,06-2027,€14K,€1M - €2M,Yes
 Jordan,53,57,Ahmad Ersan,30,Al-Faisaly,"ML, AMR",06-2026,€4K,€118K - €221K,No
 Jordan,53,58,Omar Salah,22,Al-Wakrah,MC,06-2029,€13K,€2M - €4M,No
 Jordan,51,54,Alaa Bakir,24,FC Emmen,"MR, ML",06-2026,€1K,€456K - €855K,No
@@ -2485,13 +2485,13 @@ Jordan,50,55,Ahmad Assaf,26,Al-Hussein,DL,06-2026,€1K,€80K - €150K,Likely
 Jordan,50,53,Mahmoud Shawkat,30,Al-Wehdat,"DM, MC",06-2026,€4K,€93K - €174K,No
 Jordan,50,53,Yousef Abu Al-Jazar,26,Kazma,DC,06-2027,€2K,€799K - €1M,Likely
 Jordan,50,53,Shararh,27,Raja Casablanca,AMR,06-2028,€3K,€88K - €165K,Likely
-Jordan,50,56,Ibrahim Sabra,19,Göztepe,ST,06-2029,€2K,€78K - €147K,Likely
+Jordan,54,56,Ibrahim Sabra,20,Göztepe,ST,06-2029,€2K,€400K,Likely
 Jordan,50,55,A. Al-Fakhouri,25,Al-Wehdat,GK,06-2026,€502,€73K - €137K,Likely
-Jordan,50,60,Odeh Al-Fakhouri,20,Pyramids,"AML, ST",07-2029,€4K,€365K - €684K,TBD
+Jordan,52,60,Odeh Al-Fakhouri,20,Pyramids,"AML, ST",07-2029,€4K,€365K - €684K,TBD
 Jordan,50,58,Hamza Al-Dardour,34,Al-Ramtha,"AMC, ST",06-2026,€616,€278M - €521M,No
 Jordan,50,60,Ali Olwan,25,Al-Sailiya,ST,06-2026,€9K,€822K - €2M,Yes
 Jordan,50,53,Odai Al-Qarra,34,Dhofar,ST,06-2026,€668,€278M - €521M,No
-Jordan,50,50,Mohammad Abu Hashish,30,Al-Karma,DL,06-2026,€964,€30K - €57K,Yes
+Jordan,54,54,Mohammad Abu Hashish,30,Al-Karma,DL,06-2026,€964,€450K,Yes
 Jordan,50,56,Mussab Al-Laham,34,Al-Ramtha,"AML, AMC",06-2026,€650,€278M - €521M,No
 Jordan,50,55,H. Abu Al-Dahab,25,Al-Faisaly,DC,06-2028,€1K,€88K - €164K,Likely
 Jordan,50,55,Sisa,27,Al-Hussein,"MC, AMC",06-2026,€982,€40K - €75K,No
@@ -2514,6 +2514,11 @@ Jordan,48,50,Mustafa Kamal,30,Al-Wehdat,DL,06-2026,€899,€33K - €63K,No
 Jordan,48,53,Ghaith Al-Madadha,25,Al-Gaish,"ML, AML",07-2027,€4K,€71K - €134K,No
 Jordan,48,55,Yaseen Al-Bakhit,36,Jazeera,AML,06-2026,€361,€4K - €7K,No
 Jordan,48,53,Amer Jamous,23,Al-Wehdat,"DM, MC",06-2027,€944,€86K - €161K,Likely
+Jordan,56,56,Ibrahim Sa'deh,26,Al-Karma,"MC",06-2027,€944,€400K,Yes
+Jordan,57,57,Noor Al-Rawabdeh,29,Selangor FC,"MC",06-2027,€944,€450K,Yes
+Jordan,59,59,Nizar Al-Rashdan,27,Qatar SC,"MC",06-2027,€944,€600K,Yes
+Jordan,50,50,Rajaei Ayed,32,Al-Hussein SC (Irbid),"DM",06-2027,€944,€300K,Yes
+Jordan,52,52,Husam Abu Dahab,25,Al-Faisaly SC,"DC, DL",06-2027,€944,€300K,Yes
 Czech Republic,80,80,Patrik Schick,29,B. Leverkusen,ST,06-2030,€192K,€51M - €95M,Yes
 Czech Republic,72,72,Lukáš Provod,29,Slavia Prague,AML,06-2029,€9K,€9M - €18M,Yes
 Czech Republic,71,71,Tomáš Chorý,30,Slavia Prague,ST,06-2027,€10K,€9M - €17M,Yes
@@ -2921,17 +2926,17 @@ Saudi Arabia,55,60,Murad Al-Hawsawi,24,Al-Hilal,"DM, MC",06-2031,€22K,€764K 
 Saudi Arabia,55,55,Abdullah Al-Salem,32,Al-Qadsiah,ST,06-2027,€13K,€497K - €931K,No
 Saudi Arabia,55,60,Abdullah Madu,32,Al-Ettifaq,DC,06-2028,€14K,€866K - €2M,No
 Saudi Arabia,55,63,Saad Al-Mosa,23,Al-Ittihad,DC,06-2027,€17K,€7M - €12M,No
-South Africa,70,73,Ronwen Williams,33,M. Sundowns,GK,06-2028,€7K,€278M - €521M,Yes
+South Africa,68,73,Ronwen Williams,33,M. Sundowns,GK,06-2028,€7K,€278M - €521M,Yes
 South Africa,66,70,Themba Zwane,36,M. Sundowns,"ML, AML",06-2026,€6K,€278M - €521M,Yes
-South Africa,66,75,Teboho Mokoena,28,M. Sundowns,"DM, MC",06-2029,€4K,€476K - €892K,Yes
+South Africa,70,75,Teboho Mokoena,28,M. Sundowns,"DM, MC",06-2029,€4K,€476K - €892K,Yes
 South Africa,65,65,Luther Singh,28,AEL,AML,05-2027,€4K,€2M - €5M,No
 South Africa,64,68,Iqraam Rayners,29,M. Sundowns,"AMR, ST",06-2028,€4K,€501K - €939K,Yes
 South Africa,64,70,Khuliso Mudau,30,M. Sundowns,"DR, WBR",06-2027,€3K,€300K - €563K,Yes
 South Africa,64,68,Gift Links,27,Aarhus GF,"WBL, AML",06-2029,€2K,€5M - €9M,No
 South Africa,63,73,B. Hlongwane,25,Minnesota,"AMR, AML",12-2027,€19K,€5M - €10M,No
-South Africa,63,69,Lyle Foster,25,Burnley,ST,06-2028,€35K,€9M - €17M,Yes
+South Africa,70,70,Lyle Foster,25,Burnley,ST,06-2028,€35K,€9M - €17M,Yes
 South Africa,62,73,Aubrey Modiba,30,M. Sundowns,"DL, WBL",06-2027,€4K,€341K - €640K,Yes
-South Africa,60,75,M. Mbokazi,20,Chicago Fire,DC,12-2029,€9K,€5M - €9M,Yes
+South Africa,66,75,Mbekezeli Mbokazi,20,Chicago Fire,DC,12-2029,€9K,€5M - €9M,Yes
 South Africa,60,70,Percy Tau,31,Nam Dinh,"AMR, ST",06-2026,€4K,€341K - €639K,Yes
 South Africa,59,63,Yusuf Maart,30,SV Ried,MC,05-2027,€2K,€2M - €3M,No
 South Africa,59,60,Bathusi Aubaas,30,M. Sundowns,"DM, MC",06-2027,€3K,€200K - €374K,No
@@ -2939,7 +2944,7 @@ South Africa,59,68,Oswin Appollis,24,Orlando Pirates,"AML, AMC",06-2029,€4K,�
 South Africa,59,64,Thapelo Morena,32,M. Sundowns,"DR, AMR",06-2027,€4K,€176K - €330K,Yes
 South Africa,58,65,Mosa Lebusa,33,Stellenbosch,"DL, DC",06-2026,€3K,€75K - €141K,No
 South Africa,58,65,Thembinkosi Lorch,32,Al-Ittihad,"ML, AMR",06-2026,€3K,0,No
-South Africa,58,68,T. Matthews,25,M. Sundowns,AML,06-2027,€3K,€168K - €315K,No
+South Africa,58,68,Tashreeq Matthews,25,M. Sundowns,AML,06-2027,€3K,€168K - €315K,No
 South Africa,58,73,R. Mofokeng,21,Orlando Pirates,"AMR, AML",06-2026,€4K,€369K - €692K,Yes
 South Africa,58,65,Siyabonga Ngezana,28,FCSB,DC,06-2027,€6K,€1M - €2M,No
 South Africa,58,63,S. Mkhulise,29,M. Sundowns,MC,06-2027,€2K,€100K - €187K,No
@@ -2950,7 +2955,7 @@ South Africa,58,63,Thalente Mbatha,25,Orlando Pirates,"DM, MC",06-2026,€4K,€
 South Africa,58,60,Grant Kekana,33,M. Sundowns,DR,06-2026,€3K,€50K - €94K,No
 South Africa,58,60,Sipho Chaine,28,Orlando Pirates,GK,06-2026,€3K,€144K - €271K,No
 South Africa,58,65,Mothobi Mvala,31,M. Sundowns,"DC, DM",06-2027,€4K,€225K - €421K,No
-South Africa,58,70,Mohau Nkota,21,Al-Ettifaq,AMR,06-2028,€19K,€9M - €17M,Yes
+South Africa,60,70,Mohau Nkota,21,Al-Ettifaq,AMR,06-2028,€19K,€9M - €17M,Yes
 South Africa,58,60,Fawaaz Basadien,28,M. Sundowns,"DL, WBL",06-2029,€4K,€236K - €443K,No
 South Africa,57,65,Lebo Mothiba,29,M. Sundowns,ST,06-2026,€3K,€122K - €229K,No
 South Africa,57,68,Samukele Kabini,21,Molde,"DL, WBL",12-2028,€1K,€3M - €5M,No
@@ -3121,17 +3126,17 @@ Bosnia And Herzegovina,58,65,Gojko Cimirot,32,Sarajevo,"DM, MC",06-2027,€382,�
 Bosnia And Herzegovina,58,63,Nermin Zolotić,32,FC Noah,DC,06-2026,€3K,€278M - €521M,No
 Bosnia And Herzegovina,58,65,Dario Šarić,28,Palermo,MC,06-2026,€606,€960K - €2M,No
 Bosnia And Herzegovina,57,63,Rifet Kapić,30,Lechia,MC,06-2027,€3K,€956K - €2M,No
-Haiti,67,79,Odsonne Édouard,27,RC Lens,ST,06-2028,€35K,€9M - €16M,Yes
-Haiti,66,71,J. Bellegarde,27,Wolverhampton,"MC, AMC",06-2028,€58K,€20M - €38M,Yes
+Haiti,74,79,Odsonne Édouard,27,RC Lens,ST,06-2028,€35K,€9M - €16M,Yes
+Haiti,71,71,Jean-Ricner Bellegarde,27,Wolverhampton,"MC, AMC",06-2028,€58K,€20M - €38M,Yes
 Haiti,64,65,Ricardo Adé,35,Liga de Quito,DC,12-2027,€5K,€278M - €521M,Yes
 Haiti,62,65,Carlens Arcus,29,Angers,DR,06-2026,€35K,€3M - €6M,Yes
 Haiti,62,67,Hannes Delcroix,26,FC Lugano,DC,06-2028,€12K,€1M - €2M,Yes
 Haiti,62,68,Josué Casimir,24,Auxerre,"MR, AMR",06-2028,€9K,€3M - €6M,Yes
-Haiti,59,67,J. Duverne,28,FC Nantes,"DL, DC",06-2027,€6K,€1M - €3M,Yes
-Haiti,58,65,D. Jean-Jacques,25,Philadelphia,"DM, MC",12-2026,€11K,€2M - €3M,Yes
+Haiti,59,67,Jean-Kévin Duverne,28,FC Nantes,"DL, DC",06-2027,€6K,€1M - €3M,Yes
+Haiti,58,65,Danley Jean Jacques,25,Philadelphia,"DM, MC",12-2026,€11K,€2M - €3M,Yes
 Haiti,58,60,Duckens Nazon,31,Esteghlal,ST,06-2028,€10K,€755K - €1M,Yes
 Haiti,60,60,Frantzdy Pierrot,30,AEK Athens,ST,06-2027,€19K,€2M - €3M,Yes
-Haiti,57,59,D. Etienne Jr.,29,Toronto FC,"AMR, AML",12-2026,€12K,€1M - €2M,Yes
+Haiti,57,59,Derrick Etienne Jr.,29,Toronto FC,"AMR, AML",12-2026,€12K,€1M - €2M,Yes
 Haiti,56,62,Johny Placide,37,SC Bastia,GK,06-2026,€4K,€278M - €521M,Yes
 Haiti,55,60,Wilguens Paugain,24,Zulte Waregem,DR,06-2028,€2K,€616K - €1M,No
 Haiti,55,59,Louicius Deedson,24,FC Dallas,"AMR, ST",12-2028,€5K,€947K - €2M,No
