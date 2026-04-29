@@ -64,11 +64,28 @@ def get_player_slug(name):
     """Aggressive slugifying for player names to maximize matching across disjoint datasets"""
     if not name or pd.isna(name): return ""
     n = str(name).strip().lower()
+    
+    # Remove accents
     n = unicodedata.normalize('NFKD', n).encode('ascii', 'ignore').decode('utf-8')
     n = re.sub(r'\(.*?\)', '', n) # Remove text in parenthesis
-    n = re.sub(r'[^a-z]', '', n)
-    n = n.replace('jr', '').replace('sr', '')
-    return n
+    
+    # 1. Replace hyphens and dots with spaces so we can cleanly separate the name
+    n = n.replace('-', ' ').replace('.', ' ')
+    
+    # 2. Keep ONLY letters and spaces
+    n = re.sub(r'[^a-z\s]', '', n)
+    
+    # 3. Remove common suffixes safely
+    n = ' ' + n + ' '
+    n = n.replace(' jr ', ' ').replace(' sr ', ' ')
+    
+    # 4. THE FIX: Split the name into parts, sort alphabetically, and smash together.
+    # "Kang In Lee" -> ['in', 'kang', 'lee'] -> "inkanglee"
+    # "Lee Kang In" -> ['in', 'kang', 'lee'] -> "inkanglee"
+    tokens = n.split()
+    tokens.sort()
+    
+    return "".join(tokens)
 
 def map_pos_to_unit(pos_str):
     """Maps varied position acronyms from squad files into our 4 core units"""
