@@ -535,7 +535,7 @@ Colombia,85,85,Luis Díaz,28,AML,FC Bayern,06-2029,€268K,€103M - €193M,Yes
 Colombia,76,79,Luis Suárez,28,ST,Sporting CP,06-2030,€48K,€64M - €120M,Likely
 Colombia,77,77,Davinson Sánchez,29,DC,Galatasaray,06-2029,€120K,€34M - €64M,Yes
 Colombia,76,76,Daniel Muñoz,29,"DR, WBR",Crystal Palace,06-2028,€81K,€29M - €54M,Yes
-Colombia,74,75,Jhon Lucumí,27,DC,Bologna,06-2026,€18K,€21M - €40M,Yes
+Colombia,75,75,Jhon Lucumí,27,DC,Bologna,06-2026,€18K,€21M - €40M,Yes
 Colombia,74,74,Cucho Hernández,26,ST,Real Betis,06-2030,€52K,€38M - €71M,Likely
 Colombia,74,74,Richard Ríos,25,MC,Benfica,06-2030,€58K,€46M - €87M,Yes
 Colombia,70,73,Wílmar Barrios,32,DM,Zenit,06-2027,€86K,€278M - €521M,No
@@ -550,7 +550,7 @@ Colombia,68,69,Willer Ditta,27,DC,Cruz Azul,06-2026,€20K,€7M - €14M,No
 Colombia,68,73,Kevin Mier,25,GK,Necaxa,12-2029,€18K,€5M - €10M,Likely
 Colombia,68,78,Yerry Mina,31,DC,Cagliari,06-2028,€37K,€8M - €15M,No
 Colombia,71,75,Jhon Durán,21,ST,Al-Nassr,06-2030,€347K,€35M - €65M,Yes
-Colombia,68,78,Duván Zapata,34,ST,Torino,06-2027,€96K,€278M - €521M,No
+Colombia,69,78,Duván Zapata,34,ST,Torino,06-2027,€96K,€278M - €521M,No
 Colombia,69,83,Yaser Asprilla,22,"AMR, AMC",Girona,06-2030,€20K,€70M - €130M,Yes
 Colombia,69,76,Gustavo Puerta,22,"DM, MC",R. Santander,06-2029,€24K,€16M - €30M,TBD
 Colombia,67,72,Santiago Arias,33,"DR, WBR",Independiente,12-2027,€9K,€278M - €521M,No
@@ -581,6 +581,7 @@ Colombia,64,66,Kevin Castaño,25,"DM, MC",River Plate,12-2028,€13K,€6M - €
 Colombia,64,67,Devis Vásquez,27,GK,AS Roma,06-2027,€11K,€2M - €3M,No
 Colombia,64,67,Gabriel Fuentes,28,DL,Fluminense,08-2028,€11K,€4M - €8M,No
 Colombia,64,66,Jhohan Romaña,27,DC,San Lorenzo,12-2026,€7K,€6M - €11M,No
+Colombia,70,75,David Ospina,37,GK,Atlético Nacional,12-2026,€7K,200k,No
 Netherlands,90,93,Virgil van Dijk,34,DC,Liverpool,06-2027,€405K,€278M - €521M,Yes
 Netherlands,83,90,Frenkie de Jong,28,"DM, MC",Barcelona,06-2029,€240K,€74M - €139M,Yes
 Netherlands,79,83,Jurriën Timber,24,"DR, DL",Arsenal,06-2028,€127K,€75M - €140M,Yes
@@ -850,28 +851,28 @@ Ecuador,60,60,Daniel Valencia,29,AMR,Amér. de Cali,-,277,€596K - €1M,No
 Ecuador,60,60,Jonnathan Mina,30,DL,Barcelona SC,-,272,€826K - €2M,No
 Ecuador,60,-,Kendry Páez,18,AMC,Chelsea,-,5K,€25M - €46M,Yes
 Japan,82,82,Kaoru Mitoma,28,AML,Brighton,-,6K,€60M - €113M,Yes
-Japan,79,83,Takefusa Kubo,24,"AMR, AMC",R. Sociedad,-,6K,€67M - €125M,Yes
+Japan,80,83,Takefusa Kubo,24,"AMR, AMC",R. Sociedad,-,6K,€67M - €125M,Yes
 Japan,76,76,Wataru Endo,32,DM,Liverpool,-,3K,€24M - €45M,Yes
-Japan,76,76,Ritsu Doan,27,AMR,Frankfurt,-,3K,€27M - €51M,Yes
+Japan,77,77,Ritsu Doan,27,AMR,Frankfurt,-,3K,€27M - €51M,Yes
 Japan,76,76,Hiroki Ito,26,"DL, DC",FC Bayern,-,3K,€14M - €26M,Yes
 Japan,74,75,Takehiro Tomiyasu,27,"DR, DL",Ajax,-,12K,€21M - €39M,Yes
-Japan,71,73,Hidemasa Morita,30,"DM, MC",Sporting CP,-,2K,€20M - €37M,Yes
+Japan,73,73,Hidemasa Morita,30,"DM, MC",Sporting CP,-,2K,€20M - €37M,Yes
 Japan,70,70,Ao Tanaka,27,"DM, MC",Leeds United,-,3K,€34M - €63M,Yes
-Japan,74,74,Ayase Ueda,27,ST,Feyenoord,-,3K,€24M - €45M,Yes
-Japan,72,74,Kaishu Sano,24,"DM, MC",FSV Mainz,-,5K,€15M - €29M,Likely
+Japan,73,74,Ayase Ueda,27,ST,Feyenoord,-,3K,€24M - €45M,Yes
+Japan,74,74,Kaishu Sano,24,"DM, MC",FSV Mainz,-,5K,€15M - €29M,Likely
 Japan,75,75,Daichi Kamada,29,"DM, MC, AMC",Crystal Palace,-,3K,€24M - €44M,Yes
 Japan,73,75,Takumi Minamino,30,"AML, AMC",AS Monaco,-,2K,€11M - €20M,Yes
-Japan,70,70,Daizen Maeda,28,"AML, ST",Celtic,-,3K,€18M - €34M,Yes
-Japan,70,71,Ko Itakura,28,DC,Ajax,-,2K,€17M - €31M,Yes
+Japan,73,73,Daizen Maeda,28,"AML, ST",Celtic,-,3K,€18M - €34M,Yes
+Japan,73,73,Ko Itakura,28,DC,Ajax,-,2K,€17M - €31M,Yes
 Japan,68,69,Yasuto Wakizaka,30,AMC,Kawasaki F.,-,686,€4M - €7M,No
 Japan,68,68,Tsuyoshi Watanabe,28,DC,Feyenoord,-,1K,€17M - €31M,Likely
 Japan,68,71,Tomoki Hayakawa,26,GK,Kashima Antl.,-,1K,€4M - €7M,No
 Japan,68,68,Shota Fukuoka,30,DC,Gamba Osaka,-,1K,€3M - €6M,No
-Japan,75,76,Zion Suzuki,23,GK,Parma,-,4K,€34M - €63M,Yes
+Japan,72,76,Zion Suzuki,23,GK,Parma,-,4K,€34M - €63M,Yes
 Japan,68,70,Yuma Suzuki,29,"AML, ST",Kashima Antl.,-,2K,€7M - €13M,No
 Japan,68,70,Keisuke Osako,26,GK,Sanfrecce H.,-,1K,€3M - €6M,Likely
 Japan,68,69,Yuki Soma,28,"AML, AMC",Machida Z.,-,1K,€3M - €7M,Likely
-Japan,70,75,Keito Nakamura,25,AML,Reims,-,2K,€11M - €20M,Yes
+Japan,71,75,Keito Nakamura,25,AML,Reims,-,2K,€11M - €20M,Yes
 Japan,68,70,Seiya Maikuma,28,"DR, WBR",AZ,-,1K,€15M - €29M,Likely
 Japan,68,70,Naomichi Ueda,31,DC,Kashima Antl.,-,469,€5M - €9M,No
 Japan,67,70,Taiyo Koga,27,Kashiwa Reysol,DC,-,552,€3M - €6M,No
@@ -940,28 +941,28 @@ Japan,63,69,Shuto Machino,26,Gladbach,ST,-,1K,€5M - €10M,No
 Japan,63,65,Yuki Yamamoto,28,Kawasaki Frontale,DM,-,323,€3M - €6M,No
 Japan,63,70,Asahi Masuyama,28,Machida Zelvia,"MR, AMR",-,589,€4M - €7M,No
 Japan,63,65,Motoki Hasegawa,27,Albirex Niigata,AMC,-,515,€2M - €4M,No
-Japan,63,69,Yusuke Matsuo,28,Urawa Red D.,"AML, ST",-,305,€3M - €6M,No
+Japan,63,69,Yusuke Matsuo,28,Urawa Red Diamonds,"AML, ST",-,305,€3M - €6M,No
 Japan,63,69,Hiroyuki Mae,30,Machida Zelvia,"DM, MC",-,358,€3M - €6M,No
 Japan,63,71,Hiroki Akiyama,25,Albirex Niigata,"DM, MC",-,469,€320K - €600K,No
-Japan,63,68,Reo Hatate,28,Celtic,MC,-,1K,€5M - €9M,Likely
+Japan,69,69,Reo Hatate,28,Celtic,MC,-,1K,€5M - €9M,Likely
 Japan,63,69,Takuya Iwanami,31,Vissel Kobe,DC,-,260,€2M - €5M,No
 Japan,63,64,Koya Kitagawa,29,Shimizu S-Pulse,ST,-,480,€2M - €4M,No
 Japan,63,69,Yoshiaki Komai,33,Yokohama FC,"MC, AMC",-,204,€278M - €521M,No
 Japan,63,66,Yoshio Koizumi,29,Kashiwa Reysol,AMC,-,190,€4M - €7M,No
 Japan,63,-,Tomoya Miki,27,Avispa Fukuoka,"MC, AMC",-,355,€2M - €4M,No
 Senegal,79,80,Iliman N'Diaye,25,Everton,"AML, AMC",-,7K,€59M - €110M,Yes
-Senegal,76,85,Kalidou Koulibaly,34,Al-Hilal,DC,-,2K,€16M - €31M,Yes
+Senegal,77,85,Kalidou Koulibaly,34,Al-Hilal,DC,-,2K,€16M - €31M,Yes
 Senegal,75,75,Ismaïla Sarr,27,Crystal Palace,"MR, AMR, AMC",-,3K,€38M - €72M,Yes
 Senegal,75,75,Pape Guèye,26,Villarreal,"DM, MC",-,6K,€59M - €111M,Yes
-Senegal,73,81,Nicolas Jackson,24,Chelsea,ST,-,5K,€55M - €104M,Yes
+Senegal,76,81,Nicolas Jackson,24,Chelsea,ST,-,5K,€55M - €104M,Yes
 Senegal,75,83,Édouard Mendy,33,Al-Ahli,GK,-,1K,€32M - €61M,Yes
-Senegal,75,93,Sadio Mané,33,Al-Nassr,AML,-,3K,€22M - €42M,Yes
+Senegal,77,93,Sadio Mané,33,Al-Nassr,AML,-,3K,€22M - €42M,Yes
 Senegal,71,76,Idrissa Gueye,36,Everton,"DM, MC",-,2K,€278M - €521M,Likely
 Senegal,71,71,Pathé Ciss,31,Rayo Vallecano,"DM, MC",-,1K,€8M - €15M,Likely
 Senegal,74,82,Assane Diao,20,Como,"AMR, AML",-,11K,€63M - €119M,TBD
 Senegal,73,73,Pape Matar Sarr,23,Tottenham,"DM, MC",-,9K,€44M - €83M,Yes
 Senegal,69,75,Moussa Niakhaté,29,Lyon,DC,-,1K,€278M - €521M,Yes
-Senegal,68,81,Boulaye Dia,29,Salernitana,"AMC, ST",-,2K,€7M - €14M,Likely
+Senegal,75,81,Boulaye Dia,29,Salernitana,"AMC, ST",-,2K,€7M - €14M,Likely
 Senegal,71,79,Lamine Camara,21,AS Monaco,"DM, MC",-,7K,€63M - €118M,Yes
 Senegal,71,73,Habib Diarra,21,Sunderland,MC,-,3K,€25M - €47M,Likely
 Senegal,70,-,Yehvann Diouf,26,OGC Nice,GK,-,956,€8M - €15M,Likely
@@ -2720,19 +2721,19 @@ Sweden,60,61,Victor Edvardsen,29,Go Ahead,ST,06-2028,€4K,€4M - €8M,No
 Sweden,60,-,Malcolm Jeng,20,Reims,DC,06-2029,€7K,€5M - €9M,TBD
 DR Congo,77,77,Yoane Wissa,29,Newcastle,"AML, ST",06-2029,€116K,€46M - €86M,Likely
 DR Congo,72,-,Noah Sadiki,20,Sunderland,"DM, MC",06-2030,€52K,€34M - €65M,Yes
-DR Congo,73,75,Aaron Wan-Bissaka,28,West Ham,DR,06-2031,€139K,€31M - €58M,Yes
+DR Congo,75,75,Aaron Wan-Bissaka,28,West Ham,DR,06-2031,€139K,€31M - €58M,Yes
 DR Congo,73,73,Simon Banza,29,Al-Jazira,ST,06-2028,€26K,€5M - €9M,Yes
 DR Congo,67,73,Chancel Mbemba,31,Lille,DC,06-2026,€22K,€9M - €16M,Yes
 DR Congo,69,82,Ngal'Ayel Mukau,21,Lille,"DM, MC",06-2028,€10K,€26M - €48M,Yes
 DR Congo,66,70,Theo Bongonda,30,Spartak Moscow,AMR,06-2026,€35K,€6M - €12M,Yes
-DR Congo,65,75,Cédric Bakambu,34,Real Betis,ST,06-2026,€32K,€2M - €4M,No
-DR Congo,65,70,Silas,27,FSV Mainz,AMR,06-2026,€23K,€3M - €5M,Yes
+DR Congo,69,75,Cédric Bakambu,34,Real Betis,ST,06-2026,€32K,€2M - €4M,No
+DR Congo,68,70,Silas,27,FSV Mainz,AMR,06-2026,€23K,€3M - €5M,Yes
 DR Congo,64,74,Axel Tuanzebe,28,Burnley,"DR, DC",06-2026,€41K,€14M - €26M,Likely
 DR Congo,64,65,Afimico Pululu,26,Jagiellonia,ST,06-2026,€4K,€1M - €2M,No
 DR Congo,63,70,Jackson Muleka,26,Konyaspor,"AML, ST",06-2027,€23K,€7M - €14M,Likely
 DR Congo,63,68,Samuel Essende,27,Young Boys,ST,06-2029,€21K,€4M - €8M,Likely
-DR Congo,63,65,Charles Pickel,28,Espanyol,"DM, MC",06-2026,€16K,€4M - €8M,Yes
-DR Congo,63,71,M. Balikwisha,24,Celtic,AML,06-2029,€19K,€8M - €15M,Likely
+DR Congo,65,65,Charles Pickel,28,Espanyol,"DM, MC",06-2026,€16K,€4M - €8M,Yes
+DR Congo,63,71,Michel-Ange Balikwisha,24,Celtic,AML,06-2029,€19K,€8M - €15M,Likely
 DR Congo,62,65,Brian Cipenga,27,Castellón,"AMR, AML",06-2026,€15K,€4M - €7M,No
 DR Congo,62,70,Mario Stroeykens,21,Anderlecht,AMC,06-2028,€7K,€29M - €55M,TBD
 DR Congo,62,65,F. Kalala Mayele,31,Pyramids,ST,06-2026,€20K,€3M - €6M,No
