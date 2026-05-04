@@ -21,7 +21,7 @@ Mexico,24,MF,Brian Gutiérrez,,,22,5,1,Guadalajara
 Mexico,7,FW,Germán Berterame,,,27,9,2,Inter Miami
 Mexico,9,FW,Raúl Jiménez,,,34,123,44,Fulham
 Mexico,10,FW,Alexis Vega,,,28,49,7,Toluca
-Mexico,11,FW,Guillermo Martínez,,,31,9,2,UNAM
+Mexico,11,FW,Guillermo ,,,31,9,2,UNAM
 Mexico,16,FW,Julián Quiñones,,,29,20,2,Al-Qadsiah
 Mexico,25,FW,Roberto Alvarado,,,27,65,5,Guadalajara
 Mexico,26,FW,Armando González,,,23,6,1,Guadalajara
@@ -847,7 +847,7 @@ Uruguay,,DF,Joaquín Piquerez,,,27,19,0,Palmeiras
 Uruguay,5,MF,Manuel Ugarte,,,25,36,1,Manchester United
 Uruguay,6,MF,Juan Manuel Sanabria,,,26,5,1,Real Salt Lake
 Uruguay,7,MF,Nicolás de la Cruz,,,28,34,5,Flamengo
-Uruguay,8,MF,Emiliano Martínez,,,26,10,0,Palmeiras
+Uruguay,8,MF,Emiliano ,,,26,10,0,Palmeiras
 Uruguay,10,MF,Giorgian de Arrascaeta,,,31,60,13,Flamengo
 Uruguay,15,MF,Federico Valverde,vice-captain,,27,73,9,Real Madrid
 Uruguay,20,MF,Maximiliano Araújo,,,26,28,3,Sporting CP
@@ -965,8 +965,8 @@ Norway,9,FW,Erling Haaland,vice-captain,,25,49,55,Manchester City
 Norway,11,FW,Jørgen Strand Larsen,,,26,26,4,Crystal Palace
 Argentina,1,GK,Juan Musso,,,31,3,0,Atlético Madrid
 Argentina,12,GK,Gerónimo Rulli,,,33,7,0,Marseille
-Argentina,23,GK,Emiliano Martínez,,,33,59,0,Aston Villa
-Argentina,2,DF,Lucas Martínez Quarta,,,29,16,0,River Plate
+Argentina,23,GK,Emiliano ,,,33,59,0,Aston Villa
+Argentina,2,DF,Lucas  Quarta,,,29,16,0,River Plate
 Argentina,3,DF,Nicolás Tagliafico,,,33,75,1,Lyon
 Argentina,4,DF,Agustín Giay,,,22,1,0,Palmeiras
 Argentina,8,DF,Marcos Acuña,,,34,62,0,River Plate
@@ -989,6 +989,7 @@ Argentina,15,FW,Nicolás González,,,28,50,6,Atlético Madrid
 Argentina,21,FW,José Manuel López,,,25,3,0,Palmeiras
 Argentina,22,FW,Franco Mastantuono,,,18,4,0,Real Madrid
 Argentina,25,FW,Gianluca Prestianni,,,20,1,0,Benfica
+Argentina,2,DF,Lisandro Martínez,,,28,26,1,Man United
 Algeria,1,GK,Anthony Mandrea,,,29,21,0,Caen
 Algeria,23,GK,Luca Zidane,,,27,6,0,Granada
 Algeria,28,GK,Melvin Mastil,,,26,1,0,Stade Nyonnais
@@ -1266,7 +1267,7 @@ Panama,15,DF,Eric Davis,,,35,104,9,Plaza Amador
 Panama,16,DF,Andrés Andrade,,,27,47,1,LASK
 Panama,19,DF,Jorge Gutiérrez,,,27,17,0,Deportivo La Guaira
 Panama,23,DF,Amir Murillo,,,30,91,9,Beşiktaş
-Panama,6,MF,Cristian Martínez,,,29,63,2,Ironi Kiryat Shmona
+Panama,6,MF,Cristian ,,,29,63,2,Ironi Kiryat Shmona
 Panama,7,MF,José Luis Rodríguez,,,27,67,8,Juárez
 Panama,8,MF,Adalberto Carrasquilla,,,27,73,3,UNAM
 Panama,11,MF,Yoel Bárcenas,,,32,101,10,Mazatlán
