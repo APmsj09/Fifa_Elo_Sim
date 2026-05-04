@@ -543,14 +543,14 @@ Colombia,70,76,Luis Sinisterra,26,"AMR, AML",Bournemouth,06-2028,€75K,€26M -
 Colombia,71,71,Johan Mojica,33,"DL, WBL",Mallorca,06-2027,€39K,€278M - €521M,Likely
 Colombia,72,73,Jhon Arias,28,"AMR, AMC",Palmeiras,12-2029,€20K,€10M - €19M,Yes
 Colombia,70,70,Jhon Córdoba,32,ST,FC Krasnodar,06-2027,€77K,€278M - €521M,Likely
-Colombia,70,72,Juan David Cabal,24,DL,Juventus,06-2029,€43K,€12M - €23M,Likely
+Colombia,71,72,Juan David Cabal,24,DL,Juventus,06-2029,€43K,€12M - €23M,Likely
 Colombia,69,74,Jefferson Lerma,31,"DC, DM, MC",Crystal Palace,06-2026,€81K,€20M - €38M,Yes
 Colombia,69,69,Nelson Deossa,25,MC,Real Betis,06-2030,€43K,€15M - €28M,TBD
 Colombia,68,69,Willer Ditta,27,DC,Cruz Azul,06-2026,€20K,€7M - €14M,No
 Colombia,68,73,Kevin Mier,25,GK,Necaxa,12-2029,€18K,€5M - €10M,Likely
-Colombia,68,78,Yerry Mina,31,DC,Cagliari,06-2028,€37K,€8M - €15M,No
-Colombia,71,75,Jhon Durán,21,ST,Al-Nassr,06-2030,€347K,€35M - €65M,Yes
-Colombia,69,78,Duván Zapata,34,ST,Torino,06-2027,€96K,€278M - €521M,No
+Colombia,71,78,Yerry Mina,31,DC,Cagliari,06-2028,€37K,€8M - €15M,No
+Colombia,75,75,Jhon Durán,21,ST,Al-Nassr,06-2030,€347K,€35M - €65M,Yes
+Colombia,72,78,Duván Zapata,34,ST,Torino,06-2027,€96K,€278M - €521M,No
 Colombia,69,83,Yaser Asprilla,22,"AMR, AMC",Girona,06-2030,€20K,€70M - €130M,Yes
 Colombia,69,76,Gustavo Puerta,22,"DM, MC",R. Santander,06-2029,€24K,€16M - €30M,TBD
 Colombia,67,72,Santiago Arias,33,"DR, WBR",Independiente,12-2027,€9K,€278M - €521M,No
@@ -559,7 +559,7 @@ Colombia,67,68,Jorge Carrascal,27,AMC,Flamengo,12-2029,€15K,€10M - €18M,Li
 Colombia,67,88,James Rodríguez,34,AMC,Minnesota,06-2026,€26K,€278M - €521M,Yes
 Colombia,66,69,Deiver Machado,32,"DL, WBL",FC Nantes,06-2028,€18K,€278M - €521M,No
 Colombia,66,69,Cristian Arango,30,ST,San Jose,12-2027,€14K,€7M - €14M,No
-Colombia,66,75,Andrés Gómez,23,"AMR, AML",Vasco,01-2031,€12K,€7M - €13M,TBD
+Colombia,68,75,Andrés Gómez,23,"AMR, AML",Vasco,01-2031,€12K,€7M - €13M,TBD
 Colombia,66,69,Camilo Vargas,36,GK,Atlas,06-2026,€14K,€278M - €521M,Yes
 Colombia,66,68,R. Santos Borré,30,ST,Internacional,12-2028,€39K,€7M - €12M,Likely
 Colombia,65,65,Kevin Serna,27,AML,Fluminense,12-2028,€13K,€4M - €7M,No
@@ -581,7 +581,7 @@ Colombia,64,66,Kevin Castaño,25,"DM, MC",River Plate,12-2028,€13K,€6M - €
 Colombia,64,67,Devis Vásquez,27,GK,AS Roma,06-2027,€11K,€2M - €3M,No
 Colombia,64,67,Gabriel Fuentes,28,DL,Fluminense,08-2028,€11K,€4M - €8M,No
 Colombia,64,66,Jhohan Romaña,27,DC,San Lorenzo,12-2026,€7K,€6M - €11M,No
-Colombia,70,75,David Ospina,37,GK,Atlético Nacional,12-2026,€7K,200k,No
+Colombia,71,75,David Ospina,37,GK,Atlético Nacional,12-2026,€7K,200k,No
 Netherlands,90,93,Virgil van Dijk,34,DC,Liverpool,06-2027,€405K,€278M - €521M,Yes
 Netherlands,83,90,Frenkie de Jong,28,"DM, MC",Barcelona,06-2029,€240K,€74M - €139M,Yes
 Netherlands,79,83,Jurriën Timber,24,"DR, DL",Arsenal,06-2028,€127K,€75M - €140M,Yes
@@ -788,14 +788,14 @@ Germany,69,75,Diant Ramaj,24,GK,Dortmund,-,2K,€17M - €32M,No
 Germany,69,75,Paul Nebel,23,"MC, AMC",FSV Mainz,-,3K,€32M - €60M,No
 Germany,69,75,Niclas Füllkrug,32,ST,West Ham,-,3K,€21M - €40M,Likely
 Germany,69,80,Noah Atubolu,23,GK,SC Freiburg,-,5K,€49M - €92M,TBD
-Ecuador,87,93,Moisés Caicedo,24,"DM, MC",Chelsea,-,13K,€152M - €286M,Yes
-Ecuador,85,86,Willian Pacho,24,DC,PSG,-,7K,€134M - €251M,Yes
-Ecuador,80,84,Piero Hincapié,23,"DL, DC",Leverkusen,-,8K,€48M - €90M,Yes
+Ecuador,88,93,Moisés Caicedo,24,"DM, MC",Chelsea,-,13K,€152M - €286M,Yes
+Ecuador,86,86,Willian Pacho,24,DC,PSG,-,7K,€134M - €251M,Yes
+Ecuador,82,84,Piero Hincapié,23,"DL, DC",Leverkusen,-,8K,€48M - €90M,Yes
 Ecuador,75,75,Pervis Estupiñán,27,"DL, WBL",AC Milan,-,3K,€18M - €34M,Yes
 Ecuador,67,70,Robert Arboleda,34,DC,São Paulo,-,712,€278M - €521M,Likely
 Ecuador,66,73,Gonzalo Plata,25,AMR,Flamengo,-,2K,€6M - €12M,Likely
 Ecuador,66,75,Enner Valencia,36,ST,Pachuca,-,972,€278M - €521M,Yes
-Ecuador,70,70,Ángelo Preciado,27,"DR, WBR",Atl. Mineiro,-,2K,€5M - €10M,Likely
+Ecuador,71,71,Ángelo Preciado,27,"DR, WBR",Atl. Mineiro,-,2K,€5M - €10M,Likely
 Ecuador,65,65,Hernán Galíndez,38,GK,Huracán,-,423,€278M - €521M,Yes
 Ecuador,64,66,Alan Franco,27,DM,Atl. Mineiro,-,725,€5M - €9M,Likely
 Ecuador,64,65,Bryan Ramírez,25,DL,Cincinnati,-,769,€3M - €6M,TBD
@@ -813,7 +813,7 @@ Ecuador,63,73,Patrik Mercado,22,MC,Independiente,-,2K,€2M - €3M,No
 Ecuador,63,66,Carlos Gruezo,30,DM,Santos Laguna,-,474,€3M - €5M,Likely
 Ecuador,63,68,Félix Torres,28,DC,Corinthians,-,610,€4M - €7M,Yes
 Ecuador,65,69,Leonardo Campana,25,ST,New England,-,654,€4M - €7M,Likely
-Ecuador,69,74,Joel Ordóñez,21,DC,Club Brugge,-,4K,€19M - €36M,Likely
+Ecuador,71,74,Joel Ordóñez,21,DC,Club Brugge,-,4K,€19M - €36M,Likely
 Ecuador,62,69,José Hurtado,23,DR,Bragantino,-,503,€4M - €8M,TBD
 Ecuador,62,63,Leonel Quiñónez,32,DL,LDU Quito,-,232,€278M - €521M,No
 Ecuador,62,63,Miguel Parrales,29,ST,Barcelona SC,-,302,€1M - €2M,No
