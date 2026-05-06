@@ -118,7 +118,7 @@ def parse_formation_to_targets(fmt_str):
         '4-3-3':   {'GK': 1, 'DEF': 4, 'MID': 3, 'ATT': 3},
         '4-4-2':   {'GK': 1, 'DEF': 4, 'MID': 4, 'ATT': 2},
         '3-4-3':   {'GK': 1, 'DEF': 3, 'MID': 4, 'ATT': 3},
-        '3-4-2-1': {'GK': 1, 'DEF': 3, 'MID': 4, 'ATT': 3},
+        '3-4-2-1': {'GK': 1, 'DEF': 5, 'MID': 2, 'ATT': 3},
         '3-5-2':   {'GK': 1, 'DEF': 3, 'MID': 5, 'ATT': 2},
         '4-1-4-1': {'GK': 1, 'DEF': 4, 'MID': 5, 'ATT': 1},
         '5-3-2':   {'GK': 1, 'DEF': 5, 'MID': 3, 'ATT': 2},
@@ -1019,11 +1019,11 @@ def _initialize_engine_impl():
         if t in recent_residuals and recent_residuals[t]:
             num = sum(w * r for w, r in recent_residuals[t])
             den = sum(w for w, r in recent_residuals[t])
-            s['volatility'] = np.clip(num / den, 0.10, 0.40) 
+            s['volatility'] = np.clip(num / den, 0.05, 0.18)
         else:
             s['volatility'] = 0.15
         
-        if t in TEAM_HISTORY and len(TEAM_HISTORY[t]['elo']) > 10:
+        if t in TEAM_HISTORY and len(TEAM_HISTORY[t]['elo']) >= 10:
             s['momentum'] = (TEAM_HISTORY[t]['elo'][-1] - TEAM_HISTORY[t]['elo'][-10]) / 100
         else:
             s['momentum'] = 0.0        
@@ -1114,8 +1114,8 @@ def engineer_team_signatures(results_df):
             opp_ga = TEAM_STATS.get(opp, {}).get('ga_avg', global_avg)
             opp_gf = TEAM_STATS.get(opp, {}).get('gf_avg', global_avg)
             
-            off_res.append(scored / (opp_ga + 0.5))
-            def_res.append(conceded / (opp_gf + 0.5))
+            off_res.append(scored / max(opp_ga, 0.4))
+            def_res.append(conceded / max(opp_gf, 0.4))
             pace_res.append((scored + conceded) / (global_avg * 2))
 
         avg_off = np.mean(off_res)
@@ -1131,7 +1131,7 @@ def engineer_team_signatures(results_df):
         TEAM_PROFILES[team] = style
         
         control_index = np.clip((stats.get('elo', 1500) - 1000) / 1000.0, 0.2, 0.95)
-        openness_index = np.clip(avg_pace * 0.45, 0.2, 0.95)
+        openness_index = np.clip(avg_pace * 0.50, 0.2, 0.95)
         efficiency_index = np.clip((avg_off / (avg_def + 0.1)) * 0.35, 0.2, 0.95)
 
         ADVANCED_TEAM_DATA[team] = {
@@ -1152,7 +1152,7 @@ def precompute_match_data():
     TEAM_PRECOMPUTE = {}
     for t, s in TEAM_STATS.items():
         clean_name = str(t).lower().strip()
-        talent = TEAM_TALENT.get(clean_name, {'talent_weight': 1.0, 'talent_score': 72.0})
+        talent = TEAM_TALENT.get(clean_name, {'talent_weight': 0.9, 'talent_score': 64.0})
         
         base_elo = s.get('elo', 1400)
         
@@ -1205,11 +1205,15 @@ def sim_match(t1, t2, knockout=False):
     
     # 3. Elo Probability Distribution
     # Increase the divisor strictly for knockouts to simulate tournament parity
-    active_divisor = 620 if knockout else 500
+    active_divisor = 600 if knockout else 500
     win_prob = 1 / (10**(-dr/active_divisor) + 1)
     
-    elo_lam1 = total_match_goals * win_prob
-    elo_lam2 = total_match_goals * (1.0 - win_prob)
+    # Convert win probability into an odds ratio, capping to prevent extreme math errors
+    ratio = max(0.05, min(20.0, win_prob / max(0.001, (1.0 - win_prob))))
+    
+    # Scale expected goals by the square root of the ratio to keep things realistic
+    elo_lam1 = (total_match_goals / 2) * (ratio ** 0.5)
+    elo_lam2 = (total_match_goals / 2) / (ratio ** 0.5)
 
     # 4. Tactical Stat Flavor
     stat_lam1 = (total_match_goals / 2) * p1['xg_coeff'] * p2['xga_coeff']
@@ -1250,7 +1254,7 @@ def sim_match(t1, t2, knockout=False):
     
     # Penalties (Pressure + Skill + Luck)
     # Reduced the Elo advantage to make shootouts more of a 50/50 lottery
-    win_chance = 0.5 + (dr / 6000.0) + ((p1['p_b'] - p2['p_b']) * 0.5)
+    win_chance = 0.5 + (dr / 2000.0) + ((p1['composure'] - p2['composure']) * 0.15)
     winner = t1 if random.random() < np.clip(win_chance, 0.40, 0.60) else t2
     return winner, g1, g2, 'pks'
 
@@ -1292,7 +1296,7 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
         teams_shuffled = teams.copy()
         np.random.shuffle(teams_shuffled)
         
-        table_stats = {t: {'p':0, 'gd':0, 'gf':0, 'w':0, 'd':0, 'l':0} for t in teams_shuffled}
+        table_stats = {t: {'p':0, 'gd':0, 'gf':0, 'ga':0, 'w':0, 'd':0, 'l':0} for t in teams_shuffled}
         if not fast_mode: group_matches_log[grp] =[]
 
         for i in range(len(teams_shuffled)):
@@ -1303,8 +1307,13 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
                 if not fast_mode:
                     group_matches_log[grp].append({'t1': t1, 't2': t2, 'g1': g1, 'g2': g2})
                 
-                table_stats[t1]['gf'] += g1; table_stats[t1]['gd'] += (g1-g2)
-                table_stats[t2]['gf'] += g2; table_stats[t2]['gd'] += (g2-g1)
+                table_stats[t1]['gf'] += g1
+                table_stats[t1]['ga'] += g2  # ADD THIS
+                table_stats[t1]['gd'] += (g1-g2)
+                
+                table_stats[t2]['gf'] += g2
+                table_stats[t2]['ga'] += g1  # ADD THIS
+                table_stats[t2]['gd'] += (g2-g1)
                 
                 if g1 > g2: 
                     table_stats[t1]['p'] += 3

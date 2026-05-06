@@ -487,7 +487,7 @@ async def run_bulk_sim(event):
                     team_stats[t]['grp_pts'] += row['p']
                     group_mapping[grp]['teams'][t] = True
                     goals_tracker[t] += row['gf']
-                    ga_tracker[t] += (row['gf'] - row['gd'])
+                    ga_tracker[t] += row['ga']
                     if i == 0: group_mapping[grp]['total_elo'] += sim.TEAM_STATS.get(t, {}).get('elo', 1200)
             
             for grp, matches in res['group_matches'].items():
