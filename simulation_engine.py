@@ -1163,7 +1163,7 @@ def precompute_match_data():
         talent_elo = 1000 + (raw_rating - 60) * 40
         
         # 2. Apply the exact 55% / 45% mathematical blend
-        blended_elo = (base_elo * 0.55) + (talent_elo * 0.45)
+        blended_elo = (base_elo * 0.57) + (talent_elo * 0.43)
 
         pen_skill = s.get('pen_pct', 5) / 100.0 
         experience = np.clip(s.get('ko_exp_weighted', 0) / 20.0, 0, 0.1)
@@ -1199,13 +1199,13 @@ def sim_match(t1, t2, knockout=False):
     pace = (p1['pace'] + p2['pace']) / 2
     # Knockout matches are tighter -> fewer goals = more draws = better underdog odds
     intensity = 0.87 if knockout else 1.0 
-    total_match_goals = 2.82 * pace * intensity 
+    total_match_goals = 2.99 * pace * intensity 
     
     dr = p1['elo'] - p2['elo']
     
     # 3. Elo Probability Distribution
     # Increase the divisor strictly for knockouts to simulate tournament parity
-    active_divisor = 600 if knockout else 500
+    active_divisor = 605 if knockout else 500
     win_prob = 1 / (10**(-dr/active_divisor) + 1)
     
     # Convert win probability into an odds ratio, capping to prevent extreme math errors
@@ -1231,7 +1231,7 @@ def sim_match(t1, t2, knockout=False):
     def roll(l, v, c, is_ko):
         if is_ko:
             # Underdogs keep high variance, top teams get a slightly smaller composure buff
-            active_vol = v * (1.25 - (c * 0.35))
+            active_vol = v * (1.35 - (c * 0.35))
         else:
             active_vol = v
         if active_vol > 0:
