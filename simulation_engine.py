@@ -282,10 +282,17 @@ def load_data():
     import unicodedata
     try:
         def safe_read(file):
+            # Only load columns required for simulation logic
+            cols = None
+            if file == "results.csv":
+                cols = ['date', 'home_team', 'away_team', 'home_score', 'away_score', 'tournament', 'neutral']
+            elif file == "goalscorers.csv":
+                cols = ['date', 'team', 'penalty', 'minute']
+            
             try:
-                df = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip')
+                df = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip', usecols=cols)
             except:
-                df = pd.read_csv(file, encoding='latin1', on_bad_lines='skip')
+                df = pd.read_csv(file, encoding='latin1', on_bad_lines='skip', usecols=cols)
             
             for col in df.select_dtypes(include=['object']):
                 if 'team' in col.lower() or 'nation' in col.lower():

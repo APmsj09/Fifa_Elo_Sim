@@ -66,7 +66,7 @@ async def initialize_app():
         apply_saved_theme()
         sim.DATA_DIR = "."
         
-        status_el.innerHTML = "Step 1/5: Loading CSV Files (Check filenames if stuck here)..."
+        status_el.innerHTML = "Step 1/5: Loading CSV Files"
         await asyncio.sleep(0.1)
         stats, profiles, avg_goals, results_df = sim.initialize_engine()
         sim.TEAM_STATS = stats
@@ -85,9 +85,18 @@ async def initialize_app():
         await asyncio.sleep(0.1)
         sim.precompute_match_data()
         
-        status_el.innerHTML = "Step 5/5: Setting Up Interface..."
-        await asyncio.sleep(0.1)
+        status_el.innerHTML = "Step 5/5: Finalizing..."
+        # Skip heavy UI building until after the loading screen is hidden
         setup_interactions()
+        
+        # Hide loading screen IMMEDIATELY after engine logic is ready
+        if loading_screen:
+            loading_screen.style.display = "none"
+        js.document.getElementById("main-dashboard").style.display = "grid"
+        
+        # Build the secondary UI shells in the background
+        await asyncio.sleep(0.1)
+        build_dashboard_shell()
         
         cb = js.document.getElementById("hist-filter-wc")
         is_wc = cb.checked if cb else True
@@ -118,7 +127,7 @@ async def initialize_app():
     js.document.getElementById("main-dashboard").style.display = "grid"
 
 def switch_tab(tab_id):
-    for t in ["tab-single", "tab-bulk", "tab-data", "tab-history", "tab-analysis", "tab-matchup"]:
+    for t in ["tab-single", "tab-bulk", "tab-data", "tab-history", "tab-analysis", "tab-matchup", "tab-predictor"]:
         el = js.document.getElementById(t)
         if el: el.style.display = "none"
         
@@ -144,6 +153,17 @@ def setup_interactions():
     bind_click("btn-tab-analysis", lambda e: switch_tab("tab-analysis"))
     bind_click("btn-tab-matchup", lambda e: switch_tab("tab-matchup"))
     bind_click("btn-run-matchup", run_matchup_analysis)
+    
+    # --- Predictor Setup ---
+    bind_click("btn-tab-predictor", lambda e: open_predictor_tab())
+    bind_click("btn-print-bracket", lambda e: js.window.print())
+    bind_click("btn-reset-bracket", reset_predictor)
+    bind_click("btn-back-to-groups", lambda e: show_predictor_step('groups'))
+
+    js.window.make_pick = create_proxy(make_pick)
+    js.window.move_team_in_group = create_proxy(move_team_in_group)
+    js.window.toggle_third_place = create_proxy(toggle_third_place)
+    js.window.generate_predictor_bracket = create_proxy(generate_predictor_bracket)
     
     bind_click("dark-mode-btn", toggle_dark_mode)
     
@@ -211,7 +231,243 @@ def setup_interactions():
             el = el.parentElement
 
     bind_click("groups-container", handle_group_grid_click)
+
+# =============================================================================
+# --- INTERACTIVE PREDICTOR LOGIC ---
+# =============================================================================
+PREDICTOR_STATE = {
+    'step': 'groups',
+    'groups': {},
+    'advancing_thirds': []
+}
+USER_PICKS = {}
+BASE_R32 = []
+PREDICTED_BRACKET = []
+
+def open_predictor_tab():
+    global LAST_SIM_RESULTS
+    switch_tab("tab-predictor")
     
+    if not PREDICTOR_STATE['groups']:
+        # If no simulation exists, run a silent fast one to generate groups
+        if not LAST_SIM_RESULTS or "groups_data" not in LAST_SIM_RESULTS:
+            LAST_SIM_RESULTS = sim.run_simulation(fast_mode=True)
+        
+        # Populate Group Standings
+        for grp, teams in LAST_SIM_RESULTS["groups_data"].items():
+            PREDICTOR_STATE['groups'][grp] = [t['team'] for t in teams]
+        
+        # Automatically select the statistically best 8 third-place teams
+        thirds = []
+        for grp, teams in LAST_SIM_RESULTS["groups_data"].items():
+            t3 = teams[2]
+            thirds.append({'grp': grp, 'pts': t3['p'], 'gd': t3['gd'], 'gf': t3['gf']})
+        thirds.sort(key=lambda x: (x['pts'], x['gd'], x['gf']), reverse=True)
+        PREDICTOR_STATE['advancing_thirds'] = [x['grp'] for x in thirds[:8]]
+        
+    show_predictor_step(PREDICTOR_STATE['step'])
+
+def show_predictor_step(step):
+    PREDICTOR_STATE['step'] = step
+    if step == 'groups':
+        js.document.getElementById("predictor-groups-section").style.display = "block"
+        js.document.getElementById("interactive-bracket-container").style.display = "none"
+        js.document.getElementById("btn-back-to-groups").style.display = "none"
+        js.document.getElementById("btn-print-bracket").style.display = "none"
+        render_predictor_groups()
+    else:
+        js.document.getElementById("predictor-groups-section").style.display = "none"
+        js.document.getElementById("interactive-bracket-container").style.display = "flex"
+        js.document.getElementById("btn-back-to-groups").style.display = "inline-block"
+        js.document.getElementById("btn-print-bracket").style.display = "inline-block"
+        build_predicted_bracket()
+        render_interactive_bracket()
+
+def reset_predictor(event=None):
+    global USER_PICKS, BASE_R32, PREDICTOR_STATE
+    USER_PICKS = {}
+    BASE_R32 = []
+    PREDICTOR_STATE = {'step': 'groups', 'groups': {}, 'advancing_thirds': []}
+    open_predictor_tab()
+
+def move_team_in_group(grp, idx, direction):
+    teams = PREDICTOR_STATE['groups'][grp]
+    if direction == -1 and idx > 0:
+        teams[idx], teams[idx-1] = teams[idx-1], teams[idx]
+    elif direction == 1 and idx < 3:
+        teams[idx], teams[idx+1] = teams[idx+1], teams[idx]
+    render_predictor_groups()
+
+def toggle_third_place(grp):
+    thirds = PREDICTOR_STATE['advancing_thirds']
+    if grp in thirds: thirds.remove(grp)
+    elif len(thirds) < 8: thirds.append(grp)
+    render_predictor_groups()
+
+def render_predictor_groups():
+    html = '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:15px; margin-bottom:30px;">'
+    for grp in sorted(PREDICTOR_STATE['groups'].keys()):
+        teams = PREDICTOR_STATE['groups'][grp]
+        html += f'<div class="pred-group-card"><h3 style="margin:0 0 10px 0; color:var(--accent-blue);">Group {grp}</h3>'
+        
+        for i, t in enumerate(teams):
+            name = sim.PRETTY_NAMES.get(t, t.title())
+            up_btn = f'<button class="pred-btn" onclick="window.move_team_in_group(\'{grp}\', {i}, -1)">▲</button>' if i > 0 else '<span style="width:28px; display:inline-block;"></span>'
+            dn_btn = f'<button class="pred-btn" onclick="window.move_team_in_group(\'{grp}\', {i}, 1)">▼</button>' if i < 3 else '<span style="width:28px; display:inline-block;"></span>'
+            
+            if i < 2: color, weight = "var(--accent-green)", "bold"
+            elif i == 2: color, weight = "var(--accent-gold)", "normal"
+            else: color, weight = "var(--text-light)", "normal"
+                
+            html += f'''
+            <div class="pred-team-row">
+                <span style="color:{color}; font-weight:{weight};"><b>{i+1}.</b> {name}</span>
+                <div style="display:flex; gap:4px;">{up_btn}{dn_btn}</div>
+            </div>
+            '''
+        html += '</div>'
+    html += '</div>'
+    
+    # 8 Third Place Teams Selection
+    html += '<div class="dashboard-card">'
+    sel_count = len(PREDICTOR_STATE['advancing_thirds'])
+    color_class = "var(--accent-green)" if sel_count == 8 else "var(--accent-red)"
+    html += f'<h3 style="margin-top:0;">Select 8 Third-Place Teams <span style="color:{color_class};">({sel_count}/8 Selected)</span></h3>'
+    html += '<div style="display:flex; flex-wrap:wrap; gap:10px;">'
+    
+    for grp in sorted(PREDICTOR_STATE['groups'].keys()):
+        t3 = PREDICTOR_STATE['groups'][grp][2]
+        name = sim.PRETTY_NAMES.get(t3, t3.title())
+        is_selected = grp in PREDICTOR_STATE['advancing_thirds']
+        is_disabled = not is_selected and sel_count >= 8
+        c_class = "selected" if is_selected else ("disabled" if is_disabled else "")
+        click_handler = f'onclick="window.toggle_third_place(\'{grp}\')"' if not is_disabled or is_selected else ''
+        html += f'<button class="pred-third-btn {c_class}" {click_handler}>Grp {grp}: {name}</button>'
+    html += '</div>'
+    
+    btn_disabled = "disabled style='opacity:0.5; cursor:not-allowed;'" if sel_count != 8 else ""
+    html += f'''
+    <div style="margin-top:25px; text-align:right;">
+        <button class="action-btn" style="background:var(--accent-blue); width:auto; padding:12px 30px;" onclick="window.generate_predictor_bracket()" {btn_disabled}>Proceed to Knockouts ➡️</button>
+    </div>
+    </div>
+    '''
+    js.document.getElementById("predictor-groups-section").innerHTML = html
+
+def generate_predictor_bracket():
+    if len(PREDICTOR_STATE['advancing_thirds']) != 8: return
+        
+    advancing_letters = sorted(PREDICTOR_STATE['advancing_thirds'])
+    lookup_key = "".join(advancing_letters)
+    
+    t3_mapping = {}
+    third_place_teams = {grp: PREDICTOR_STATE['groups'][grp][2] for grp in PREDICTOR_STATE['advancing_thirds']}
+    
+    if lookup_key in sim.R32_LOOKUP:
+        assignments = sim.R32_LOOKUP[lookup_key]
+        available_3rds = list(third_place_teams.values())
+        for winner_letter, target_group in assignments.items():
+            if target_group in third_place_teams:
+                t_assign = third_place_teams[target_group]
+                t3_mapping[winner_letter] = t_assign
+                if t_assign in available_3rds: available_3rds.remove(t_assign)
+            else:
+                t3_mapping[winner_letter] = available_3rds.pop(0) if available_3rds else list(third_place_teams.values())[0]
+    else:
+        target_winners = ['A', 'B', 'D', 'E', 'G', 'I', 'K', 'L']
+        for i, winner_letter in enumerate(target_winners):
+            t3_mapping[winner_letter] = list(third_place_teams.values())[i]
+            
+    def get_t(grp, pos): return PREDICTOR_STATE['groups'][grp][pos]
+        
+    bracket_matchups = [
+        (get_t('A', 0), t3_mapping['A']),    (get_t('C', 1), get_t('F', 1)),      
+        (get_t('E', 0), t3_mapping['E']),    (get_t('J', 0), get_t('G', 1)),     
+        (get_t('I', 0), t3_mapping['I']),    (get_t('A', 1), get_t('D', 1)),      
+        (get_t('L', 0), t3_mapping['L']),    (get_t('H', 0), get_t('K', 1)),      
+        (get_t('B', 0), t3_mapping['B']),    (get_t('E', 1), get_t('H', 1)),      
+        (get_t('G', 0), t3_mapping['G']),    (get_t('B', 1), get_t('I', 1)),      
+        (get_t('K', 0), t3_mapping['K']),    (get_t('C', 0), get_t('L', 1)),      
+        (get_t('D', 0), t3_mapping['D']),    (get_t('F', 0), get_t('J', 1)),      
+    ]
+    
+    global BASE_R32, USER_PICKS, PREDICTED_BRACKET
+    BASE_R32 = [{'t1': t1, 't2': t2} for t1, t2 in bracket_matchups]
+    USER_PICKS = {} # Reset knockout picks since bracket flow changed
+    PREDICTED_BRACKET = []
+    show_predictor_step('bracket')
+
+def make_pick(round_idx, match_idx, team):
+    global USER_PICKS
+    if not team or team == "None" or team == "TBD": return
+    USER_PICKS[f"{round_idx}_{match_idx}"] = team
+    build_predicted_bracket()
+    render_interactive_bracket()
+
+def build_predicted_bracket():
+    global PREDICTED_BRACKET
+    PREDICTED_BRACKET = []
+    if not BASE_R32: return
+    
+    r32_matches = []
+    for i, m in enumerate(BASE_R32):
+        winner = USER_PICKS.get(f"0_{i}")
+        r32_matches.append({'t1': m['t1'], 't2': m['t2'], 'winner': winner})
+    PREDICTED_BRACKET.append({'round': 'Round of 32', 'matches': r32_matches})
+    
+    rounds_config = [('Round of 16', 8), ('Quarter-finals', 4), ('Semi-finals', 2), ('Final', 1)]
+    prev_matches = r32_matches
+    round_idx = 1
+    
+    for r_name, num_matches in rounds_config:
+        current_matches = []
+        for i in range(num_matches):
+            t1 = prev_matches[i*2]['winner']
+            t2 = prev_matches[i*2 + 1]['winner']
+            winner = USER_PICKS.get(f"{round_idx}_{i}")
+            
+            if winner and winner not in [t1, t2]:
+                winner = None
+                if f"{round_idx}_{i}" in USER_PICKS: del USER_PICKS[f"{round_idx}_{i}"]
+            
+            current_matches.append({'t1': t1, 't2': t2, 'winner': winner})
+        PREDICTED_BRACKET.append({'round': r_name, 'matches': current_matches})
+        prev_matches = current_matches
+        round_idx += 1
+
+def render_interactive_bracket():
+    html = '<div id="bracket-container" style="display:flex; padding-bottom:40px;">'
+    for r_idx, r_data in enumerate(PREDICTED_BRACKET):
+        html += f'<div class="bracket-round"><div class="round-title">{r_data["round"]}</div>'
+        for m_idx, m in enumerate(r_data['matches']):
+            t1, t2, winner = m['t1'], m['t2'], m['winner']
+            name1 = sim.PRETTY_NAMES.get(t1, str(t1).title()) if t1 else "TBD"
+            name2 = sim.PRETTY_NAMES.get(t2, str(t2).title()) if t2 else "TBD"
+            
+            c1 = "selected" if winner == t1 and t1 else ("eliminated" if winner and winner != t1 else "")
+            c2 = "selected" if winner == t2 and t2 else ("eliminated" if winner and winner != t2 else "")
+            
+            click1 = f'onclick="window.make_pick({r_idx}, {m_idx}, \'{t1}\')"' if t1 else ""
+            click2 = f'onclick="window.make_pick({r_idx}, {m_idx}, \'{t2}\')"' if t2 else ""
+            
+            html += f'''
+            <div class="predict-matchup">
+                <div class="predict-team {c1}" {click1}><span>{name1}</span></div>
+                <div class="predict-team {c2}" {click2}><span>{name2}</span></div>
+            </div>
+            '''
+        if r_data["round"] == "Final" and r_data['matches'][0]['winner']:
+            champ_name = sim.PRETTY_NAMES.get(r_data['matches'][0]['winner'], r_data['matches'][0]['winner'].title())
+            html += f'''
+            <div style="margin-top:30px; padding:20px; background:var(--card-bg); border:2px solid var(--accent-gold); border-radius:12px; text-align:center; box-shadow:var(--shadow-md);">
+                <div style="font-size:0.8em; color:var(--text-light); text-transform:uppercase; font-weight:700;">World Champion</div>
+                <div style="font-size:1.4em; font-weight:900; color:var(--text-main); margin-top:5px;">🏆 {champ_name}</div>
+            </div>
+            '''
+        html += "</div>"
+    html += "</div>"
+    js.document.getElementById("interactive-bracket-container").innerHTML = html
+
 # =============================================================================
 # --- 2. SINGLE SIMULATION ---
 # =============================================================================

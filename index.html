@@ -952,6 +952,214 @@
             height: auto !important;
             max-height: 75vh;
         }
+
+        /* --- 10. INTERACTIVE PREDICTOR & PRINT STYLES --- */
+        .predict-matchup {
+            background: var(--card-bg);
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            color: var(--text-main);
+        }
+
+        .predict-team {
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.85em;
+        }
+
+        .predict-team:hover {
+            background: #f8fafc;
+        }
+
+        .predict-team.selected {
+            background: #eff6ff;
+            font-weight: bold;
+            color: var(--accent-blue);
+            border-left: 4px solid var(--accent-blue);
+        }
+
+        .predict-team.eliminated {
+            opacity: 0.5;
+            text-decoration: line-through;
+        }
+
+        .predict-team:last-child {
+            border-bottom: none;
+        }
+
+        .pred-group-card {
+            background: var(--card-bg);
+            border: 1px solid var(--sidebar-border);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .pred-team-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.9em;
+        }
+
+        .pred-team-row:last-child {
+            border-bottom: none;
+        }
+
+        .pred-btn {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            color: var(--text-main);
+            font-size: 0.8em;
+            margin-left: 4px;
+        }
+
+        .pred-btn:hover {
+            background: #e2e8f0;
+        }
+
+        .pred-third-btn {
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid var(--sidebar-border);
+            background: var(--card-bg);
+            cursor: pointer;
+            font-size: 0.9em;
+            color: var(--text-main);
+            transition: all 0.2s;
+            flex: 1 1 150px;
+            text-align: center;
+        }
+
+        .pred-third-btn.selected {
+            background: var(--accent-green);
+            color: white;
+            border-color: var(--accent-green);
+            font-weight: bold;
+        }
+
+        .pred-third-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        :root.dark-mode .predict-matchup {
+            border-color: #334155;
+        }
+
+        :root.dark-mode .predict-team {
+            border-color: #334155;
+        }
+
+        :root.dark-mode .predict-team:hover {
+            background: #1e293b;
+        }
+
+        :root.dark-mode .predict-team.selected {
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+        }
+
+        :root.dark-mode .pred-team-row {
+            border-color: #334155;
+            color: #e2e8f0;
+        }
+
+        :root.dark-mode .pred-btn {
+            background: #1e293b;
+            border-color: #475569;
+            color: #e2e8f0;
+        }
+
+        :root.dark-mode .pred-btn:hover {
+            background: #334155;
+        }
+
+        :root.dark-mode .pred-third-btn {
+            background: #1e293b;
+            color: #e2e8f0;
+            border-color: #475569;
+        }
+
+        :root.dark-mode .pred-third-btn.selected {
+            background: #10b981;
+            border-color: #10b981;
+            color: white;
+        }
+
+        @media print {
+            @page {
+                size: landscape;
+                margin: 1cm;
+            }
+
+            body * {
+                visibility: hidden;
+            }
+
+            #tab-predictor,
+            #tab-predictor * {
+                visibility: visible;
+            }
+
+            #tab-predictor {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                padding: 0;
+            }
+
+            .sidebar-panel,
+            #controls-area,
+            .action-btn,
+            #dark-mode-btn,
+            .sub-tab-container,
+            .no-print {
+                display: none !important;
+            }
+
+            #predictor-header {
+                display: none !important;
+            }
+
+            /* Hide header during print to save space */
+            .predict-matchup {
+                break-inside: avoid;
+                border: 1px solid #ccc !important;
+                box-shadow: none !important;
+            }
+
+            .predict-team.selected {
+                font-weight: bold;
+                color: black;
+                border-left: 4px solid black;
+            }
+
+            .predict-team.eliminated {
+                color: #999;
+            }
+
+            body {
+                background: white !important;
+                color: black !important;
+            }
+
+            #interactive-bracket-container {
+                overflow: visible !important;
+                display: flex !important;
+            }
+        }
     </style>
 </head>
 
@@ -975,6 +1183,8 @@
             <button class="nav-btn" id="btn-tab-data"><span>📈</span> Global Rankings</button>
             <button class="nav-btn" id="btn-tab-history"><span>🔍</span> Team Analysis</button>
             <button class="nav-btn" id="btn-tab-matchup"><span>⚔️</span> H2H Matchup</button>
+            <button class="nav-btn" id="btn-tab-predictor" style="color: var(--accent-gold);"><span>🖍️</span> My
+                Bracket Picks</button>
 
             <div class="nav-section-title" style="margin-top: 20px;">Testing</div>
             <button class="nav-btn" id="btn-tab-analysis"
@@ -1109,6 +1319,33 @@
 
             </div> <!-- NEW: Added missing closing div for the tab-matchup -->
 
+            <!-- PREDICTOR TAB -->
+            <div id="tab-predictor" class="tab-content">
+                <div class="dashboard-card" id="predictor-header"
+                    style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px; margin-bottom: 20px;">
+                    <div>
+                        <h2 style="margin:0 0 5px 0;">My Bracket Predictions</h2>
+                        <p style="margin:0; color:var(--text-light); font-size:0.9em;">Predict the group standings, then
+                            pick the knockout winners.</p>
+                    </div>
+                    <div style="display:flex; gap:10px;" class="no-print">
+                        <button id="btn-back-to-groups" class="action-btn"
+                            style="background:var(--sidebar-border); color:var(--text-main); margin:0; width:auto; padding:10px 20px; display:none;">⬅️
+                            Back to Groups</button>
+                        <button id="btn-reset-bracket" class="action-btn"
+                            style="background:var(--sidebar-border); color:var(--text-main); margin:0; width:auto; padding:10px 20px;">🔄
+                            Reset Picks</button>
+                        <button id="btn-print-bracket" class="action-btn"
+                            style="background:var(--accent-blue); margin:0; width:auto; padding:10px 20px; display:none;">🖨️
+                            Save as PDF</button>
+                    </div>
+                </div>
+
+                <div id="predictor-groups-section"></div>
+                <div id="interactive-bracket-container" style="overflow-x:auto; padding-bottom: 20px; display:none;">
+                </div>
+            </div>
+
             <!-- ANALYSIS TAB -->
             <div id="tab-analysis" class="tab-content">
                 <div style="max-width: 950px; margin: 0 auto;">
@@ -1159,8 +1396,8 @@
                         </div>
                         <div id="validation-charts" style="min-height:200px;"></div>
                     </div>
-                </div> <!-- ADD THIS MISSING DIV -->
-            </div> <!-- ADD THIS MISSING DIV -->
+                </div>
+            </div>
         </main>
     </div>
 
@@ -1175,7 +1412,7 @@
     </div>
 
     <py-config>
-        packages = ["pandas", "numpy", "matplotlib", "mplcursors"]
+        packages = ["pandas", "numpy", "matplotlib"]
 
         [[fetch]]
         files = ["main.py", "simulation_engine.py", "analysis.py"]
