@@ -248,21 +248,27 @@ def open_predictor_tab():
     switch_tab("tab-predictor")
     
     if not PREDICTOR_STATE['groups']:
-        # If no simulation exists, run a silent fast one to generate groups
-        if not LAST_SIM_RESULTS or "groups_data" not in LAST_SIM_RESULTS:
-            LAST_SIM_RESULTS = sim.run_simulation(fast_mode=True)
+        # 1. Hardcoded 2026 Base Groups
+        base_groups = {
+            'A': ['mexico', 'south africa', 'south korea', 'czech republic'],
+            'B': ['canada', 'switzerland', 'qatar', 'bosnia and herzegovina'],
+            'C': ['brazil', 'morocco', 'haiti', 'scotland'],
+            'D': ['united states', 'paraguay', 'australia', 'turkey'],
+            'E': ['germany', 'curacao', 'ivory coast', 'ecuador'],
+            'F': ['netherlands', 'japan', 'tunisia', 'sweden'],
+            'G': ['belgium', 'egypt', 'iran', 'new zealand'],
+            'H': ['spain', 'cape verde', 'saudi arabia', 'uruguay'],
+            'I': ['france', 'senegal', 'norway', 'iraq'],
+            'J': ['argentina', 'algeria', 'austria', 'jordan'],
+            'K': ['portugal', 'uzbekistan', 'colombia', 'dr congo'],
+            'L': ['england', 'croatia', 'ghana', 'panama']
+        }
         
-        # Populate Group Standings
-        for grp, teams in LAST_SIM_RESULTS["groups_data"].items():
-            PREDICTOR_STATE['groups'][grp] = [t['team'] for t in teams]
+        # 2. Populate the UI state (ensuring names are slugified to match the engine)
+        PREDICTOR_STATE['groups'] = {grp: [sim.get_slug(t) for t in teams] for grp, teams in base_groups.items()}
         
-        # Automatically select the statistically best 8 third-place teams
-        thirds = []
-        for grp, teams in LAST_SIM_RESULTS["groups_data"].items():
-            t3 = teams[2]
-            thirds.append({'grp': grp, 'pts': t3['p'], 'gd': t3['gd'], 'gf': t3['gf']})
-        thirds.sort(key=lambda x: (x['pts'], x['gd'], x['gf']), reverse=True)
-        PREDICTOR_STATE['advancing_thirds'] = [x['grp'] for x in thirds[:8]]
+        # 3. Automatically select the first 8 groups as the default advancing 3rd-place teams
+        PREDICTOR_STATE['advancing_thirds'] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
         
     show_predictor_step(PREDICTOR_STATE['step'])
 
