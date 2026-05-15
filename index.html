@@ -1100,7 +1100,7 @@
         @media print {
             @page {
                 size: landscape;
-                margin: 1cm;
+                margin: 0.5cm;
             }
 
             body * {
@@ -1133,21 +1133,39 @@
                 display: none !important;
             }
 
-            /* Hide header during print to save space */
             .predict-matchup {
                 break-inside: avoid;
                 border: 1px solid #ccc !important;
                 box-shadow: none !important;
+                margin-bottom: 4px !important;
+            }
+
+            .predict-team {
+                padding: 3px 6px !important;
+                font-size: 0.75em !important;
             }
 
             .predict-team.selected {
                 font-weight: bold;
-                color: black;
-                border-left: 4px solid black;
+                color: black !important;
+                border-left: 3px solid black !important;
+                background: #f0f0f0 !important;
             }
 
             .predict-team.eliminated {
-                color: #999;
+                color: #999 !important;
+            }
+
+            .round-title {
+                margin-bottom: 5px !important;
+                font-size: 0.7em !important;
+            }
+
+            .bracket-round {
+                min-width: 140px !important;
+                max-width: 180px !important;
+                gap: 2px;
+                justify-content: center;
             }
 
             body {
@@ -1158,6 +1176,14 @@
             #interactive-bracket-container {
                 overflow: visible !important;
                 display: flex !important;
+                gap: 10px;
+                padding-bottom: 0 !important;
+            }
+            
+            /* Make the winner display more compact */
+            #interactive-bracket-container > div:last-child > div:last-child {
+                padding: 10px !important;
+                margin-top: 10px !important;
             }
         }
     </style>

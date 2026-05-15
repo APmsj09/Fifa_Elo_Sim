@@ -309,6 +309,29 @@ def toggle_third_place(grp):
     elif len(thirds) < 8: thirds.append(grp)
     render_predictor_groups()
 
+def get_team_quick_stats(slug):
+    """Helper to generate a subtle rank badge and a hover tooltip for the predictor"""
+    if not slug or slug == "None" or slug == "TBD" or slug not in sim.TEAM_STATS:
+        return "", ""
+        
+    stats = sim.TEAM_STATS[slug]
+    sorted_teams = sorted(sim.TEAM_STATS.items(), key=lambda x: x[1].get('elo', 1200), reverse=True)
+    rank = next((i+1 for i, t in enumerate(sorted_teams) if t[0] == slug), "?")
+    
+    elo = int(stats.get('elo', 1200))
+    style = sim.TEAM_PROFILES.get(slug, "Balanced")
+    talent = sim.TEAM_TALENT.get(slug, {})
+    ovr = int(talent.get('talent_score', 0))
+    att = int(talent.get('rating_att', 0))
+    mid = int(talent.get('rating_mid', 0))
+    defe = int(talent.get('rating_def', 0))
+    
+    # &#10; creates a line break in the native HTML title tooltip
+    title_text = f"World Rank: #{rank} | Elo: {elo}&#10;Style: {style}&#10;OVR: {ovr} | ATT: {att} | MID: {mid} | DEF: {defe}"
+    rank_html = f"<span class='no-print' style='font-size:0.75em; color:var(--text-light); margin-left:4px; font-weight:normal; opacity:0.7;'>#{rank}</span>"
+    
+    return title_text, rank_html
+
 def render_predictor_groups():
     html = '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:15px; margin-bottom:30px;">'
     for grp in sorted(PREDICTOR_STATE['groups'].keys()):
@@ -317,6 +340,8 @@ def render_predictor_groups():
         
         for i, t in enumerate(teams):
             name = sim.PRETTY_NAMES.get(t, t.title())
+            title_text, rank_html = get_team_quick_stats(t)
+            
             up_btn = f'<button class="pred-btn" onclick="window.move_team_in_group(\'{grp}\', {i}, -1)">▲</button>' if i > 0 else '<span style="width:28px; display:inline-block;"></span>'
             dn_btn = f'<button class="pred-btn" onclick="window.move_team_in_group(\'{grp}\', {i}, 1)">▼</button>' if i < 3 else '<span style="width:28px; display:inline-block;"></span>'
             
@@ -325,8 +350,8 @@ def render_predictor_groups():
             else: color, weight = "var(--text-light)", "normal"
                 
             html += f'''
-            <div class="pred-team-row">
-                <span style="color:{color}; font-weight:{weight};"><b>{i+1}.</b> {name}</span>
+            <div class="pred-team-row" title="{title_text}">
+                <span style="color:{color}; font-weight:{weight}; cursor:help;"><b>{i+1}.</b> {name} {rank_html}</span>
                 <div style="display:flex; gap:4px;">{up_btn}{dn_btn}</div>
             </div>
             '''
@@ -343,13 +368,14 @@ def render_predictor_groups():
     for grp in sorted(PREDICTOR_STATE['groups'].keys()):
         t3 = PREDICTOR_STATE['groups'][grp][2]
         name = sim.PRETTY_NAMES.get(t3, t3.title())
+        title_text, _ = get_team_quick_stats(t3)
+        
         is_selected = grp in PREDICTOR_STATE['advancing_thirds']
         is_disabled = not is_selected and sel_count >= 8
         c_class = "selected" if is_selected else ("disabled" if is_disabled else "")
         click_handler = f'onclick="window.toggle_third_place(\'{grp}\')"' if not is_disabled or is_selected else ''
-        html += f'<button class="pred-third-btn {c_class}" {click_handler}>Grp {grp}: {name}</button>'
+        html += f'<button class="pred-third-btn {c_class}" title="{title_text}" {click_handler}>Grp {grp}: {name}</button>'
     html += '</div>'
-    
     btn_disabled = "disabled style='opacity:0.5; cursor:not-allowed;'" if sel_count != 8 else ""
     html += f'''
     <div style="margin-top:25px; text-align:right;">
@@ -358,6 +384,7 @@ def render_predictor_groups():
     </div>
     '''
     js.document.getElementById("predictor-groups-section").innerHTML = html
+
 
 def generate_predictor_bracket():
     if len(PREDICTOR_STATE['advancing_thirds']) != 8: return
@@ -449,6 +476,9 @@ def render_interactive_bracket():
             name1 = sim.PRETTY_NAMES.get(t1, str(t1).title()) if t1 else "TBD"
             name2 = sim.PRETTY_NAMES.get(t2, str(t2).title()) if t2 else "TBD"
             
+            title1, rank1 = get_team_quick_stats(t1) if t1 else ("", "")
+            title2, rank2 = get_team_quick_stats(t2) if t2 else ("", "")
+            
             c1 = "selected" if winner == t1 and t1 else ("eliminated" if winner and winner != t1 else "")
             c2 = "selected" if winner == t2 and t2 else ("eliminated" if winner and winner != t2 else "")
             
@@ -457,8 +487,8 @@ def render_interactive_bracket():
             
             html += f'''
             <div class="predict-matchup">
-                <div class="predict-team {c1}" {click1}><span>{name1}</span></div>
-                <div class="predict-team {c2}" {click2}><span>{name2}</span></div>
+                <div class="predict-team {c1}" {click1} title="{title1}"><span>{name1}{rank1}</span></div>
+                <div class="predict-team {c2}" {click2} title="{title2}"><span>{name2}{rank2}</span></div>
             </div>
             '''
         if r_data["round"] == "Final" and r_data['matches'][0]['winner']:
@@ -1046,16 +1076,23 @@ def build_bulk_dashboard():
         is_god = "💀" if grp == group_of_death else ""
         html += f"""<div class='dashboard-card' style='margin:0; padding:15px;'>
             <h4 style='margin:0 0 10px 0; color:var(--accent-blue);'>Group {grp} <span style="float:right;" title="Group of Death">{is_god}</span></h4>
-            <table style='width:100%; font-size:0.85em; border-collapse:collapse;'>"""
+            <table style='width:100%; font-size:0.85em; border-collapse:collapse;'>
+                <tr>
+                    <th style='text-align:left; color:var(--text-light); padding-bottom:5px; font-weight:600;'>Team</th>
+                    <th style='text-align:right; color:var(--text-light); padding-bottom:5px; font-weight:600;' title='Probability to win the group'>1st</th>
+                    <th style='text-align:right; color:var(--text-light); padding-bottom:5px; font-weight:600;' title='Probability to advance to knockouts'>Adv</th>
+                </tr>"""
         group_teams = list(state['groups'][grp]['teams'].keys())
         group_teams.sort(key=lambda t: state['stats'][t]['r32'], reverse=True)
         for t in group_teams:
             s = state['stats'][t]
             adv_pct = (s['r32'] / num) * 100
+            first_pct = (s['grp_1st'] / num) * 100
             opacity = "1.0" if (s['apps']/num) > 0.5 else "0.5"
-            t_name = sim.PRETTY_NAMES.get(t, t.title())  # ADDED THIS LINE
+            t_name = sim.PRETTY_NAMES.get(t, t.title())
             html += f"""<tr style='opacity:{opacity}; border-bottom:1px solid var(--sidebar-border);'>
                 <td style='padding:6px 0; font-weight:600;'>{t_name}</td>
+                <td style='padding:6px 0; text-align:right; font-weight:bold; color:var(--text-main);'>{first_pct:.1f}%</td>
                 <td style='padding:6px 0; text-align:right; font-weight:bold; color:var(--accent-green);'>{adv_pct:.1f}%</td>
             </tr>"""
         html += "</table></div>"
