@@ -1092,43 +1092,97 @@
             color: white;
         }
 
-        /* Compact Print Mode: Single Page Landscape */
+        /* --- PRINT MODE: PERFECT LANDSCAPE PDF --- */
         @media print {
             @page {
                 size: landscape;
-                margin: 0.5cm;
+                margin: 0.25in;
             }
 
-            .bracket-container-main {
-                transform: scale(0.65);
-                /* Shrinks the bracket to fit one page */
-                transform-origin: top left;
-                min-width: 100%;
-                gap: 5px;
+            /* 1. Unlock the page wrappers (CRITICAL FIX) */
+            body,
+            html,
+            .app-layout,
+            .content-panel,
+            #tab-predictor,
+            #interactive-bracket-container {
+                height: auto !important;
+                min-height: auto !important;
+                overflow: visible !important;
+                display: block !important;
+                background: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
             }
 
-            .bracket-col {
-                min-height: auto;
-            }
-
-            .team {
-                padding: 4px 6px;
-                font-size: 0.7em;
-                height: auto;
-            }
-
-            .matchup-card {
-                margin: 2px 0;
-            }
-
-            /* Hide navigation and UI elements during print */
+            /* 2. Hide UI menus */
             .sidebar-panel,
             #controls-area,
             .action-btn,
             .nav-section-title,
             #predictor-header,
-            .sub-tab-container {
+            .sub-tab-container,
+            .dark-mode-toggle,
+            .no-print {
                 display: none !important;
+            }
+
+            /* 3. Re-flow the bracket for paper */
+            .bracket-container-main {
+                display: flex !important;
+                justify-content: space-between !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                /* Removes the 1200px restriction */
+                gap: 4px !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                transform: none !important;
+                /* Removes buggy printer scaling */
+            }
+
+            .bracket-col {
+                min-height: auto !important;
+                flex: 1 !important;
+                gap: 2px !important;
+            }
+
+            .final-col {
+                flex: 1.5 !important;
+                /* Give the center slightly more room */
+                padding: 0 5px !important;
+            }
+
+            .matchup-card {
+                margin: 2px 0 !important;
+                border: 1px solid #999 !important;
+                box-shadow: none !important;
+                page-break-inside: avoid !important;
+            }
+
+            .team {
+                padding: 3px 5px !important;
+                font-size: 8px !important;
+                /* Force a tiny, paper-friendly font */
+                height: auto !important;
+                color: black !important;
+                border-bottom: 1px solid #ccc !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+
+            /* 4. Printer-friendly selection styling (saves ink, high contrast) */
+            .team.selected {
+                background: #f1f5f9 !important;
+                color: black !important;
+                font-weight: 900 !important;
+                border-left: 3px solid black !important;
+            }
+
+            .team.eliminated {
+                opacity: 0.5 !important;
+                text-decoration: line-through !important;
             }
         }
     </style>
