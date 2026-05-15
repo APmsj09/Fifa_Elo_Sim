@@ -978,32 +978,7 @@ def build_bulk_dashboard():
     boot_candidates.sort(key=lambda x: x['xG'], reverse=True)
     ball_candidates.sort(key=lambda x: x['score'], reverse=True)
 
-    # 3. MATCHUP INSIGHTS
-    ko_counts = {}
-    giant_killer = ("None", "None", 0, 0) 
-    for t1, opps in state['h2h'].items():
-        elo1 = sim.TEAM_STATS.get(t1, {}).get('elo', 1200)
-        for t2, data in opps.items():
-            if t1 < t2:
-                ko_counts[tuple(sorted((t1, t2)))] = data['m']
-            elo2 = sim.TEAM_STATS.get(t2, {}).get('elo', 1200)
-            if elo2 - elo1 > 100 and data['m'] > max(5, num * 0.02):
-                win_rate = data['w'] / data['m']
-                if win_rate > giant_killer[2]:
-                    giant_killer = (t1, t2, win_rate, data['m'])
-
-    top_rivalry = max(ko_counts, key=ko_counts.get) if ko_counts else ("None", "None")
-    riv1_name = sim.PRETTY_NAMES.get(top_rivalry[0], top_rivalry[0].title())
-    riv2_name = sim.PRETTY_NAMES.get(top_rivalry[1], top_rivalry[1].title())
-    
-    if giant_killer[0] != "None":
-        gk0_name = sim.PRETTY_NAMES.get(giant_killer[0], giant_killer[0].title())
-        gk1_name = sim.PRETTY_NAMES.get(giant_killer[1], giant_killer[1].title())
-        gk_text = f"{gk0_name} vs {gk1_name} ({giant_killer[2]*100:.1f}%)"
-    else:
-        gk_text = "None"
-
-    # 4. BUILD THE DASHBOARD HTML
+    # 3. BUILD THE DASHBOARD HTML
     html = f"""
     <!-- ROW 1: CORE TOURNAMENT METRICS -->
     <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:15px; margin-bottom:15px;">
@@ -1025,7 +1000,7 @@ def build_bulk_dashboard():
     </div>
 
     <!-- ROW 2: AWARDS PROJECTIONS -->
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:15px;">
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:30px;">
         <div class="dashboard-card" style="margin:0; padding:15px; border-top:3px solid #f59e0b;">
             <h4 style="margin:0 0 10px 0; color:#f59e0b; font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">👟 Golden Boot Projection</h4>
             <table style="width:100%; font-size:0.85em; border-collapse:collapse;">
@@ -1056,18 +1031,6 @@ def build_bulk_dashboard():
         </div>
     </div>
 
-    <!-- ROW 3: MATCHUP INSIGHTS -->
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:30px;">
-        <div class="dashboard-card" style="margin:0; background:rgba(139, 92, 246, 0.05); border:1px solid rgba(139, 92, 246, 0.2);">
-            <div style="font-size:0.7em; text-transform:uppercase; color:#8b5cf6; font-weight:700;">⚔️ Most Likely KO Matchup</div>
-            <div style="font-size:1.1em; font-weight:700; color:var(--text-main); margin-top:3px;">{riv1_name} vs {riv2_name}</div>
-        </div>
-        <div class="dashboard-card" style="margin:0; background:rgba(239, 68, 68, 0.05); border:1px solid rgba(239, 68, 68, 0.2);">
-            <div style="font-size:0.7em; text-transform:uppercase; color:#ef4444; font-weight:700;">💀 Biggest Bogey Matchup</div>
-            <div style="font-size:1.1em; font-weight:700; color:var(--text-main); margin-top:3px;">{gk_text}</div>
-        </div>
-    </div>
-
     <h3 style='color:var(--text-main); border-bottom:2px solid var(--sidebar-border); padding-bottom:10px;'>📋 Projected Group Standings</h3>
     <div style='display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:15px; margin-bottom:40px;'>
     """
@@ -1079,8 +1042,8 @@ def build_bulk_dashboard():
             <table style='width:100%; font-size:0.85em; border-collapse:collapse;'>
                 <tr>
                     <th style='text-align:left; color:var(--text-light); padding-bottom:5px; font-weight:600;'>Team</th>
-                    <th style='text-align:right; color:var(--text-light); padding-bottom:5px; font-weight:600;' title='Probability to win the group'>1st</th>
-                    <th style='text-align:right; color:var(--text-light); padding-bottom:5px; font-weight:600;' title='Probability to advance to knockouts'>Adv</th>
+                    <th style='text-align:right; color:var(--text-light); padding-bottom:5px; font-weight:600; width:45px; padding-left:10px;' title='Probability to win the group'>1st</th>
+                    <th style='text-align:right; color:var(--text-light); padding-bottom:5px; font-weight:600; width:45px; padding-left:10px;' title='Probability to advance to knockouts'>Adv</th>
                 </tr>"""
         group_teams = list(state['groups'][grp]['teams'].keys())
         group_teams.sort(key=lambda t: state['stats'][t]['r32'], reverse=True)
@@ -1091,9 +1054,9 @@ def build_bulk_dashboard():
             opacity = "1.0" if (s['apps']/num) > 0.5 else "0.5"
             t_name = sim.PRETTY_NAMES.get(t, t.title())
             html += f"""<tr style='opacity:{opacity}; border-bottom:1px solid var(--sidebar-border);'>
-                <td style='padding:6px 0; font-weight:600;'>{t_name}</td>
-                <td style='padding:6px 0; text-align:right; font-weight:bold; color:var(--text-main);'>{first_pct:.1f}%</td>
-                <td style='padding:6px 0; text-align:right; font-weight:bold; color:var(--accent-green);'>{adv_pct:.1f}%</td>
+                <td style='padding:6px 0; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px;' title='{t_name}'>{t_name}</td>
+                <td style='padding:6px 0 6px 10px; text-align:right; font-weight:bold; color:var(--text-main);'>{first_pct:.1f}%</td>
+                <td style='padding:6px 0 6px 10px; text-align:right; font-weight:bold; color:var(--accent-green);'>{adv_pct:.1f}%</td>
             </tr>"""
         html += "</table></div>"
     

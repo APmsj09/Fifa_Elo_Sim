@@ -1163,14 +1163,13 @@ def precompute_match_data():
         
         base_elo = s.get('elo', 1400)
         
-        # --- NEW 55/45 SPLIT LOGIC ---
         # 1. Translate FIFA rating (0-99) into a "Talent Elo" equivalent
         # A rating of 85 = ~2000 Elo (Elite). A rating of 60 = ~1000 Elo (Minnow).
         raw_rating = talent.get('talent_score', 72.0)
         talent_elo = 1000 + (raw_rating - 60) * 40
         
         # 2. Apply the exact 55% / 45% mathematical blend
-        blended_elo = (base_elo * 0.57) + (talent_elo * 0.43)
+        blended_elo = (base_elo * 0.60) + (talent_elo * 0.40)
 
         pen_skill = s.get('pen_pct', 5) / 100.0 
         experience = np.clip(s.get('ko_exp_weighted', 0) / 20.0, 0, 0.1)
@@ -1190,14 +1189,14 @@ def precompute_match_data():
         }
 
 def sim_match(t1, t2, knockout=False):
-    # CRITICAL FIX: Convert both names to slugs immediately
+    # Convert both names to slugs immediately
     t1 = get_slug(t1) 
     t2 = get_slug(t2)
     
     p1 = TEAM_PRECOMPUTE.get(t1)
     p2 = TEAM_PRECOMPUTE.get(t2)
 
-    # UPDATED FALLBACK: If a team is truly missing, return a draw/default 
+    # If a team is truly missing, return a draw/default 
     # instead of a guaranteed 1-0 win for Team A.
     if not p1 or not p2: 
         return (t1, 0, 0, 'reg') if knockout else ('draw', 0, 0)
