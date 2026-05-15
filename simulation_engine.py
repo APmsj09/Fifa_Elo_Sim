@@ -1360,22 +1360,29 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
 
     # 5. Build the Bracket
     bracket_matchups = [
-        (get_t('A', 0), t3_mapping['A']),    
-        (get_t('C', 1), get_t('F', 1)),      
-        (get_t('E', 0), t3_mapping['E']),    
-        (get_t('J', 0), get_t('G', 1)),     
-        (get_t('I', 0), t3_mapping['I']),    
-        (get_t('A', 1), get_t('D', 1)),      
-        (get_t('L', 0), t3_mapping['L']),    
-        (get_t('H', 0), get_t('K', 1)),      
-        (get_t('B', 0), t3_mapping['B']),    
-        (get_t('E', 1), get_t('H', 1)),      
-        (get_t('G', 0), t3_mapping['G']),    
-        (get_t('B', 1), get_t('I', 1)),      
-        (get_t('K', 0), t3_mapping['K']),    
-        (get_t('C', 0), get_t('L', 1)),      
-        (get_t('D', 0), t3_mapping['D']),    
-        (get_t('F', 0), get_t('J', 1)),      
+        # --- QUARTER 1 (Spain's Region) ---
+        (get_t('H', 0), get_t('A', 1)),  # Match 0: Spain (1H) vs 2A
+        (get_t('A', 0), t3_mapping['A']),# Match 1: 1A vs 3rd Place
+        (get_t('C', 0), get_t('B', 1)),  # Match 2: 1C vs 2B
+        (get_t('E', 0), t3_mapping['E']),# Match 3: 1E vs 3rd Place
+
+        # --- QUARTER 2 (England's Region) ---
+        (get_t('L', 0), t3_mapping['L']),# Match 4: England (1L) vs 3rd Place
+        (get_t('D', 0), t3_mapping['D']),# Match 5: 1D vs 3rd Place
+        (get_t('G', 0), t3_mapping['G']),# Match 6: 1G vs 3rd Place
+        (get_t('C', 1), get_t('D', 1)),  # Match 7: 2C vs 2D
+
+        # --- QUARTER 3 (Argentina's Region) ---
+        (get_t('J', 0), get_t('E', 1)),  # Match 8: Argentina (1J) vs 2E
+        (get_t('B', 0), t3_mapping['B']),# Match 9: 1B vs 3rd Place
+        (get_t('F', 0), get_t('G', 1)),  # Match 10: 1F vs 2G
+        (get_t('K', 0), t3_mapping['K']),# Match 11: 1K vs 3rd Place
+
+        # --- QUARTER 4 (France's Region) ---
+        (get_t('I', 0), t3_mapping['I']),# Match 12: France (1I) vs 3rd Place
+        (get_t('H', 1), get_t('I', 1)),  # Match 13: 2H vs 2I
+        (get_t('J', 1), get_t('K', 1)),  # Match 14: 2J vs 2K
+        (get_t('L', 1), get_t('F', 1)),  # Match 15: 2L vs 2F
     ]
         
     rounds = ['Round of 32', 'Round of 16', 'Quarter-finals', 'Semi-finals', 'Final']

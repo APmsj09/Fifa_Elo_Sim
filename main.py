@@ -470,55 +470,77 @@ def build_predicted_bracket():
 def render_interactive_bracket():
     if not PREDICTED_BRACKET: return
     
-    # Extract matches for each round
-    r32 = PREDICTED_BRACKET[0]['matches'] # 16 matches
-    r16 = PREDICTED_BRACKET[1]['matches'] # 8 matches
-    qf  = PREDICTED_BRACKET[2]['matches'] # 4 matches
-    sf  = PREDICTED_BRACKET[3]['matches'] # 2 matches
+    # 1. Access the matches for each round
+    r32 = PREDICTED_BRACKET[0]['matches']   # 16 matches
+    r16 = PREDICTED_BRACKET[1]['matches']   # 8 matches
+    qf  = PREDICTED_BRACKET[2]['matches']   # 4 matches
+    sf  = PREDICTED_BRACKET[3]['matches']   # 2 matches
     final = PREDICTED_BRACKET[4]['matches'] # 1 match
 
-    # We need to render Left Side (0-7 R32) and Right Side (8-15 R32)
-    # This helper builds a column of matchups
-    def render_matches(matches, round_idx, start_match_idx):
-        html = '<div class="bracket-col">'
+    # 2. Helper function to render a vertical column of matches
+    def render_col(matches, round_idx, start_m_idx, extra_classes=""):
+        html = f'<div class="bracket-col {extra_classes}">'
         for i, m in enumerate(matches):
-            m_idx = start_match_idx + i
+            m_idx = start_m_idx + i
             t1, t2, winner = m['t1'], m['t2'], m['winner']
             
-            # Use get_team_quick_stats for the tooltips
             title1, rank1 = get_team_quick_stats(t1) if t1 else ("", "")
             title2, rank2 = get_team_quick_stats(t2) if t2 else ("", "")
             
-            c1 = "selected" if winner == t1 else ("eliminated" if winner else "")
-            c2 = "selected" if winner == t2 else ("eliminated" if winner else "")
+            c1 = "selected" if winner == t1 and t1 else ("eliminated" if winner else "")
+            c2 = "selected" if winner == t2 and t2 else ("eliminated" if winner else "")
+            
+            name1 = sim.PRETTY_NAMES.get(t1, str(t1).title()) if t1 else "TBD"
+            name2 = sim.PRETTY_NAMES.get(t2, str(t2).title()) if t2 else "TBD"
             
             html += f'''
             <div class="matchup-card">
-                <div class="team {c1}" onclick="window.make_pick({round_idx}, {m_idx}, '{t1}')" title="{title1}">{sim.PRETTY_NAMES.get(t1, str(t1).title()) if t1 else "TBD"}{rank1}</div>
-                <div class="team {c2}" onclick="window.make_pick({round_idx}, {m_idx}, '{t2}')" title="{title2}">{sim.PRETTY_NAMES.get(t2, str(t2).title()) if t2 else "TBD"}{rank2}</div>
+                <div class="team {c1}" onclick="window.make_pick({round_idx}, {m_idx}, '{t1}')" title="{title1}">{name1}{rank1}</div>
+                <div class="team {c2}" onclick="window.make_pick({round_idx}, {m_idx}, '{t2}')" title="{title2}">{name2}{rank2}</div>
             </div>
             '''
         html += '</div>'
         return html
 
-    # Build the HTML structure: Left Side | Finals Area | Right Side
+    # 3. Assemble the Tree (Left -> Center -> Right)
     html = '<div class="bracket-container-main">'
     
-    # Left Side: R32 (0-7), R16 (0-3), QF (0-1)
-    html += render_matches(r32[:8], 0, 0)
-    html += render_matches(r16[:4], 1, 0)
-    html += render_matches(qf[:2], 2, 0)
+    # --- LEFT SIDE OF BRACKET ---
+    html += render_col(r32[:8], 0, 0)   # R32 Left (Matches 0-7)
+    html += render_col(r16[:4], 1, 0)   # R16 Left (Matches 0-3)
+    html += render_col(qf[:2], 2, 0)    # QF Left (Matches 0-1)
+    html += render_col([sf[0]], 3, 0)   # SF Left (Match 0)
     
-    # Center: Semi-Finals and Final
-    html += '<div class="bracket-col" style="justify-content: center; gap: 20px;">'
-    html += render_matches(sf, 3, 0)
-    html += render_matches(final, 4, 0)
+    # --- CENTER (THE FINAL) ---
+    html += '<div class="bracket-col final-col">'
+    html += '<div style="text-align:center; font-weight:900; color:var(--accent-gold); font-size:1.5em; margin-bottom:15px; letter-spacing:2px;">WORLD CHAMPION</div>'
+    
+    # Render the final match manually to fit cleanly in the center
+    t1, t2, winner = final[0]['t1'], final[0]['t2'], final[0]['winner']
+    c1 = "selected" if winner == t1 and t1 else ("eliminated" if winner else "")
+    c2 = "selected" if winner == t2 and t2 else ("eliminated" if winner else "")
+    n1 = sim.PRETTY_NAMES.get(t1, str(t1).title()) if t1 else "TBD"
+    n2 = sim.PRETTY_NAMES.get(t2, str(t2).title()) if t2 else "TBD"
+    
+    html += f'''
+    <div class="matchup-card" style="border: 2px solid var(--accent-gold); transform: scale(1.1);">
+        <div class="team {c1}" onclick="window.make_pick(4, 0, '{t1}')" style="padding:15px; font-size:1.1em; text-align:center;">{n1}</div>
+        <div class="team {c2}" onclick="window.make_pick(4, 0, '{t2}')" style="padding:15px; font-size:1.1em; text-align:center;">{n2}</div>
+    </div>
+    '''
+    
+    # Display the winner text beneath the Final box
+    if winner:
+        champ_name = sim.PRETTY_NAMES.get(winner, winner.title())
+        html += f'<div style="text-align:center; margin-top:20px; font-size:1.8em; font-weight:900; color:var(--text-main);">🏆 {champ_name} 🏆</div>'
+        
     html += '</div>'
     
-    # Right Side: QF (2-3), R16 (4-7), R32 (8-15)
-    html += render_matches(qf[2:], 2, 2)
-    html += render_matches(r16[4:], 1, 4)
-    html += render_matches(r32[8:], 0, 8)
+    # --- RIGHT SIDE OF BRACKET (Reverse Order) ---
+    html += render_col([sf[1]], 3, 1)   # SF Right (Match 1)
+    html += render_col(qf[2:], 2, 2)    # QF Right (Matches 2-3)
+    html += render_col(r16[4:], 1, 4)   # R16 Right (Matches 4-7)
+    html += render_col(r32[8:], 0, 8)   # R32 Right (Matches 8-15)
     
     html += '</div>'
     js.document.getElementById("interactive-bracket-container").innerHTML = html
