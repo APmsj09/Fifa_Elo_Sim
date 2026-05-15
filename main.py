@@ -468,39 +468,59 @@ def build_predicted_bracket():
         round_idx += 1
 
 def render_interactive_bracket():
-    html = '<div id="bracket-container" style="display:flex; padding-bottom:40px;">'
-    for r_idx, r_data in enumerate(PREDICTED_BRACKET):
-        html += f'<div class="bracket-round"><div class="round-title">{r_data["round"]}</div>'
-        for m_idx, m in enumerate(r_data['matches']):
+    if not PREDICTED_BRACKET: return
+    
+    # Extract matches for each round
+    r32 = PREDICTED_BRACKET[0]['matches'] # 16 matches
+    r16 = PREDICTED_BRACKET[1]['matches'] # 8 matches
+    qf  = PREDICTED_BRACKET[2]['matches'] # 4 matches
+    sf  = PREDICTED_BRACKET[3]['matches'] # 2 matches
+    final = PREDICTED_BRACKET[4]['matches'] # 1 match
+
+    # We need to render Left Side (0-7 R32) and Right Side (8-15 R32)
+    # This helper builds a column of matchups
+    def render_matches(matches, round_idx, start_match_idx):
+        html = '<div class="bracket-col">'
+        for i, m in enumerate(matches):
+            m_idx = start_match_idx + i
             t1, t2, winner = m['t1'], m['t2'], m['winner']
-            name1 = sim.PRETTY_NAMES.get(t1, str(t1).title()) if t1 else "TBD"
-            name2 = sim.PRETTY_NAMES.get(t2, str(t2).title()) if t2 else "TBD"
             
+            # Use get_team_quick_stats for the tooltips
             title1, rank1 = get_team_quick_stats(t1) if t1 else ("", "")
             title2, rank2 = get_team_quick_stats(t2) if t2 else ("", "")
             
-            c1 = "selected" if winner == t1 and t1 else ("eliminated" if winner and winner != t1 else "")
-            c2 = "selected" if winner == t2 and t2 else ("eliminated" if winner and winner != t2 else "")
-            
-            click1 = f'onclick="window.make_pick({r_idx}, {m_idx}, \'{t1}\')"' if t1 else ""
-            click2 = f'onclick="window.make_pick({r_idx}, {m_idx}, \'{t2}\')"' if t2 else ""
+            c1 = "selected" if winner == t1 else ("eliminated" if winner else "")
+            c2 = "selected" if winner == t2 else ("eliminated" if winner else "")
             
             html += f'''
-            <div class="predict-matchup">
-                <div class="predict-team {c1}" {click1} title="{title1}"><span>{name1}{rank1}</span></div>
-                <div class="predict-team {c2}" {click2} title="{title2}"><span>{name2}{rank2}</span></div>
+            <div class="matchup-card">
+                <div class="team {c1}" onclick="window.make_pick({round_idx}, {m_idx}, '{t1}')" title="{title1}">{sim.PRETTY_NAMES.get(t1, str(t1).title()) if t1 else "TBD"}{rank1}</div>
+                <div class="team {c2}" onclick="window.make_pick({round_idx}, {m_idx}, '{t2}')" title="{title2}">{sim.PRETTY_NAMES.get(t2, str(t2).title()) if t2 else "TBD"}{rank2}</div>
             </div>
             '''
-        if r_data["round"] == "Final" and r_data['matches'][0]['winner']:
-            champ_name = sim.PRETTY_NAMES.get(r_data['matches'][0]['winner'], r_data['matches'][0]['winner'].title())
-            html += f'''
-            <div style="margin-top:30px; padding:20px; background:var(--card-bg); border:2px solid var(--accent-gold); border-radius:12px; text-align:center; box-shadow:var(--shadow-md);">
-                <div style="font-size:0.8em; color:var(--text-light); text-transform:uppercase; font-weight:700;">World Champion</div>
-                <div style="font-size:1.4em; font-weight:900; color:var(--text-main); margin-top:5px;">🏆 {champ_name}</div>
-            </div>
-            '''
-        html += "</div>"
-    html += "</div>"
+        html += '</div>'
+        return html
+
+    # Build the HTML structure: Left Side | Finals Area | Right Side
+    html = '<div class="bracket-container-main">'
+    
+    # Left Side: R32 (0-7), R16 (0-3), QF (0-1)
+    html += render_matches(r32[:8], 0, 0)
+    html += render_matches(r16[:4], 1, 0)
+    html += render_matches(qf[:2], 2, 0)
+    
+    # Center: Semi-Finals and Final
+    html += '<div class="bracket-col" style="justify-content: center; gap: 20px;">'
+    html += render_matches(sf, 3, 0)
+    html += render_matches(final, 4, 0)
+    html += '</div>'
+    
+    # Right Side: QF (2-3), R16 (4-7), R32 (8-15)
+    html += render_matches(qf[2:], 2, 2)
+    html += render_matches(r16[4:], 1, 4)
+    html += render_matches(r32[8:], 0, 8)
+    
+    html += '</div>'
     js.document.getElementById("interactive-bracket-container").innerHTML = html
 
 # =============================================================================
