@@ -1156,11 +1156,11 @@ def precompute_match_data():
         
         # 1. Translate FIFA rating (0-99) into a "Talent Elo" equivalent
         # A rating of 85 = ~2000 Elo (Elite). A rating of 60 = ~1000 Elo (Minnow).
-        raw_rating = talent.get('talent_score', 72.0)
+        raw_rating = talent.get('talent_score', 70.0)
         talent_elo = 1000 + (raw_rating - 60) * 40
         
         # 2. Apply the exact 55% / 45% mathematical blend
-        blended_elo = (base_elo * 0.58) + (talent_elo * 0.42)
+        blended_elo = (base_elo * 0.57) + (talent_elo * 0.43)
 
         pen_skill = s.get('pen_pct', 5) / 100.0 
         experience = np.clip(s.get('ko_exp_weighted', 0) / 20.0, 0, 0.1)
@@ -1202,7 +1202,7 @@ def sim_match(t1, t2, knockout=False):
     
     # 3. Elo Probability Distribution
     # Increase the divisor strictly for knockouts to simulate tournament parity
-    active_divisor = 630 if knockout else 550
+    active_divisor = 640 if knockout else 600
     win_prob = 1 / (10**(-dr/active_divisor) + 1)
     
     # Convert win probability into an odds ratio, capping to prevent extreme math errors
