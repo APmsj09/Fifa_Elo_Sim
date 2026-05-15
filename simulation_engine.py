@@ -1160,7 +1160,7 @@ def precompute_match_data():
         talent_elo = 1000 + (raw_rating - 60) * 40
         
         # 2. Apply the exact 55% / 45% mathematical blend
-        blended_elo = (base_elo * 0.60) + (talent_elo * 0.40)
+        blended_elo = (base_elo * 0.58) + (talent_elo * 0.42)
 
         pen_skill = s.get('pen_pct', 5) / 100.0 
         experience = np.clip(s.get('ko_exp_weighted', 0) / 20.0, 0, 0.1)
@@ -1202,7 +1202,7 @@ def sim_match(t1, t2, knockout=False):
     
     # 3. Elo Probability Distribution
     # Increase the divisor strictly for knockouts to simulate tournament parity
-    active_divisor = 605 if knockout else 500
+    active_divisor = 630 if knockout else 550
     win_prob = 1 / (10**(-dr/active_divisor) + 1)
     
     # Convert win probability into an odds ratio, capping to prevent extreme math errors
