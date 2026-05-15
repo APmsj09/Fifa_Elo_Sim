@@ -1202,7 +1202,7 @@ def sim_match(t1, t2, knockout=False):
     
     # 3. Elo Probability Distribution
     # Increase the divisor strictly for knockouts to simulate tournament parity
-    active_divisor = 640 if knockout else 600
+    active_divisor = 660 if knockout else 620
     win_prob = 1 / (10**(-dr/active_divisor) + 1)
     
     # Convert win probability into an odds ratio, capping to prevent extreme math errors
