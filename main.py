@@ -939,9 +939,9 @@ def build_bulk_dashboard():
             if any(x in pos_str for x in ['ST', 'CF', 'FW', 'STRIKER']):
                 mult = 1.0
             elif any(x in pos_str for x in['LW', 'RW', 'AML', 'AMR', 'WF', 'WING']):
-                mult = 0.85
+                mult = 0.94
             elif any(x in pos_str for x in ['AMC', 'CAM', 'AM']):
-                mult = 0.75
+                mult = 0.83
             elif any(x in pos_str for x in['MC', 'CM', 'LM', 'RM']):
                 mult = 0.40
             elif any(x in pos_str for x in['CB', 'LB', 'RB', 'LWB', 'RWB', 'DC', 'DL', 'DR']):

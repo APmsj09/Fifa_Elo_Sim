@@ -191,7 +191,7 @@ TEAM_STATS = {}
 TEAM_PROFILES = {}
 TEAM_HISTORY = {}
 ADVANCED_TEAM_DATA = {} 
-AVG_GOALS = 2.5
+AVG_GOALS = 2.91
 calculated_hfa = 0.0
 
 # The 48 Teams of World Cup 2026 (Fully Qualified)
@@ -1205,7 +1205,7 @@ def sim_match(t1, t2, knockout=False):
     pace = (p1['pace'] + p2['pace']) / 2
     # Knockout matches are tighter -> fewer goals = more draws = better underdog odds
     intensity = 0.87 if knockout else 1.0 
-    total_match_goals = 2.99 * pace * intensity 
+    total_match_goals = 2.91 * pace * intensity 
     
     dr = p1['elo'] - p2['elo']
     
