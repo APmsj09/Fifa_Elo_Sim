@@ -1453,18 +1453,42 @@ async def run_matchup_analysis(event):
         talent_gk_a,  talent_gk_b  = get_rat(ta, 'rating_gk'),  get_rat(tb, 'rating_gk')
 
         import math
-        def calc_tactical_score(attacking, defending):
-            ratio = attacking / defending if defending > 0 else 1.0
-            score = 5 + 2.5 * math.log(ratio)
-            return max(0.5, min(9.5, score)) 
         
-        # Consistent tac_ prefix for all 0-10 bar calculations
-        tac_atk_a = calc_tactical_score(sa.get('off', 1.0), sb.get('def', 1.0))
-        tac_atk_b = calc_tactical_score(sb.get('off', 1.0), sa.get('def', 1.0))
-        tac_def_a = calc_tactical_score(sa.get('def', 1.0), sb.get('off', 1.0))
-        tac_def_b = calc_tactical_score(sb.get('def', 1.0), sa.get('off', 1.0))
-        consistency_a = min(10, (7.5 - (sa.get('btts_pct', 50) - 50) / 10))
-        consistency_b = min(10, (7.5 - (sb.get('btts_pct', 50) - 50) / 10))
+        # 1. Attacking Power (Higher is better). 
+        # We MULTIPLY Team A's offense by Team B's defensive flaw.
+        tac_atk_a = max(0.5, min(9.5, 5.0 + 4.0 * math.log(sa.get('off', 1.0) * sb.get('def', 1.0))))
+        tac_atk_b = max(0.5, min(9.5, 5.0 + 4.0 * math.log(sb.get('off', 1.0) * sa.get('def', 1.0))))
+        
+        # 2. Defensive Solidity (Higher is better).
+        # A good defense suppresses goals (multiplier < 1.0). 
+        # We SUBTRACT the log so that suppressing goals drives the score UP.
+        tac_def_a = max(0.5, min(9.5, 5.0 - 4.0 * math.log(sa.get('def', 1.0) * sb.get('off', 1.0))))
+        tac_def_b = max(0.5, min(9.5, 5.0 - 4.0 * math.log(sb.get('def', 1.0) * sa.get('off', 1.0))))
+        
+        consistency_a = min(10.0, (7.5 - (sa.get('btts_pct', 50) - 50) / 10))
+        consistency_b = min(10.0, (7.5 - (sb.get('btts_pct', 50) - 50) / 10))
+
+        def get_insight_str(val_self, val_opp, trait_type):
+            if val_self >= val_opp + 1.5:
+                if trait_type == 'atk': return "💪 Dominant Attack"
+                if trait_type == 'def': return "🧱 Fortress Defense"
+                return "✓ Dictates Tempo"
+            elif val_opp >= val_self + 1.5:
+                if trait_type == 'atk': return "⚠️ Outmatched Offense"
+                if trait_type == 'def': return "⚠️ Vulnerable Defense"
+                return "⚠️ Chases Game"
+            else:
+                if trait_type == 'atk': return "⚔️ Competitive Offense"
+                if trait_type == 'def': return "🛡️ Balanced Defense"
+                return "↔️ Even Control"
+                
+        insight_atk_a = get_insight_str(tac_atk_a, tac_atk_b, 'atk')
+        insight_def_a = get_insight_str(tac_def_a, tac_def_b, 'def')
+        insight_con_a = get_insight_str(consistency_a, consistency_b, 'con')
+        
+        insight_atk_b = get_insight_str(tac_atk_b, tac_atk_a, 'atk')
+        insight_def_b = get_insight_str(tac_def_b, tac_def_a, 'def')
+        insight_con_b = get_insight_str(consistency_b, consistency_a, 'con')
 
         style_a = sim.TEAM_PROFILES.get(team_a, 'Balanced')
         style_b = sim.TEAM_PROFILES.get(team_b, 'Balanced')
@@ -1585,17 +1609,17 @@ async def run_matchup_analysis(event):
                 <div>
                     <div style="font-weight:bold; margin-bottom:8px; color: #3b82f6;">{name_a}'s Strengths</div>
                     <ul style="margin:0; padding-left:18px; font-size:0.9em; line-height:1.6;">
-                        <li>{('💪 Dominant Attack' if tac_atk_a > tac_atk_b + 1.5 else '⚔️ Balanced Offense') if abs(tac_atk_a - tac_atk_b) > 0.5 else '⚖️ Average Attack'}</li>
-                        <li>{('🧱 Fortress Defense' if tac_def_a > tac_def_b + 1.5 else '🛡️ Solid Backline') if abs(tac_def_a - tac_def_b) > 0.5 else '⚖️ Average Defense'}</li>
-                        <li>{('✓ Game Control' if consistency_a > consistency_b else '⚠️ Unpredictable') if abs(consistency_a - consistency_b) > 1.5 else '↔️ Similar Control'}</li>
+                        <li>{insight_atk_a}</li>
+                        <li>{insight_def_a}</li>
+                        <li>{insight_con_a}</li>
                     </ul>
                 </div>
                 <div>
                     <div style="font-weight:bold; margin-bottom:8px; color: #ef4444;">{name_b}'s Strengths</div>
                     <ul style="margin:0; padding-left:18px; font-size:0.9em; line-height:1.6;">
-                        <li>{('💪 Dominant Attack' if tac_atk_b > tac_atk_a + 1.5 else '⚔️ Balanced Offense') if abs(tac_atk_b - tac_atk_a) > 0.5 else '⚖️ Average Attack'}</li>
-                        <li>{('🧱 Fortress Defense' if tac_def_b > tac_def_a + 1.5 else '🛡️ Solid Backline') if abs(tac_def_b - tac_def_a) > 0.5 else '⚖️ Average Defense'}</li>
-                        <li>{('✓ Game Control' if consistency_b > consistency_a else '⚠️ Unpredictable') if abs(consistency_b - consistency_a) > 1.5 else '↔️ Similar Control'}</li>
+                        <li>{insight_atk_b}</li>
+                        <li>{insight_def_b}</li>
+                        <li>{insight_con_b}</li>
                     </ul>
                 </div>
             </div>
