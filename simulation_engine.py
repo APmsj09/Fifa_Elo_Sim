@@ -988,8 +988,8 @@ def _initialize_engine_impl():
         elo_off_log = np.log(elo_off)
         elo_def_log = np.log(elo_def)
 
-        STAT_WEIGHT = 0.35  
-        ELO_WEIGHT  = 0.65  
+        STAT_WEIGHT = 0.65  
+        ELO_WEIGHT  = 0.35 
 
         final_off_log = STAT_WEIGHT * np.log(adjusted_off) + ELO_WEIGHT * elo_off_log
         s['off'] = np.exp(final_off_log)
@@ -1171,12 +1171,11 @@ def precompute_match_data():
 
         TEAM_PRECOMPUTE[clean_name] = {
             'elo': blended_elo,
-            'xg_coeff': s.get('off', 1.0) * enhanced_t_weight,
-            'xga_coeff': s.get('def', 1.0) / enhanced_t_weight,
+            'xg_coeff': s.get('off', 1.0),
+            'xga_coeff': s.get('def', 1.0),
             'pace': s.get('pace_factor', 1.0),
             'vol': s.get('volatility', 0.15),
-            'composure': np.clip(s.get('ko_exp_weighted', 0) / 10.0, 0, 1.0),
-            'p_b': pen_skill + experience
+            'composure': np.clip(s.get('ko_exp_weighted', 0) / 10.0, 0, 1.0)
         }
 
 def sim_match(t1, t2, knockout=False):
@@ -1202,7 +1201,7 @@ def sim_match(t1, t2, knockout=False):
     
     # 3. Elo Probability Distribution
     # Increase the divisor strictly for knockouts to simulate tournament parity
-    active_divisor = 660 if knockout else 620
+    active_divisor = 700 if knockout else 620
     win_prob = 1 / (10**(-dr/active_divisor) + 1)
     
     # Convert win probability into an odds ratio, capping to prevent extreme math errors
@@ -1220,9 +1219,9 @@ def sim_match(t1, t2, knockout=False):
     lam1 = max(0.1, (elo_lam1 * 0.65) + (stat_lam1 * 0.35))
     lam2 = max(0.1, (elo_lam2 * 0.65) + (stat_lam2 * 0.35))
     
-    # 6. Consistency/Clinical Bonus (Buff reduced to prevent elite over-performance)
-    lam1 *= (1.0 + max(0, 0.15 - p1['vol']) * 0.25)
-    lam2 *= (1.0 + max(0, 0.15 - p2['vol']) * 0.25)
+    # 6. Consistency/Clinical Bonus
+    lam1 *= (1.0 + max(0, 0.15 - p1['vol']) * 0.1)
+    lam2 *= (1.0 + max(0, 0.15 - p2['vol']) * 0.1)
 
     # 7. THE ROLL (Gamma-Poisson Distribution)
     def roll(l, v, c, is_ko):
@@ -1244,14 +1243,14 @@ def sim_match(t1, t2, knockout=False):
     if not knockout: return 'draw', g1, g2
 
     # Extra Time (Approx 1/3 of match time)
-    g1 += roll(lam1 * 0.38, p1['vol'], p1['composure'], True)
-    g2 += roll(lam2 * 0.38, p2['vol'], p2['composure'], True)
+    g1 += roll(lam1 * 0.33, p1['vol'], p1['composure'], True)
+    g2 += roll(lam2 * 0.33, p2['vol'], p2['composure'], True)
     if g1 > g2: return t1, g1, g2, 'aet'
     if g2 > g1: return t2, g1, g2, 'aet'
     
     # Penalties (Pressure + Skill + Luck)
     # Reduced the Elo advantage to make shootouts more of a 50/50 lottery
-    win_chance = 0.5 + (dr / 2000.0) + ((p1['composure'] - p2['composure']) * 0.15)
+    win_chance = 0.5 + (dr / 3500.0) + ((p1['composure'] - p2['composure']) * 0.05)
     winner = t1 if random.random() < np.clip(win_chance, 0.40, 0.60) else t2
     return winner, g1, g2, 'pks'
 
