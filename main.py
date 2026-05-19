@@ -662,12 +662,9 @@ async def run_single_sim(event):
         
         js.document.getElementById("visual-champion-name").innerText = champion.upper()
 
+        # --- 1. RENDER GROUPS (Restored full W/D/L/GD columns) ---
         groups_html = ""
-        group_names = [] 
-
         for grp_name, team_list in groups_data.items():
-            group_names.append(grp_name)
-            
             groups_html += f"""
             <div id="group-card-{grp_name}" class="group-box" style="cursor:pointer;" title="Click to view matches">
                 <div style="display:flex; justify-content:space-between;">
@@ -682,7 +679,7 @@ async def run_single_sim(event):
                 q_class = "qualified" if i < 2 else ""
                 groups_html += f"""
                     <tr class="{q_class}">
-                        <td>{row['team'].title()}</td>
+                        <td>{sim.PRETTY_NAMES.get(row['team'], row['team'].title())}</td>
                         <td><strong>{row['p']}</strong></td>
                         <td>{row['w']}</td>
                         <td>{row['d']}</td>
@@ -694,38 +691,104 @@ async def run_single_sim(event):
         
         js.document.getElementById("groups-container").innerHTML = groups_html
 
-        bracket_html = ""
-        for round_data in bracket_data:
-            bracket_html += f'<div class="bracket-round"><div class="round-title">{round_data["round"]}</div>'
-            
-            for m in round_data['matches']:
-                c1 = "winner-text" if m['winner'] == m['t1'] else ""
-                c2 = "winner-text" if m['winner'] == m['t2'] else ""
-                
-                score_display = ""
-                g1_txt = str(m['g1'])
-                g2_txt = str(m['g2'])
-                
-                if m['method'] == 'pks':
-                    g1_txt = f"{m['g1']} (P)" if m['winner'] == m['t1'] else str(m['g1'])
-                    g2_txt = f"{m['g2']} (P)" if m['winner'] == m['t2'] else str(m['g2'])
-                elif m['method'] == 'aet':
-                    g1_txt = f"{m['g1']} (ET)"
-                    g2_txt = f"{m['g2']} (ET)"
+        # --- 2. RENDER BRACKET TREE ---
+        # Safely extract rounds by name to avoid index bugs with the 3rd Place match
+        r32, r16, qf, sf, third, final = [], [], [], [], [], []
+        for rd in bracket_data:
+            if rd['round'] == 'Round of 32': r32 = rd['matches']
+            elif rd['round'] == 'Round of 16': r16 = rd['matches']
+            elif rd['round'] == 'Quarter-finals': qf = rd['matches']
+            elif rd['round'] == 'Semi-finals': sf = rd['matches']
+            elif rd['round'] == 'Third Place Play-off': third = rd['matches']
+            elif rd['round'] == 'Final': final = rd['matches']
 
-                bracket_html += f"""
-                <div class="matchup">
-                    <div class="matchup-team {c1}">
-                        <span>{m['t1'].title()}</span> <span>{g1_txt}</span>
+        def get_match_html(m, is_final=False):
+            """Helper to format a single match card with scores"""
+            t1, t2, w = m['t1'], m['t2'], m['winner']
+            g1, g2 = m['g1'], m['g2']
+            
+            # Format scores based on method (PKS / ET)
+            s1, s2 = str(g1), str(g2)
+            if m['method'] == 'pks':
+                s1 = f"{g1} (P)" if w == t1 else str(g1)
+                s2 = f"{g2} (P)" if w == t2 else str(g2)
+            elif m['method'] == 'aet':
+                s1, s2 = f"{g1} (ET)", f"{g2} (ET)"
+
+            c1 = "selected" if w == t1 else "eliminated"
+            c2 = "selected" if w == t2 else "eliminated"
+            n1 = sim.PRETTY_NAMES.get(t1, str(t1).title())
+            n2 = sim.PRETTY_NAMES.get(t2, str(t2).title())
+
+            if is_final:
+                return f'''
+                <div class="matchup-card" style="border: 2px solid var(--accent-gold); transform: scale(1.1); width: 100%;">
+                    <div class="team {c1}" style="justify-content:space-between; padding:15px; font-size:1.1em;">
+                        <span>{n1}</span><span style="font-weight:900;">{s1}</span>
                     </div>
-                    <div class="matchup-team {c2}">
-                        <span>{m['t2'].title()}</span> <span>{g2_txt}</span>
+                    <div class="team {c2}" style="justify-content:space-between; padding:15px; font-size:1.1em;">
+                        <span>{n2}</span><span style="font-weight:900;">{s2}</span>
                     </div>
                 </div>
-                """
-            bracket_html += "</div>"
+                '''
+            else:
+                return f'''
+                <div class="matchup-card">
+                    <div class="team {c1}" style="justify-content:space-between;">
+                        <span>{n1}</span><span style="font-weight:900;">{s1}</span>
+                    </div>
+                    <div class="team {c2}" style="justify-content:space-between;">
+                        <span>{n2}</span><span style="font-weight:900;">{s2}</span>
+                    </div>
+                </div>
+                '''
+
+        def render_col(matches):
+            html = '<div class="bracket-col">'
+            for m in matches: html += get_match_html(m)
+            html += '</div>'
+            return html
+
+        # Assemble the Tree (Left -> Center -> Right)
+        tree_html = '<div class="bracket-container-main">'
+        
+        # Left Side (Top half of the draw)
+        tree_html += render_col(r32[:8])
+        tree_html += render_col(r16[:4])
+        tree_html += render_col(qf[:2])
+        tree_html += render_col([sf[0]]) if sf else ''
+        
+        # Center (Final & 3rd Place)
+        tree_html += '<div class="bracket-col final-col" style="align-items: center;">'
+        tree_html += '<div style="text-align:center; font-weight:900; color:var(--accent-gold); font-size:1.2em; margin-bottom:15px; letter-spacing:2px;">WORLD CHAMPION</div>'
+        
+        if final:
+            tree_html += get_match_html(final[0], is_final=True)
             
-        js.document.getElementById("bracket-container").innerHTML = bracket_html
+        champ_name = sim.PRETTY_NAMES.get(champion, champion.title())
+        tree_html += f'<div style="text-align:center; margin-top:20px; font-size:1.8em; font-weight:900; color:var(--text-main);">🏆 {champ_name} 🏆</div>'
+        
+        # Add 3rd Place match beneath the Final
+        if third:
+            tree_html += '<div style="text-align:center; font-weight:700; color:#94a3b8; font-size:0.85em; margin-top:40px; margin-bottom:10px; letter-spacing:1px;">THIRD PLACE</div>'
+            tree_html += get_match_html(third[0])
+            
+        tree_html += '</div>'
+        
+        # Right Side (Bottom half of the draw, rendered backwards)
+        tree_html += render_col([sf[1]]) if len(sf) > 1 else ''
+        tree_html += render_col(qf[2:])
+        tree_html += render_col(r16[4:])
+        tree_html += render_col(r32[8:])
+        
+        tree_html += '</div>'
+        
+        js.document.getElementById("bracket-container").innerHTML = tree_html
+        
+        # Also ensure the container handles horizontal scrolling properly
+        js.document.getElementById("bracket-container").style.overflowX = "auto"
+        js.document.getElementById("bracket-container").style.paddingBottom = "20px"
+
         js.document.getElementById("visual-loading").style.display = "none"
         js.document.getElementById("visual-results-container").style.display = "block"
 

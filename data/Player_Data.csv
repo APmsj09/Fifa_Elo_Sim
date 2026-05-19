@@ -1,5 +1,5 @@
 Nation,Rat,Pot,Name,Age,Position(s),Club,Contract,Wage (p/w),Sell Value,WC 2026?
-France,91,99,Kylian Mbappé,26,"AML, ST",Real Madrid,06-2029,€575K,€162M - €304M,Yes
+France,92,99,Kylian Mbappé,26,"AML, ST",Real Madrid,06-2029,€575K,€162M - €304M,Yes
 France,90,94,Ousmane Dembélé,28,"AMR, ST",PSG,06-2028,€385K,€254M - €475M,Yes
 France,87,92,William Saliba,24,DC,Arsenal,06-2030,€255K,€117M - €219M,Yes
 France,88,93,Michael Olise,23,"AMR, AMC",FC Bayern,06-2029,€259K,€183M - €343M,Yes
@@ -2293,8 +2293,8 @@ Scotland,58,68,Marc Leonard,23,Birmingham,"DM, MC",06-2028,€21K,€3M - €5M,
 Scotland,58,69,Craig Gordon,42,Hearts,GK,05-2026,€5K,€109K - €205K,No
 Scotland,58,66,David Turnbull,26,Cardiff,"MC, AMC",06-2027,€17K,€3M - €6M,No
 Scotland,58,65,Josh Mulligan,23,Hibernian,"DM, WBR, MC",05-2029,€4K,€2M - €4M,No
-Uzbekistan,75,87,Abdukodir Khusanov,21,Manchester City,DC,06-2029,€93K,€63M - €119M,Yes
-Uzbekistan,65,68,Eldor Shomurodov,30,AS Roma,ST,06-2027,€37K,€3M - €5M,Yes
+Uzbekistan,77,87,Abdukodir Khusanov,21,Manchester City,DC,06-2029,€93K,€63M - €119M,Yes
+Uzbekistan,68,68,Eldor Shomurodov,30,AS Roma,ST,06-2027,€37K,€3M - €5M,Yes
 Uzbekistan,63,73,Abbosbek Fayzullayev,22,İstanbul Başakşehir,"AML, AMC",06-2030,€21K,€24M - €45M,Yes
 Uzbekistan,61,66,Hojiakbar Alijonov,28,Paxtakor,"DR, WBR",12-2026,€7K,€673K - €1M,Yes
 Uzbekistan,60,62,Husniddin Aliqulov,26,Çaykur Rizespor,"DR, DC",06-2027,€11K,€3M - €6M,Yes
@@ -2467,7 +2467,7 @@ Egypt,58,68,Amr El Soleya,35,C. Cleopatra,"DM, MC",07-2026,€3K,€278M - €52
 Egypt,58,64,Oufa,29,National Bank,ST,06-2028,€7K,€2M - €3M,No
 Jordan,75,75,Musa Al-Tamari,28,Rennes,AMR,06-2028,€16K,€5M - €9M,Yes
 Jordan,71,71,Yazan Al-Arab,29,FC Seoul,DC,12-2026,€5K,€769K - €1M,Yes
-Jordan,58,65,Tammer Bany,22,West Brom,"AMC, ST",06-2028,€7K,€3M - €5M,Likely
+Jordan,60,65,Tammer Bany,22,West Brom,"AMC, ST",06-2028,€7K,€3M - €5M,Likely
 Jordan,55,55,Baha'a Faisal,30,Al-Waab,ST,06-2026,€12K,€2M - €3M,Likely
 Jordan,55,55,Ihsan Haddad,31,Al-Hussein,"DR, WBR",06-2026,€3K,€90K - €168K,Yes
 Jordan,53,55,Mohannad Semreen,23,Al-Gharrafa,AML,06-2026,€771,€129K - €241K,No
@@ -3130,18 +3130,18 @@ Bosnia And Herzegovina,57,63,Rifet Kapić,30,Lechia,MC,06-2027,€3K,€956K - �
 Haiti,75,79,Odsonne Édouard,27,RC Lens,ST,06-2028,€35K,€9M - €16M,Yes
 Haiti,71,71,Jean-Ricner Bellegarde,27,Wolverhampton,"MC, AMC",06-2028,€58K,€20M - €38M,Yes
 Haiti,64,65,Ricardo Adé,35,Liga de Quito,DC,12-2027,€5K,€278M - €521M,Yes
-Haiti,62,65,Carlens Arcus,29,Angers,DR,06-2026,€35K,€3M - €6M,Yes
-Haiti,62,67,Hannes Delcroix,26,FC Lugano,DC,06-2028,€12K,€1M - €2M,Yes
+Haiti,65,65,Carlens Arcus,29,Angers,DR,06-2026,€35K,€3M - €6M,Yes
+Haiti,66,67,Hannes Delcroix,26,FC Lugano,DC,06-2028,€12K,€1M - €2M,Yes
 Haiti,62,68,Josué Casimir,24,Auxerre,"MR, AMR",06-2028,€9K,€3M - €6M,Yes
-Haiti,61,67,Jean-Kévin Duverne,28,FC Nantes,"DL, DC",06-2027,€6K,€1M - €3M,Yes
-Haiti,60,65,Danley Jean Jacques,25,Philadelphia,"DM, MC",12-2026,€11K,€2M - €3M,Yes
-Haiti,58,60,Duckens Nazon,31,Esteghlal,ST,06-2028,€10K,€755K - €1M,Yes
+Haiti,66,67,Jean-Kévin Duverne,28,FC Nantes,"DL, DC",06-2027,€6K,€1M - €3M,Yes
+Haiti,65,65,Danley Jean Jacques,25,Philadelphia,"DM, MC",12-2026,€11K,€2M - €3M,Yes
+Haiti,60,60,Duckens Nazon,31,Esteghlal,ST,06-2028,€10K,€755K - €1M,Yes
 Haiti,60,60,Frantzdy Pierrot,30,AEK Athens,ST,06-2027,€19K,€2M - €3M,Yes
-Haiti,57,59,Derrick Etienne Jr.,29,Toronto FC,"AMR, AML",12-2026,€12K,€1M - €2M,Yes
-Haiti,56,62,Johny Placide,37,SC Bastia,GK,06-2026,€4K,€278M - €521M,Yes
-Haiti,55,60,Wilguens Paugain,24,Zulte Waregem,DR,06-2028,€2K,€616K - €1M,No
+Haiti,60,60,Derrick Etienne Jr.,29,Toronto FC,"AMR, AML",12-2026,€12K,€1M - €2M,Yes
+Haiti,60,62,Johny Placide,37,SC Bastia,GK,06-2026,€4K,€278M - €521M,Yes
+Haiti,56,60,Wilguens Paugain,24,Zulte Waregem,DR,06-2028,€2K,€616K - €1M,No
 Haiti,55,59,Louicius Deedson,24,FC Dallas,"AMR, ST",12-2028,€5K,€947K - €2M,No
-Haiti,55,58,Fafà Picault,34,Atlanta United,AML,12-2026,€9K,€234K - €439K,Yes
+Haiti,58,58,Fafà Picault,34,Atlanta United,AML,12-2026,€9K,€234K - €439K,Yes
 Haiti,54,58,Jayro Jean,27,Union Military,AML,06-2026,€1K,0,No
 Haiti,54,60,Dany Jean,23,Torreense,AML,06-2027,€1K,€594K - €1M,No
 Haiti,53,60,Martin Experience,26,AS Nancy,DL,06-2026,€2K,€410K - €769K,No
@@ -3150,33 +3150,33 @@ Haiti,51,58,Yassin Fortuné,26,Vizela,"AMR, ST",06-2027,€2K,€136K - €255K,
 Haiti,50,59,Steeven Saba,32,Violette,"DM, MC",12-2025,€502,€20K - €37K,No
 Haiti,50,53,Bryan Alceus,29,—,"DM, MC",Expired,0,0,No
 Haiti,50,55,Stéphane Lambèse,30,FC Fleury 91,DR,06-2026,€743,€119K - €223K,No
-Haiti,49,61,Ruben Providence,24,Almere City,"AMR, AML",06-2027,€2K,€561K - €1M,No
-Haiti,49,57,Zachary Herivaux,29,Rhode Island,MC,11-2026,€1K,€449K - €842K,No
+Haiti,55,61,Ruben Providence,24,Almere City,"AMR, AML",06-2027,€2K,€561K - €1M,No
+Haiti,50,57,Zachary Herivaux,29,Rhode Island,MC,11-2026,€1K,€449K - €842K,No
 Haiti,49,56,Carnejy Antoine,34,—,ST,Expired,0,0,No
-Haiti,49,53,Mondy Prunier,25,Royal Charleroi,ST,06-2026,€2K,€185K - €346K,No
-Haiti,49,53,Shelton Guillaume,28,FC Versailles,ST,06-2027,€1K,€158K - €297K,No
+Haiti,50,53,Mondy Prunier,25,Royal Charleroi,ST,06-2026,€2K,€185K - €346K,No
+Haiti,50,53,Shelton Guillaume,28,FC Versailles,ST,06-2027,€1K,€158K - €297K,No
 Haiti,48,53,Sebas Lauture,25,Torrent,DC,06-2026,€2K,€218K - €408K,No
-Haiti,48,60,Woobens Pacius,24,Nashville,ST,12-2026,€1K,€539K - €1M,No
+Haiti,56,60,Woobens Pacius,24,Nashville,ST,12-2026,€1K,€539K - €1M,No
 Haiti,48,49,Mechack Jérôme,35,—,DC,Expired,0,0,No
-Haiti,48,60,Shanyder Borgelin,24,Varbergs BoIS,ST,12-2027,€896,€129K - €243K,No
-Haiti,48,48,Leverton Pierre,27,Vizela,"DM, MC",06-2026,€2K,€154K - €289K,No
-Haiti,48,59,Jeppe Simonsen,30,Fremad Amager,"DR, DL",06-2026,€698,€21K - €40K,No
+Haiti,55,60,Shanyder Borgelin,24,Varbergs BoIS,ST,12-2027,€896,€129K - €243K,No
+Haiti,50,50,Leverton Pierre,27,Vizela,"DM, MC",06-2026,€2K,€154K - €289K,No
+Haiti,50,59,Jeppe Simonsen,30,Fremad Amager,"DR, DL",06-2026,€698,€21K - €40K,No
 Haiti,47,52,Duke LaCroix,32,CO Springs,DL,11-2026,€820,€278M - €521M,No
 Haiti,47,55,Sony Nordé,36,—,"AML, AMC",Expired,0,0,No
 Haiti,47,52,C. François,32,—,AMR,Expired,0,0,No
 Haiti,47,53,A. Jean-Baptiste,33,—,DC,Expired,0,0,No
-Haiti,47,57,Alexandre Pierre,24,Sochaux,GK,06-2028,€1K,€110K - €205K,No
-Haiti,47,64,Belmar Joseph,20,FC Sion,MC,06-2027,€2K,€184K - €345K,No
+Haiti,50,57,Alexandre Pierre,24,Sochaux,GK,06-2028,€1K,€110K - €205K,No
+Haiti,50,64,Belmar Joseph,20,FC Sion,MC,06-2027,€2K,€184K - €345K,No
 Haiti,47,52,Steven Séance,33,AS Saint-Priest,DC,06-2026,€992,€278M - €521M,No
-Haiti,46,62,Kensly Vázquez,22,Cacereño,ST,06-2026,€3K,€88K - €165K,No
+Haiti,50,62,Kensly Vázquez,22,Cacereño,ST,06-2026,€3K,€88K - €165K,No
 Haiti,46,48,Philbert Merceus,30,Don Bosco,MC,12-2026,€473,€31K - €58K,No
 Haiti,46,58,Judelin Aveska,38,—,DC,Expired,0,0,No
 Haiti,46,47,Ashkanov Apollon,34,—,DL,Expired,0,0,No
 Haiti,46,46,Jhonny Parima,28,Moca FC,MC,06-2026,€1K,€9K - €17K,No
-Haiti,46,63,Ronaldo Damus,26,B'ham Legion,ST,11-2027,€1K,€296K - €555K,No
+Haiti,50,63,Ronaldo Damus,26,B'ham Legion,ST,11-2027,€1K,€296K - €555K,No
 Haiti,46,52,Bicou Bissainthe,26,Hai Phong,"DM, MC",08-2026,€2K,€138K - €259K,No
 Haiti,46,49,Bryan Labissière,28,Thionville Lus.,"AMC, ST",06-2026,€764,€123K - €231K,No
-Haiti,45,50,G. Innocent,25,Ottawa,GK,12-2026,€392,€67K - €126K,No
+Haiti,49,50,G. Innocent,25,Ottawa,GK,12-2026,€392,€67K - €126K,No
 Qatar,70,70,Akram Afif,29,Al-Sadd,AML,06-2030,€96K,€19M - €36M,Yes
 Qatar,63,68,Almoez Ali,29,Al-Duhail,"AMR, ST",06-2027,€41K,€14M - €27M,Yes
 Qatar,60,60,Tarek Salman,28,Al-Sadd,DC,06-2027,€33K,€10M - €19M,Yes
