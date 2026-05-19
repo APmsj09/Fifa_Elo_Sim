@@ -209,6 +209,10 @@ def setup_interactions():
     EVENT_HANDLERS.append(proxy_view_group)
     js.window.view_group_matches = proxy_view_group
 
+    proxy_bulk_view_group = create_proxy(open_bulk_group_modal)
+    EVENT_HANDLERS.append(proxy_bulk_view_group)
+    js.window.open_bulk_group_modal = proxy_bulk_view_group
+
     proxy_view_history = create_proxy(view_team_history)
     EVENT_HANDLERS.append(proxy_view_history)
     js.window.trigger_view_history = proxy_view_history
@@ -821,6 +825,60 @@ def open_group_modal(grp_name):
     except Exception as e:
         js.console.error(f"MODAL ERROR: {e}")
 
+def open_bulk_group_modal(grp_name):
+    try:
+        state = BULK_STATE
+        if not state or 'groups' not in state: return
+        
+        teams = list(state['groups'][grp_name]['teams'].keys())
+        # Sort teams by their advance probability to keep matchups ordered logically
+        teams.sort(key=lambda t: state['stats'][t]['r32'], reverse=True)
+        
+        js.document.getElementById("modal-title").innerText = f"Group {grp_name} Projected Matchups"
+        
+        html = ""
+        import itertools
+        pairs = list(itertools.combinations(teams, 2))
+        
+        for t1, t2 in pairs:
+            h2h = state['h2h'].get(t1, {}).get(t2)
+            if not h2h or h2h['m'] == 0: continue
+            
+            w1 = (h2h['w'] / h2h['m']) * 100
+            d = (h2h['d'] / h2h['m']) * 100
+            w2 = (h2h['l'] / h2h['m']) * 100
+            
+            g1 = h2h['gf'] / h2h['m']
+            g2 = h2h['ga'] / h2h['m']
+            
+            n1 = sim.PRETTY_NAMES.get(t1, t1.title())
+            n2 = sim.PRETTY_NAMES.get(t2, t2.title())
+            
+            html += f"""
+            <div style="margin-bottom: 15px; background: var(--card-bg); padding: 12px; border-radius: 8px; border: 1px solid var(--sidebar-border); box-shadow: var(--shadow-sm);">
+                <div style="display:flex; justify-content:space-between; font-size: 0.95em; font-weight:bold; margin-bottom: 8px;">
+                    <span style="color:var(--accent-blue); width:40%; text-align:left;">{n1} <span style="color:var(--text-main); font-size:0.85em; background:rgba(0,0,0,0.05); padding:2px 6px; border-radius:4px; margin-left:4px;">{g1:.2f} xG</span></span>
+                    <span style="color:var(--text-light); font-size:0.75em; align-self:center;">DRAW</span>
+                    <span style="color:var(--accent-red); width:40%; text-align:right;"><span style="color:var(--text-main); font-size:0.85em; background:rgba(0,0,0,0.05); padding:2px 6px; border-radius:4px; margin-right:4px;">{g2:.2f} xG</span> {n2}</span>
+                </div>
+                <div style="display:flex; width:100%; height:10px; border-radius:5px; overflow:hidden;">
+                    <div style="width:{w1}%; background:var(--accent-blue);" title="{n1} Win: {w1:.1f}%"></div>
+                    <div style="width:{d}%; background:#cbd5e1;" title="Draw: {d:.1f}%"></div>
+                    <div style="width:{w2}%; background:var(--accent-red);" title="{n2} Win: {w2:.1f}%"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size: 0.8em; color:var(--text-light); margin-top: 6px; font-weight:600;">
+                    <span style="width:33%; text-align:left;">{w1:.1f}%</span>
+                    <span style="width:33%; text-align:center;">{d:.1f}%</span>
+                    <span style="width:33%; text-align:right;">{w2:.1f}%</span>
+                </div>
+            </div>
+            """
+        
+        js.document.getElementById("modal-matches").innerHTML = html
+        js.document.getElementById("group-modal").style.display = "block"
+    except Exception as e:
+        js.console.error(f"BULK MODAL ERROR: {e}")
+
 # =============================================================================
 # --- 3. BULK SIMULATION ---
 # =============================================================================
@@ -845,7 +903,7 @@ async def run_bulk_sim(event):
     
     def init_team(t):
         if t not in team_stats:
-            team_stats[t] = {'apps': 0, 'grp_1st': 0, 'r32': 0, 'r16':0, 'qf':0, 'sf': 0, 'final': 0, 'win': 0, 'grp_pts': 0}
+            team_stats[t] = {'apps': 0, 'grp_1st': 0, 'r32': 0, 'r16':0, 'qf':0, 'sf': 0, 'final': 0, 'win': 0, 'grp_pts': 0, 'grp_gf': 0, 'grp_ga': 0}
             goals_tracker[t] = 0
             ga_tracker[t] = 0
             matchups[t] = {
@@ -858,12 +916,17 @@ async def run_bulk_sim(event):
             }
             h2h_tracker[t] = {}
             
-    def update_h2h(t1, t2, winner):
-        if t2 not in h2h_tracker[t1]: h2h_tracker[t1][t2] = {'m': 0, 'w': 0, 'l': 0, 'd': 0}
-        if t1 not in h2h_tracker[t2]: h2h_tracker[t2][t1] = {'m': 0, 'w': 0, 'l': 0, 'd': 0}
+    def update_h2h(t1, t2, winner, g1=0, g2=0):
+        if t2 not in h2h_tracker[t1]: h2h_tracker[t1][t2] = {'m': 0, 'w': 0, 'l': 0, 'd': 0, 'gf': 0, 'ga': 0}
+        if t1 not in h2h_tracker[t2]: h2h_tracker[t2][t1] = {'m': 0, 'w': 0, 'l': 0, 'd': 0, 'gf': 0, 'ga': 0}
         
         h2h_tracker[t1][t2]['m'] += 1
         h2h_tracker[t2][t1]['m'] += 1
+        
+        h2h_tracker[t1][t2]['gf'] += g1
+        h2h_tracker[t1][t2]['ga'] += g2
+        h2h_tracker[t2][t1]['gf'] += g2
+        h2h_tracker[t2][t1]['ga'] += g1
         
         if winner == t1:
             h2h_tracker[t1][t2]['w'] += 1; h2h_tracker[t2][t1]['l'] += 1
@@ -903,6 +966,8 @@ async def run_bulk_sim(event):
                     init_team(t)
                     team_stats[t]['apps'] += 1
                     team_stats[t]['grp_pts'] += row['p']
+                    team_stats[t]['grp_gf'] += row['gf']
+                    team_stats[t]['grp_ga'] += row['ga']
                     group_mapping[grp]['teams'][t] = True
                     goals_tracker[t] += row['gf']
                     ga_tracker[t] += row['ga']
@@ -911,7 +976,7 @@ async def run_bulk_sim(event):
             for grp, matches in res['group_matches'].items():
                 for m in matches:
                     w = m['t1'] if m['g1'] > m['g2'] else (m['t2'] if m['g2'] > m['g1'] else 'draw')
-                    update_h2h(m['t1'], m['t2'], w)
+                    update_h2h(m['t1'], m['t2'], w, m['g1'], m['g2'])
 
             bracket = res['bracket_data']
             if bracket:
@@ -935,7 +1000,7 @@ async def run_bulk_sim(event):
                         matchups[t1][r_name][t2] = matchups[t1][r_name].get(t2, 0) + 1
                         matchups[t2][r_name][t1] = matchups[t2][r_name].get(t1, 0) + 1
                         
-                        update_h2h(t1, t2, m['winner'])
+                        update_h2h(t1, t2, m['winner'], m['g1'], m['g2'])
 
             champ = res['champion']
             init_team(champ)
@@ -1164,13 +1229,15 @@ def build_bulk_dashboard():
     
     for grp in sorted(state['groups'].keys()):
         is_god = "💀" if grp == group_of_death else ""
-        html += f"""<div class='dashboard-card' style='margin:0; padding:15px;'>
-            <h4 style='margin:0 0 10px 0; color:var(--accent-blue);'>Group {grp} <span style="float:right;" title="Group of Death">{is_god}</span></h4>
+        html += f"""<div class='dashboard-card' style='margin:0; padding:15px; cursor:pointer; transition:all 0.2s;' onclick='window.open_bulk_group_modal("{grp}")' onmouseover='this.style.transform="translateY(-3px)"; this.style.boxShadow="var(--shadow-md)"; this.style.borderColor="var(--accent-blue)"' onmouseout='this.style.transform="none"; this.style.boxShadow="var(--shadow-sm)"; this.style.borderColor="var(--sidebar-border)"'>
+            <h4 style='margin:0 0 10px 0; color:var(--accent-blue);'>Group {grp} <span style="float:right; font-size:0.8em; color:var(--text-light); font-weight:normal;" title="Group of Death">{is_god} 🔍 Matchups</span></h4>
             <table style='width:100%; font-size:0.85em; border-collapse:collapse;'>
                 <tr>
                     <th style='text-align:left; color:var(--text-light); padding-bottom:5px; font-weight:600;'>Team</th>
-                    <th style='text-align:right; color:var(--text-light); padding-bottom:5px; font-weight:600; width:45px; padding-left:10px;' title='Probability to win the group'>1st</th>
-                    <th style='text-align:right; color:var(--text-light); padding-bottom:5px; font-weight:600; width:45px; padding-left:10px;' title='Probability to advance to knockouts'>Adv</th>
+                    <th style='text-align:right; color:var(--text-light); padding-bottom:5px; font-weight:600; width:40px;' title='Probability to win the group'>1st</th>
+                    <th style='text-align:right; color:var(--text-light); padding-bottom:5px; font-weight:600; width:40px;' title='Probability to advance to knockouts'>Adv</th>
+                    <th style='text-align:right; color:var(--text-light); padding-bottom:5px; font-weight:600; width:35px;' title='Expected Goals For (Group Stage)'>GF</th>
+                    <th style='text-align:right; color:var(--text-light); padding-bottom:5px; font-weight:600; width:35px;' title='Expected Goals Against (Group Stage)'>GA</th>
                 </tr>"""
         group_teams = list(state['groups'][grp]['teams'].keys())
         group_teams.sort(key=lambda t: state['stats'][t]['r32'], reverse=True)
@@ -1178,12 +1245,18 @@ def build_bulk_dashboard():
             s = state['stats'][t]
             adv_pct = (s['r32'] / num) * 100
             first_pct = (s['grp_1st'] / num) * 100
+            
+            exp_gf = s['grp_gf'] / num
+            exp_ga = s['grp_ga'] / num
+            
             opacity = "1.0" if (s['apps']/num) > 0.5 else "0.5"
             t_name = sim.PRETTY_NAMES.get(t, t.title())
             html += f"""<tr style='opacity:{opacity}; border-bottom:1px solid var(--sidebar-border);'>
-                <td style='padding:6px 0; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px;' title='{t_name}'>{t_name}</td>
-                <td style='padding:6px 0 6px 10px; text-align:right; font-weight:bold; color:var(--text-main);'>{first_pct:.1f}%</td>
-                <td style='padding:6px 0 6px 10px; text-align:right; font-weight:bold; color:var(--accent-green);'>{adv_pct:.1f}%</td>
+                <td style='padding:6px 0; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:110px;' title='{t_name}'>{t_name}</td>
+                <td style='padding:6px 0 6px 5px; text-align:right; font-weight:bold; color:var(--text-main);'>{first_pct:.1f}%</td>
+                <td style='padding:6px 0 6px 5px; text-align:right; font-weight:bold; color:var(--accent-green);'>{adv_pct:.1f}%</td>
+                <td style='padding:6px 0 6px 5px; text-align:right; color:var(--accent-blue);'>{exp_gf:.1f}</td>
+                <td style='padding:6px 0 6px 5px; text-align:right; color:var(--accent-red);'>{exp_ga:.1f}</td>
             </tr>"""
         html += "</table></div>"
     
