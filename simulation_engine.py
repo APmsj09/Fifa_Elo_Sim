@@ -1205,11 +1205,11 @@ def sim_match(t1, t2, knockout=False):
     win_prob = 1 / (10**(-dr/active_divisor) + 1)
     
     # Convert win probability into an odds ratio, capping to prevent extreme math errors
-    ratio = max(0.08, min(16.0, win_prob / max(0.001, (1.0 - win_prob))))
+    ratio = max(0.08, min(20.0, win_prob / max(0.001, (1.0 - win_prob))))
     
     # Scale expected goals by the square root of the ratio to keep things realistic
-    elo_lam1 = (total_match_goals / 2) * (ratio ** 0.45)
-    elo_lam2 = (total_match_goals / 2) / (ratio ** 0.45)
+    elo_lam1 = (total_match_goals / 2) * (ratio ** 0.5)
+    elo_lam2 = (total_match_goals / 2) / (ratio ** 0.5)
 
     # 4. Tactical Stat Flavor
     # Uses raw xga_coeff. A bad defense (>1.0) will boost stat_lam1.
