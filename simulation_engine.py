@@ -971,11 +971,14 @@ def _initialize_engine_impl():
         weighted_opp_elo = (avg_opp_elo * agg['eff_games'] + GLOBAL_ELO_MEAN * REGRESSION_DUMMY_GAMES) / denom
         difficulty_ratio = weighted_opp_elo / GLOBAL_ELO_MEAN
         
-        off_log = np.log(raw_gf_avg / avg_goals_global)
         sos_weight_off = np.clip(difficulty_ratio, 0.85, 1.15)
-        adjusted_off = np.exp(off_log * sos_weight_off)
+        # Simply multiply the ratio. 
+        # If I score 0.8x avg against a 1.15x hard schedule, my rating jumps up to 0.92x.
+        adjusted_off = (raw_gf_avg / avg_goals_global) * sos_weight_off
 
         sos_weight_def = difficulty_ratio ** 1.1 
+        # Simply divide the ratio.
+        # If I concede 0.8x avg against a 1.15x hard schedule, my defense drops to an elite 0.69x.
         adjusted_def = (raw_ga_avg / avg_goals_global) / sos_weight_def
 
         elo_ratio = s['elo'] / GLOBAL_ELO_MEAN
