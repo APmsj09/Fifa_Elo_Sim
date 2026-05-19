@@ -1218,13 +1218,13 @@ def build_bulk_dashboard():
             <td style="text-align:right; font-weight:bold; color:var(--accent-blue);">{c['win_pct']:.1f}% Win</td>
         </tr>"""
     
-    html += f"""
+    html += """
             </table>
         </div>
     </div>
 
     <h3 style='color:var(--text-main); border-bottom:2px solid var(--sidebar-border); padding-bottom:10px;'>📋 Projected Group Standings</h3>
-    <div style='display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:15px; margin-bottom:40px;'>
+    <div style='display:grid; grid-template-columns: repeat(4, 1fr); gap:20px; margin-bottom:40px;'>
     """
     
     for grp in sorted(state['groups'].keys()):
