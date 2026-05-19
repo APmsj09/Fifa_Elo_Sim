@@ -1205,19 +1205,22 @@ def sim_match(t1, t2, knockout=False):
     win_prob = 1 / (10**(-dr/active_divisor) + 1)
     
     # Convert win probability into an odds ratio, capping to prevent extreme math errors
-    ratio = max(0.05, min(20.0, win_prob / max(0.001, (1.0 - win_prob))))
+    ratio = max(0.08, min(15.0, win_prob / max(0.001, (1.0 - win_prob))))
     
     # Scale expected goals by the square root of the ratio to keep things realistic
-    elo_lam1 = (total_match_goals / 2) * (ratio ** 0.5)
-    elo_lam2 = (total_match_goals / 2) / (ratio ** 0.5)
+    elo_lam1 = (total_match_goals / 2) * (ratio ** 0.45)
+    elo_lam2 = (total_match_goals / 2) / (ratio ** 0.45)
 
     # 4. Tactical Stat Flavor
     stat_lam1 = (total_match_goals / 2) * p1['xg_coeff'] * p2['xga_coeff']
     stat_lam2 = (total_match_goals / 2) * p2['xg_coeff'] * p1['xga_coeff']
 
     # 5. The Master Blend
-    lam1 = max(0.1, (elo_lam1 * 0.65) + (stat_lam1 * 0.35))
-    lam2 = max(0.1, (elo_lam2 * 0.65) + (stat_lam2 * 0.35))
+    def_check_1 = min(1.0, p2['xga_coeff'] ** 0.5)
+    def_check_2 = min(1.0, p1['xga_coeff'] ** 0.5)
+    
+    lam1 = max(0.1, (elo_lam1 * 0.65 * def_check_1) + (stat_lam1 * 0.35))
+    lam2 = max(0.1, (elo_lam2 * 0.65 * def_check_2) + (stat_lam2 * 0.35))
     
     # 6. Consistency/Clinical Bonus
     lam1 *= (1.0 + max(0, 0.15 - p1['vol']) * 0.1)
