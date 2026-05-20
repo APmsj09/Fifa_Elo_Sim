@@ -1151,26 +1151,34 @@ TEAM_PRECOMPUTE = {}
 def precompute_match_data():
     global TEAM_PRECOMPUTE
     TEAM_PRECOMPUTE = {}
+    
+    # 1. Dynamically read slider percentage from UI
+    try:
+        slider_val = float(js.document.getElementById("slider-elo-weight").value)
+        elo_weight_pct = slider_val / 100.0
+    except Exception:
+        elo_weight_pct = 0.57  # Fallback default
+        
+    talent_weight_pct = 1.0 - elo_weight_pct
+
     for t, s in TEAM_STATS.items():
         clean_name = str(t).lower().strip()
         talent = TEAM_TALENT.get(clean_name, {'talent_weight': 0.9, 'talent_score': 64.0})
         
         base_elo = s.get('elo', 1400)
         
-        # 1. Translate FIFA rating (0-99) into a "Talent Elo" equivalent
-        # A rating of 85 = ~2000 Elo (Elite). A rating of 60 = ~1000 Elo (Minnow).
+        # Translate FIFA rating (0-99) into a "Talent Elo" equivalent
         raw_rating = talent.get('talent_score', 70.0)
         talent_elo = 1000 + (raw_rating - 60) * 40
         
-        # 2. Apply the exact 55% / 45% mathematical blend
-        blended_elo = (base_elo * 0.57) + (talent_elo * 0.43)
+        # 2. Apply the dynamic mathematical blend
+        blended_elo = (base_elo * elo_weight_pct) + (talent_elo * talent_weight_pct)
 
         pen_skill = s.get('pen_pct', 5) / 100.0 
         experience = np.clip(s.get('ko_exp_weighted', 0) / 20.0, 0, 0.1)
 
-        # 3. Enhance the tactical impact to match the 45% weight
         t_weight = talent.get('talent_weight', 1.0)
-        enhanced_t_weight = t_weight ** 1.35 # Amplifies the talent multiplier slightly
+        enhanced_t_weight = t_weight ** 1.35
 
         TEAM_PRECOMPUTE[clean_name] = {
             'elo': blended_elo,
@@ -1367,30 +1375,33 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
             t3_mapping[winner_letter] = list(third_place_teams.values())[i]
 
     # 5. Build the Bracket
+    # Officially mandated FIFA bracket structure for the 2026 World Cup
     bracket_matchups = [
-        # --- QUARTER 1 (Spain's Region) ---
-        (get_t('H', 0), get_t('A', 1)),  # Match 0: Spain (1H) vs 2A
-        (get_t('A', 0), t3_mapping['A']),# Match 1: 1A vs 3rd Place
-        (get_t('C', 0), get_t('B', 1)),  # Match 2: 1C vs 2B
-        (get_t('E', 0), t3_mapping['E']),# Match 3: 1E vs 3rd Place
+        # --- LEFT SIDE OF BRACKET ---
+        # Quarter 1
+        (get_t('E', 0), t3_mapping['E']),  # Match 74: 1E vs 3rd Place
+        (get_t('I', 0), t3_mapping['I']),  # Match 77: 1I vs 3rd Place
+        (get_t('A', 1), get_t('B', 1)),    # Match 73: 2A vs 2B
+        (get_t('F', 0), get_t('C', 1)),    # Match 75: 1F vs 2C
 
-        # --- QUARTER 2 (England's Region) ---
-        (get_t('L', 0), t3_mapping['L']),# Match 4: England (1L) vs 3rd Place
-        (get_t('D', 0), t3_mapping['D']),# Match 5: 1D vs 3rd Place
-        (get_t('G', 0), t3_mapping['G']),# Match 6: 1G vs 3rd Place
-        (get_t('C', 1), get_t('D', 1)),  # Match 7: 2C vs 2D
+        # Quarter 2
+        (get_t('K', 1), get_t('L', 1)),    # Match 83: 2K vs 2L
+        (get_t('H', 0), get_t('J', 1)),    # Match 84: 1H vs 2J
+        (get_t('D', 0), t3_mapping['D']),  # Match 81: 1D vs 3rd Place
+        (get_t('G', 0), t3_mapping['G']),  # Match 82: 1G vs 3rd Place
 
-        # --- QUARTER 3 (Argentina's Region) ---
-        (get_t('J', 0), get_t('E', 1)),  # Match 8: Argentina (1J) vs 2E
-        (get_t('B', 0), t3_mapping['B']),# Match 9: 1B vs 3rd Place
-        (get_t('F', 0), get_t('G', 1)),  # Match 10: 1F vs 2G
-        (get_t('K', 0), t3_mapping['K']),# Match 11: 1K vs 3rd Place
+        # --- RIGHT SIDE OF BRACKET ---
+        # Quarter 3
+        (get_t('C', 0), get_t('F', 1)),    # Match 76: 1C vs 2F
+        (get_t('E', 1), get_t('I', 1)),    # Match 78: 2E vs 2I
+        (get_t('A', 0), t3_mapping['A']),  # Match 79: 1A vs 3rd Place
+        (get_t('L', 0), t3_mapping['L']),  # Match 80: 1L vs 3rd Place
 
-        # --- QUARTER 4 (France's Region) ---
-        (get_t('I', 0), t3_mapping['I']),# Match 12: France (1I) vs 3rd Place
-        (get_t('H', 1), get_t('I', 1)),  # Match 13: 2H vs 2I
-        (get_t('J', 1), get_t('K', 1)),  # Match 14: 2J vs 2K
-        (get_t('L', 1), get_t('F', 1)),  # Match 15: 2L vs 2F
+        # Quarter 4
+        (get_t('J', 0), get_t('H', 1)),    # Match 86: 1J vs 2H
+        (get_t('D', 1), get_t('G', 1)),    # Match 88: 2D vs 2G
+        (get_t('B', 0), t3_mapping['B']),  # Match 85: 1B vs 3rd Place
+        (get_t('K', 0), t3_mapping['K']),  # Match 87: 1K vs 3rd Place
     ]
         
     rounds = ['Round of 32', 'Round of 16', 'Quarter-finals', 'Semi-finals', 'Final']

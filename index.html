@@ -1222,6 +1222,15 @@
                     <input type="number" id="bulk-count" value="1000" min="10" max="100000">
                 </div>
 
+                <div class="control-group" style="margin-top: 15px;">
+                    <label style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <span>Engine Blend (Elo vs. Squad Talent)</span>
+                        <span id="elo-blend-val" style="color: var(--accent-blue); font-weight: bold;">57% / 43%</span>
+                    </label>
+                    <input type="range" id="slider-elo-weight" min="0" max="100" value="57"
+                        style="width: 100%; accent-color: var(--accent-blue); cursor: pointer; margin-top: 5px;">
+                </div>
+
                 <div class="control-group" style="margin-top:15px;">
                     <label>Ranking Filter</label>
                     <div style="display:flex; align-items:center; gap:8px;">
@@ -1230,6 +1239,7 @@
                         <span style="font-size:0.85em; color:#cbd5e1;">WC Teams Only</span>
                     </div>
                 </div>
+
 
                 <button id="btn-run-single" class="action-btn">▶ Run Single</button>
                 <button id="btn-run-bulk" class="action-btn" style="background:var(--accent-green); margin-top:10px;">⚡

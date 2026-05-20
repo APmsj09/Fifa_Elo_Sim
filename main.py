@@ -235,6 +235,17 @@ def setup_interactions():
 
     bind_click("groups-container", handle_group_grid_click)
 
+    # Live Slider Text Label Update
+    slider = js.document.getElementById("slider-elo-weight")
+    if slider:
+        def update_slider_label(event):
+            val = int(slider.value)
+            js.document.getElementById("elo-blend-val").innerText = f"{val}% / {100-val}%"
+        
+        proxy_slide = create_proxy(update_slider_label)
+        EVENT_HANDLERS.append(proxy_slide)
+        slider.addEventListener("input", proxy_slide)
+
 # =============================================================================
 # --- INTERACTIVE PREDICTOR LOGIC ---
 # =============================================================================
@@ -416,37 +427,33 @@ def generate_predictor_bracket():
             
     def get_t(grp, pos): return PREDICTOR_STATE['groups'][grp][pos]
         
-    # --- SEEDED QUARTERS FOR PREDICTOR ---
-    # Top 4 Seeds: Spain (H), Argentina (J), France (I), England (L)
-    # They are separated into 4 distinct quarters to prevent early meetings.
+    # --- OFFICIAL 2026 WORLD CUP BRACKET FOR PREDICTOR ---
     bracket_matchups = [
-        # --- LEFT SIDE OF BRACKET (Matches 0-7) ---
-        
-        # QUARTER 1 (Spain's Region)
-        (get_t('H', 0), get_t('A', 1)),      # Match 0: Spain (1H)
-        (get_t('A', 0), t3_mapping['A']),    # Match 1
-        (get_t('C', 0), get_t('B', 1)),      # Match 2
-        (get_t('E', 0), t3_mapping['E']),    # Match 3
-        
-        # QUARTER 2 (England's Region)
-        (get_t('L', 0), t3_mapping['L']),    # Match 4: England (1L)
-        (get_t('D', 0), t3_mapping['D']),    # Match 5
-        (get_t('G', 0), t3_mapping['G']),    # Match 6
-        (get_t('C', 1), get_t('D', 1)),      # Match 7
-        
-        # --- RIGHT SIDE OF BRACKET (Matches 8-15) ---
-        
-        # QUARTER 3 (Argentina's Region)
-        (get_t('J', 0), get_t('E', 1)),      # Match 8: Argentina (1J)
-        (get_t('B', 0), t3_mapping['B']),    # Match 9
-        (get_t('F', 0), get_t('G', 1)),      # Match 10
-        (get_t('K', 0), t3_mapping['K']),    # Match 11
-        
-        # QUARTER 4 (France's Region)
-        (get_t('I', 0), t3_mapping['I']),    # Match 12: France (1I)
-        (get_t('H', 1), get_t('I', 1)),      # Match 13
-        (get_t('J', 1), get_t('K', 1)),      # Match 14
-        (get_t('L', 1), get_t('F', 1)),      # Match 15
+        # --- LEFT SIDE OF BRACKET ---
+        # Quarter 1
+        (get_t('E', 0), t3_mapping['E']),  # Match 74: 1E vs 3rd Place
+        (get_t('I', 0), t3_mapping['I']),  # Match 77: 1I vs 3rd Place
+        (get_t('A', 1), get_t('B', 1)),    # Match 73: 2A vs 2B
+        (get_t('F', 0), get_t('C', 1)),    # Match 75: 1F vs 2C
+
+        # Quarter 2
+        (get_t('K', 1), get_t('L', 1)),    # Match 83: 2K vs 2L
+        (get_t('H', 0), get_t('J', 1)),    # Match 84: 1H vs 2J
+        (get_t('D', 0), t3_mapping['D']),  # Match 81: 1D vs 3rd Place
+        (get_t('G', 0), t3_mapping['G']),  # Match 82: 1G vs 3rd Place
+
+        # --- RIGHT SIDE OF BRACKET ---
+        # Quarter 3
+        (get_t('C', 0), get_t('F', 1)),    # Match 76: 1C vs 2F
+        (get_t('E', 1), get_t('I', 1)),    # Match 78: 2E vs 2I
+        (get_t('A', 0), t3_mapping['A']),  # Match 79: 1A vs 3rd Place
+        (get_t('L', 0), t3_mapping['L']),  # Match 80: 1L vs 3rd Place
+
+        # Quarter 4
+        (get_t('J', 0), get_t('H', 1)),    # Match 86: 1J vs 2H
+        (get_t('D', 1), get_t('G', 1)),    # Match 88: 2D vs 2G
+        (get_t('B', 0), t3_mapping['B']),  # Match 85: 1B vs 3rd Place
+        (get_t('K', 0), t3_mapping['K']),  # Match 87: 1K vs 3rd Place
     ]
     
     global BASE_R32, USER_PICKS, PREDICTED_BRACKET
@@ -657,6 +664,7 @@ async def run_single_sim(event):
     await asyncio.sleep(0.02)
     
     try:
+        sim.precompute_match_data()
         result = sim.run_simulation(fast_mode=False)
         LAST_SIM_RESULTS = result 
         
@@ -889,6 +897,8 @@ async def run_bulk_sim(event):
     out_div = js.document.getElementById("bulk-results")
     if not num_el or not out_div: return
     num = int(num_el.value)
+
+    sim.precompute_match_data()
     
     team_stats = {}   
     group_mapping = {} 
@@ -1470,6 +1480,8 @@ async def run_matchup_analysis(event):
     team_a = js.document.getElementById("matchup-team-a").value
     team_b = js.document.getElementById("matchup-team-b").value
     out_div = js.document.getElementById("matchup-results-container")
+
+    sim.precompute_match_data()
     
     try:
         sim_count = int(js.document.getElementById("matchup-sim-count").value)
