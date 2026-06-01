@@ -148,7 +148,7 @@ R32_LOOKUP = {}
 def load_r32_combinations():
     global R32_LOOKUP
     try:
-        df = pd.read_csv("possible_matchups.csv")
+        df = pd.read_csv(os.path.join(DATA_DIR, "possible_matchups.csv"))
         for _, row in df.iterrows():
             combo_str = str(row.get('Combination', '')).strip().upper()
             if not combo_str or combo_str == 'NAN': continue
@@ -176,7 +176,7 @@ def load_r32_combinations():
 # --- PART 1: SETUP & DATA LOADING ---
 # =============================================================================
 
-DATA_DIR = "." 
+DATA_DIR = "data" 
 
 TEAM_STATS = {}
 TEAM_PROFILES = {}
@@ -280,10 +280,11 @@ def load_data():
             elif file == "goalscorers.csv":
                 cols = ['date', 'team', 'penalty', 'minute']
             
+            data_path = file if os.path.isabs(file) else os.path.join(DATA_DIR, file)
             try:
-                df = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip', usecols=cols)
+                df = pd.read_csv(data_path, encoding='utf-8-sig', on_bad_lines='skip', usecols=cols)
             except:
-                df = pd.read_csv(file, encoding='latin1', on_bad_lines='skip', usecols=cols)
+                df = pd.read_csv(data_path, encoding='latin1', on_bad_lines='skip', usecols=cols)
             
             for col in df.select_dtypes(include=['object']):
                 if 'team' in col.lower() or 'nation' in col.lower():
