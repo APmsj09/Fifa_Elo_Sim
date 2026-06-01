@@ -4,6 +4,7 @@ import numpy as np
 import random
 import math
 import js
+import os
 from pyodide.http import open_url
 
 def calculate_recency_weight(match_date, latest_date):
