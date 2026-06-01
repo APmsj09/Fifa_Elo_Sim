@@ -148,7 +148,7 @@ R32_LOOKUP = {}
 def load_r32_combinations():
     global R32_LOOKUP
     try:
-        df = pd.read_csv(os.path.join(DATA_DIR, "possible_matchups.csv"))
+        df = pd.read_csv(f"{DATA_DIR}/possible_matchups.csv")
         for _, row in df.iterrows():
             combo_str = str(row.get('Combination', '')).strip().upper()
             if not combo_str or combo_str == 'NAN': continue
@@ -287,7 +287,7 @@ def load_data():
             elif file == "goalscorers.csv":
                 cols = ['date', 'team', 'penalty', 'minute']
             
-            data_path = file if os.path.isabs(file) else os.path.join(DATA_DIR, file)
+            data_path = file if file.startswith("/") else f"{DATA_DIR}/{file}"
             try:
                 df = pd.read_csv(data_path, encoding='utf-8-sig', on_bad_lines='skip', usecols=cols)
             except:
