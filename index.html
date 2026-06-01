@@ -1208,6 +1208,7 @@
             <button class="nav-btn" id="btn-tab-data"><span>📈</span> Global Rankings</button>
             <button class="nav-btn" id="btn-tab-history"><span>🔍</span> Team Analysis</button>
             <button class="nav-btn" id="btn-tab-matchup"><span>⚔️</span> H2H Matchup</button>
+            <button class="nav-btn" id="btn-tab-engine-settings"><span>⚙️</span> Engine Settings</button>
             <button class="nav-btn" id="btn-tab-predictor" style="color: var(--accent-gold);"><span>🖍️</span> My
                 Bracket Picks</button>
 
@@ -1294,6 +1295,64 @@
                     <div id="bulk-results" style="color:var(--text-light);">Click "Run Multiple" in the sidebar to
                         generate
                         statistical probabilities.</div>
+                </div>
+            </div>
+
+            <!-- ENGINE SETTINGS TAB -->
+            <div id="tab-settings" class="tab-content">
+                <div class="dashboard-card">
+                    <h2 style="margin-top:0;">Engine Simulation Settings</h2>
+                    <p style="margin:0 0 20px; color:var(--text-light);">Tweak core simulation assumptions without editing
+                        the code. Apply settings and run the engine directly.</p>
+
+                    <div class="control-group" style="margin-bottom:18px;">
+                        <label>Goal Environment</label>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <input type="range" id="slider-goal-scale" min="80" max="120" value="100"
+                                oninput="document.getElementById('goal-scale-val').innerText=this.value+'%'"
+                                style="width:100%; accent-color: var(--accent-blue); cursor: pointer;">
+                            <span id="goal-scale-val" style="font-weight:700;">100%</span>
+                        </div>
+                        <small style="color:var(--text-light);">Scale the average number of goals scored in simulations.</small>
+                    </div>
+
+                    <div class="control-group" style="margin-bottom:18px;">
+                        <label>Knockout Parity</label>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <input type="range" id="slider-knockout-parity" min="80" max="120" value="100"
+                                oninput="document.getElementById('knockout-parity-val').innerText=this.value+'%'"
+                                style="width:100%; accent-color: var(--accent-blue); cursor: pointer;">
+                            <span id="knockout-parity-val" style="font-weight:700;">100%</span>
+                        </div>
+                        <small style="color:var(--text-light);">Higher values make knockout matches more balanced and random.</small>
+                    </div>
+
+                    <div class="control-group" style="margin-bottom:18px;">
+                        <label>Volatility Scale</label>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <input type="range" id="slider-volatility-scale" min="80" max="120" value="100"
+                                oninput="document.getElementById('volatility-scale-val').innerText=this.value+'%'"
+                                style="width:100%; accent-color: var(--accent-blue); cursor: pointer;">
+                            <span id="volatility-scale-val" style="font-weight:700;">100%</span>
+                        </div>
+                        <small style="color:var(--text-light);">Increase or decrease score variance and match fluidity.</small>
+                    </div>
+
+                    <div class="control-group" style="margin-bottom:18px;">
+                        <label>Shootout Sensitivity</label>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <input type="range" id="slider-shootout-sensitivity" min="0" max="100" value="50"
+                                oninput="document.getElementById('shootout-sensitivity-val').innerText=this.value+'%'"
+                                style="width:100%; accent-color: var(--accent-blue); cursor: pointer;">
+                            <span id="shootout-sensitivity-val" style="font-weight:700;">50%</span>
+                        </div>
+                        <small style="color:var(--text-light);">Controls how much Elo/composure matters in penalty shootouts.</small>
+                    </div>
+
+                    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                        <button id="btn-apply-engine-settings" class="action-btn" style="flex:1; min-width:150px; margin-top:10px;">Apply Engine Settings</button>
+                        <button id="btn-reset-engine-settings" class="action-btn" style="flex:1; min-width:150px; margin-top:10px; background:var(--accent-gray); color:var(--text-main);">Reset to Defaults</button>
+                    </div>
                 </div>
             </div>
 

@@ -12,7 +12,8 @@ import numpy as np
 
 LAST_SIM_RESULTS = {}
 EVENT_HANDLERS = []
-BULK_STATE = {} 
+BULK_STATE = {}
+BULK_RUNNING = False
 TABLE_SORT_COL = "hybrid"
 TABLE_SORT_DESC = True 
 BULK_SORT_COL = "win"
@@ -126,12 +127,41 @@ async def initialize_app():
     js.document.getElementById("main-dashboard").style.display = "grid"
 
 def switch_tab(tab_id):
-    for t in ["tab-single", "tab-bulk", "tab-data", "tab-history", "tab-analysis", "tab-matchup", "tab-predictor"]:
+    for t in ["tab-single", "tab-bulk", "tab-settings", "tab-data", "tab-history", "tab-analysis", "tab-matchup", "tab-predictor"]:
         el = js.document.getElementById(t)
         if el: el.style.display = "none"
         
     target = js.document.getElementById(tab_id)
     if target: target.style.display = "block"
+
+def apply_engine_settings(event=None):
+    try:
+        sim.precompute_match_data()
+        js.alert("Engine settings have been applied. Run a simulation to see the effect.")
+    except Exception as e:
+        js.console.error(f"Error applying engine settings: {e}")
+
+
+def reset_engine_settings(event=None):
+    try:
+        settings = [
+            ('slider-goal-scale', 'goal-scale-val', '100'),
+            ('slider-knockout-parity', 'knockout-parity-val', '100'),
+            ('slider-volatility-scale', 'volatility-scale-val', '100'),
+            ('slider-shootout-sensitivity', 'shootout-sensitivity-val', '50')
+        ]
+        for slider_id, label_id, default_value in settings:
+            slider = js.document.getElementById(slider_id)
+            label = js.document.getElementById(label_id)
+            if slider:
+                slider.value = default_value
+            if label:
+                label.innerText = f"{default_value}%"
+        sim.precompute_match_data()
+        js.alert("Engine settings have been reset to defaults.")
+    except Exception as e:
+        js.console.error(f"Error resetting engine settings: {e}")
+
 
 def setup_interactions():
     global EVENT_HANDLERS 
@@ -151,6 +181,7 @@ def setup_interactions():
     bind_click("btn-tab-history", lambda e: switch_tab("tab-history"))
     bind_click("btn-tab-analysis", lambda e: switch_tab("tab-analysis"))
     bind_click("btn-tab-matchup", lambda e: switch_tab("tab-matchup"))
+    bind_click("btn-tab-engine-settings", lambda e: switch_tab("tab-settings"))
     bind_click("btn-run-matchup", run_matchup_analysis)
     
     # --- Predictor Setup ---
@@ -165,6 +196,8 @@ def setup_interactions():
     js.window.generate_predictor_bracket = create_proxy(generate_predictor_bracket)
     
     bind_click("dark-mode-btn", toggle_dark_mode)
+    bind_click("btn-apply-engine-settings", apply_engine_settings)
+    bind_click("btn-reset-engine-settings", reset_engine_settings)
     
     cb = js.document.getElementById("hist-filter-wc")
     is_wc = cb.checked if cb else True
@@ -892,10 +925,20 @@ def open_bulk_group_modal(grp_name):
 # =============================================================================
 
 async def run_bulk_sim(event):
-    global BULK_STATE
+    global BULK_STATE, BULK_RUNNING
     num_el = js.document.getElementById("bulk-count")
     out_div = js.document.getElementById("bulk-results")
+    bulk_btn = js.document.getElementById("btn-run-bulk")
     if not num_el or not out_div: return
+
+    if BULK_RUNNING:
+        out_div.innerHTML = "<div style='color:orange; padding:20px; font-weight:bold;'>Bulk simulation already running. Please wait until it finishes.</div>"
+        return
+
+    BULK_RUNNING = True
+    if bulk_btn:
+        bulk_btn.disabled = True
+
     num = int(num_el.value)
 
     sim.precompute_match_data()
@@ -1075,6 +1118,10 @@ async def run_bulk_sim(event):
     except Exception as e:
         out_div.innerHTML = f"<div style='color:red; padding:20px; font-weight:bold;'>Error: {e}</div>"
         js.console.error(f"BULK SIM ERROR: {e}")
+    finally:
+        BULK_RUNNING = False
+        if bulk_btn:
+            bulk_btn.disabled = False
 
 def build_bulk_dashboard():
     state = BULK_STATE

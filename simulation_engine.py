@@ -269,6 +269,13 @@ FINALIZED_SLOTS = {
 TEAM_TALENT = {}
 TEAM_FORMATIONS = {}
 
+ENGINE_SETTINGS = {
+    'goal_scale': 1.0,
+    'knockout_parity': 1.0,
+    'volatility_scale': 1.0,
+    'shootout_sensitivity': 0.5
+}
+
 def load_data():
     import unicodedata
     try:
@@ -1159,6 +1166,33 @@ def precompute_match_data():
         elo_weight_pct = slider_val / 100.0
     except Exception:
         elo_weight_pct = 0.57  # Fallback default
+
+    try:
+        goal_scale = float(js.document.getElementById("slider-goal-scale").value) / 100.0
+    except Exception:
+        goal_scale = 1.0
+
+    try:
+        knockout_parity = float(js.document.getElementById("slider-knockout-parity").value) / 100.0
+    except Exception:
+        knockout_parity = 1.0
+
+    try:
+        volatility_scale = float(js.document.getElementById("slider-volatility-scale").value) / 100.0
+    except Exception:
+        volatility_scale = 1.0
+
+    try:
+        shootout_sensitivity = float(js.document.getElementById("slider-shootout-sensitivity").value) / 100.0
+    except Exception:
+        shootout_sensitivity = 0.5
+
+    ENGINE_SETTINGS.update({
+        'goal_scale': goal_scale,
+        'knockout_parity': knockout_parity,
+        'volatility_scale': volatility_scale,
+        'shootout_sensitivity': shootout_sensitivity
+    })
         
     talent_weight_pct = 1.0 - elo_weight_pct
 
@@ -1207,13 +1241,13 @@ def sim_match(t1, t2, knockout=False):
     pace = (p1['pace'] + p2['pace']) / 2
     # Knockout matches are tighter -> fewer goals = more draws = better underdog odds
     intensity = 0.9 if knockout else 1.0 
-    total_match_goals = 2.91 * pace * intensity 
+    total_match_goals = AVG_GOALS * pace * intensity * ENGINE_SETTINGS.get('goal_scale', 1.0)
     
     dr = p1['elo'] - p2['elo']
     
     # 3. Elo Probability Distribution
     # Increase the divisor strictly for knockouts to simulate tournament parity
-    active_divisor = 700 if knockout else 620
+    active_divisor = 700 * ENGINE_SETTINGS.get('knockout_parity', 1.0) if knockout else 620
     win_prob = 1 / (10**(-dr/active_divisor) + 1)
     
     # Convert win probability into an odds ratio, capping to prevent extreme math errors
@@ -1245,9 +1279,9 @@ def sim_match(t1, t2, knockout=False):
     def roll(l, v, c, is_ko):
         if is_ko:
             # Underdogs keep high variance, top teams get a slightly smaller composure buff
-            active_vol = v * (1.35 - (c * 0.35))
+            active_vol = v * (1.35 - (c * 0.35)) * ENGINE_SETTINGS.get('volatility_scale', 1.0)
         else:
-            active_vol = v
+            active_vol = v * ENGINE_SETTINGS.get('volatility_scale', 1.0)
         if active_vol > 0:
             l = np.random.gamma(1/active_vol, l * active_vol)
         return np.random.poisson(max(0.05, l))
@@ -1268,7 +1302,8 @@ def sim_match(t1, t2, knockout=False):
     
     # Penalties (Pressure + Skill + Luck)
     # Reduced the Elo advantage to make shootouts more of a 50/50 lottery
-    win_chance = 0.5 + (dr / 3500.0) + ((p1['composure'] - p2['composure']) * 0.05)
+    shootout_sensitivity = ENGINE_SETTINGS.get('shootout_sensitivity', 0.5)
+    win_chance = 0.5 + (dr / 3500.0) * shootout_sensitivity + ((p1['composure'] - p2['composure']) * 0.05) * shootout_sensitivity
     winner = t1 if random.random() < np.clip(win_chance, 0.40, 0.60) else t2
     return winner, g1, g2, 'pks'
 
