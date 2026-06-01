@@ -64,7 +64,7 @@ async def initialize_app():
     
     try:
         apply_saved_theme()
-        sim.DATA_DIR = "data"
+        sim.DATA_DIR = "."
         
         status_el.innerHTML = "Step 1/5: Loading CSV Files"
         await asyncio.sleep(0.1)

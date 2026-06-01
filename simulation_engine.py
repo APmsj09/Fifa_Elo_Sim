@@ -4,7 +4,6 @@ import numpy as np
 import random
 import math
 import js
-import os
 from pyodide.http import open_url
 
 def calculate_recency_weight(match_date, latest_date):
@@ -177,7 +176,7 @@ def load_r32_combinations():
 # --- PART 1: SETUP & DATA LOADING ---
 # =============================================================================
 
-DATA_DIR = "data" 
+DATA_DIR = "."
 
 TEAM_STATS = {}
 TEAM_PROFILES = {}
