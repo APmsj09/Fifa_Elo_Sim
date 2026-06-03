@@ -153,7 +153,7 @@ Spain,90,90,Rodri,29,DM,Man City,06-2027,€191K,€71M - €133M,Yes
 Spain,89,93,Pedri,23,MC,Barcelona,06-2030,€240K,€165M - €310M,Yes
 Spain,88,97,Lamine Yamal,18,"MR, AMR",Barcelona,06-2031,€325K,€250M - €469M,Yes
 Spain,86,86,Nico Williams,23,"ML, AMR, AML",Ath. Bilbao,06-2035,€268K,€76M - €142M,Yes
-Spain,81,81,Alejandro Grimaldo,30,"DL, WBL",B. Leverkusen,06-2027,€115K,€91M - €171M,Yes
+Spain,81,81,Álex Grimaldo,30,"DL, WBL",B. Leverkusen,06-2027,€115K,€91M - €171M,Yes
 Spain,82,85,Dani Olmo,27,AMC,Barcelona,06-2030,€240K,€69M - €130M,Yes
 Spain,81,82,Martín Zubimendi,26,"DM, MC",Arsenal,06-2030,€170K,€54M - €101M,Yes
 Spain,80,88,Joan García,24,GK,Barcelona,06-2031,€115K,€66M - €124M,Likely
@@ -299,6 +299,8 @@ Spain,69,75,Pepelu,27,"DM, MC",Valencia,06-2028,€41K,€28M - €52M,TBD
 Spain,69,74,Jorge Cuenca,26,DC,Fulham,06-2028,€64K,€21M - €40M,No
 Spain,69,78,Roberto Fernández,23,ST,Espanyol,06-2029,€23K,€38M - €71M,TBD
 Spain,69,-,Fran Beltrán,26,"DM, MC",Girona,06-2030,€39K,€28M - €52M,No
+Spain,70,78,Víctor Muñoz,22,"AMR, AML, AMC",Osasuna,06-2030,€39K,€34M - €40M,No
+Spain,69,78,Borja Iglesias,32,"ST",Celta de Vigo,06-2030,€39K,€34M - €40M,No
 Argentina,86,100,Lionel Messi,38,"AMR, AMC, ST",Inter Miami,12-2028,€257K,€278M - €521M,Yes
 Argentina,87,90,Julián Álvarez,25,ST,Atl. Madrid,06-2030,€150K,€157M - €295M,Yes
 Argentina,88,88,Lautaro Martínez,28,ST,Internazionale,06-2029,€321K,€112M - €210M,Yes
@@ -384,10 +386,11 @@ Argentina,66,67,Adrián Martínez,33,ST,Racing Club,12-2028,€41K,€278M - €
 Argentina,66,74,Enzo Díaz,30,DL,São Paulo,12-2028,€13K,€5M - €10M,No
 Argentina,66,73,Gianluca Prestianni,19,"AMR, AML",Benfica,06-2029,€23K,€34M - €64M,No
 Argentina,66,-,Cristian Espinoza,30,AMR,Nashville,12-2028,€33K,€4M - €8M,No
+Argentina,70,-,Gonzalo Montiel,29,AMR,River Plate,12-2028,€33K,€4M - €8M,No
 Brazil,89,91,Alisson,33,GK,Liverpool,06-2027,€272K,€278M - €521M,Yes
 Brazil,89,89,Raphinha,28,"AMR, AML",Barcelona,06-2028,€280K,€64M - €120M,Yes
 Brazil,89,95,Vinícius Júnior,25,AML,Real Madrid,06-2027,€399K,€85M - €160M,Yes
-Brazil,87,87,Gabriel,27,DC,Arsenal,06-2029,€220K,€71M - €134M,Yes
+Brazil,87,87,Gabriel Magalhães,27,DC,Arsenal,06-2029,€220K,€71M - €134M,Yes
 Brazil,85,85,Bruno Guimarães,28,"DM, MC",Newcastle,06-2028,€208K,€65M - €122M,Yes
 Brazil,84,84,Marquinhos,31,DC,PSG,06-2028,€323K,€88M - €164M,Yes
 Brazil,84,89,Rodrygo,24,"AMR, AML",Real Madrid,06-2028,€231K,€65M - €121M,Yes
@@ -410,7 +413,7 @@ Brazil,74,76,Evanilson,26,ST,Bournemouth,06-2029,€87K,€37M - €69M,Likely
 Brazil,73,85,Casemiro,33,"DM, MC",Man United,06-2026,€347K,€278M - €521M,No
 Brazil,73,78,Wesley,22,"DR, WBR",AS Roma,06-2030,€71K,€66M - €123M,TBD
 Brazil,73,87,Thiago Silva,41,DC,FC Porto,06-2026,€46K,€278M - €521M,No
-Brazil,73,78,Thiago,24,ST,Brentford,06-2031,€81K,€51M - €95M,No
+Brazil,73,78,Igor Thiago,24,ST,Brentford,06-2031,€81K,€51M - €95M,No
 Brazil,73,74,Igor Paixão,25,"AMR, AML",Marseille,06-2030,€54K,€30M - €56M,TBD
 Brazil,73,75,Galeno,28,"ML, AML",Al-Ahli,06-2028,€96K,€46M - €87M,Likely
 Brazil,73,77,Dodo,27,"DR, WBR",Fiorentina,06-2027,€37K,€20M - €37M,No
@@ -457,7 +460,7 @@ Brazil,69,70,Luís Henrique,23,"MR, AMR, AML",Internazionale,06-2030,€75K,€1
 Brazil,69,78,Léo Pereira,29,DC,Flamengo,12-2027,€19K,€13M - €25M,No
 Brazil,69,72,Evander,27,"MC, AMC",FC Cincinnati,12-2026,€78K,€8M - €16M,No
 Brazil,69,81,Paulinho,25,"AML, ST",Palmeiras,12-2029,€19K,€15M - €27M,No
-Brazil,69,75,Lucas Paquetá,28,"MC, AML, AMC",Flamengo,12-2030,€19K,€14M - €26M,Yes
+Brazil,73,75,Lucas Paquetá,28,"MC, AML, AMC",West Ham,12-2030,€19K,€14M - €26M,Yes
 Brazil,69,80,Samuel Lino,25,"ML, AML",Flamengo,12-2029,€23K,€16M - €30M,No
 Brazil,69,72,Yan Couto,23,"DR, WBR",B. Dortmund,06-2029,€96K,€67M - €127M,Likely
 Brazil,69,69,Igor Jesus,24,ST,Nottm Forest,06-2029,€69K,€27M - €51M,TBD
@@ -465,6 +468,10 @@ Brazil,69,73,Fabrício Bruno,29,DC,Cruzeiro,12-2030,€25K,€15M - €28M,TBD
 Brazil,69,88,Martinelli,24,"DM, MC",Fluminense,12-2030,€17K,€12M - €22M,No
 Brazil,68,77,Oscar,34,"MC, AML, AMC",São Paulo,12-2027,€15K,€7M - €12M,No
 Brazil,68,69,Lucas Moura,33,"AMR, AMC",São Paulo,12-2026,€29K,€278M - €521M,No
+Brazil,74,77,Danilo Santos,25,"MC",Botafogo,12-2026,€29K,€278M - €521M,No
+Brazil,74,77,Danilo Luiz,25,"CB, DR",Flamengo,12-2026,€29K,€278M - €521M,No
+Brazil,74,80,Alex Sandro,35,"DL",Flamengo,12-2026,€29K,€278M - €521M,No
+Brazil,69,72,Weverton,38,"GK",Gremio,12-2026,€29K,€278M - €521M,No
 England,89,92,Harry Kane,32,ST,FC Bayern,06-2027,€441K,€278M - €521M,Yes
 England,88,94,Declan Rice,26,"DM, MC",Arsenal,06-2028,€289K,€108M - €202M,Yes
 England,88,94,Bukayo Saka,24,"AMR, AML",Arsenal,06-2031,€347K,€183M - €342M,Yes
@@ -479,7 +486,7 @@ England,78,78,Anthony Gordon,24,"AMR, AML",Newcastle,06-2029,€150K,€63M - �
 England,79,87,Jordan Pickford,31,GK,Everton,06-2029,€220K,€49M - €92M,Yes
 England,78,85,Marcus Rashford,28,AML,Man United,06-2028,€272K,€51M - €95M,Likely
 England,78,80,Morgan Rogers,23,"AML, AMC",Aston Villa,06-2031,€133K,€51M - €97M,Likely
-England,78,85,Ebere Eze,27,"MC, AML",Arsenal,06-2029,€220K,€43M - €80M,Yes
+England,79,85,Eberechi Eze,27,"MC, AML",Arsenal,06-2029,€220K,€43M - €80M,Yes
 England,78,81,Levi Colwill,22,DC,Chelsea,06-2029,€87K,€148M - €278M,Likely
 England,77,83,Benjamin White,28,DR,Arsenal,06-2028,€127K,€38M - €72M,TBD
 England,77,81,Noni Madueke,23,"AMR, AML",Arsenal,06-2030,€116K,€55M - €103M,Likely
@@ -531,6 +538,9 @@ England,72,73,Lewis Hall,21,"DL, WBL",Newcastle,06-2029,€58K,€43M - €80M,T
 England,72,73,Tyrone Mings,32,DC,Aston Villa,06-2027,€121K,€17M - €33M,No
 England,72,80,Marcus Tavernier,"AMR, AML, AMC",26,Bournemouth,06-2029,€87K,€32M - €60M,No
 England,72,83,Ross Barkley,32,"DM, MC",Aston Villa,06-2026,€104K,€278M - €521M,No
+England,72,77,James Trafford,23,"GK",Manchester City,06-2026,€104K,€278M - €521M,No
+England,70,76,Jarell Quansah,23,"CB",Bayer Leverkusen,06-2026,€104K,€278M - €521M,No
+England,74,79,Djed Spence,25,"CB",Tottenham Hotspur F.C.,06-2026,€104K,€278M - €521M,No
 Colombia,85,85,Luis Díaz,28,AML,FC Bayern,06-2029,€268K,€103M - €193M,Yes
 Colombia,76,79,Luis Suárez,28,ST,Sporting CP,06-2030,€48K,€64M - €120M,Likely
 Colombia,77,77,Davinson Sánchez,29,DC,Galatasaray,06-2029,€120K,€34M - €64M,Yes
@@ -1126,7 +1136,7 @@ Norway,64,76,Jostein Gundersen,29,Bodø/Glimt,DC,-,660,€4M-€7M,No
 Norway,64,66,Sivert Mannsverk,23,Ajax,"DM, MC",-,2K,€11M-€20M,TBD
 Norway,64,67,Conrad Wallem,25,St. Louis CITY,WBR,-,501,€3M-€5M,No
 Norway,64,67,Marcus Holmgren Pedersen,25,Torino,"DR, WBR",-,980,€3M-€7M,No
-Norway,64,67,Fredrik Bjørkan,27,Bodø/Glimt,DL,-,1K,€5M-€9M,No
+Norway,64,67,Fredrik André Bjørkan,27,Bodø/Glimt,DL,-,1K,€5M-€9M,No
 Norway,64,68,Morten Thorsby,29,Cremonese,MC,-,950,€4M-€8M,No
 Norway,64,65,Sebastian Sebulonsen,25,FC Köln,"DR, WBR",-,805,€278M-€521M,No
 Norway,64,73,O. Blomberg,25,Bodø/Glimt,AMR,-,874,€4M-€7M,No

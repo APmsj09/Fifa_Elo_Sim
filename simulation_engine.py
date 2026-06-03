@@ -351,19 +351,150 @@ def calculate_squad_ratings(player_df, formation_df, roster_df):
         # FIX: Added .copy() to prevent the SettingWithCopyWarning
         roster_df = roster_df.drop_duplicates(subset=['team_slug', 'player_slug']).copy()
 
-        # Smart Name Alignment
-        player_slugs_by_team = player_df.groupby('team_slug')['player_slug'].apply(list).to_dict()
+        # Smart Name, Club, and Age Alignment
+        if 'club' not in player_df.columns: player_df['club'] = ''
+        player_df['age'] = pd.to_numeric(player_df.get('age', 28), errors='coerce').fillna(28)
         
+        db_players_by_team = {}
+        for t_slug, group in player_df.groupby('team_slug'):
+            db_players_by_team[t_slug] = group[['player_slug', 'club', 'age']].to_dict('records')
+            
+        def clubs_match(c1, c2):
+            if pd.isna(c1) or pd.isna(c2): return False
+            
+            # 1. Normalize accents (e.g., "Fenerbahçe" -> "fenerbahce", "São Paulo" -> "sao paulo")
+            s1 = unicodedata.normalize('NFKD', str(c1)).encode('ascii', 'ignore').decode('utf-8').lower().strip()
+            s2 = unicodedata.normalize('NFKD', str(c2)).encode('ascii', 'ignore').decode('utf-8').lower().strip()
+            
+            if not s1 or not s2: return False
+            
+            # Catch empty/free agents immediately so they don't falsely match each other
+            if s1 in ['free agent', 'expired', '-', '', 'none', 'unattached'] or s2 in ['free agent', 'expired', '-', '', 'none', 'unattached']:
+                return False
+                
+            # 2. Exact or direct substring
+            if s1 in s2 or s2 in s1: return True
+            
+            # 3. Word overlap (ignoring common fluff)
+            w1 = set(re.findall(r'[a-z]+', s1))
+            w2 = set(re.findall(r'[a-z]+', s2))
+            
+            # Expanded ignore list for global team prefixes/suffixes
+            ignore = {'fc', 'cf', 'ac', 'as', 'ud', 'sc', 'de', 'la', 'the', 'club', 
+                      'united', 'city', 'real', 'athletic', 'sporting', 'hotspur', 
+                      'cd', 'ss', 'fk', 'nk', 'sv', 'rc', 'afc', 'al', 'el', 'st', 'san', 'di', 'da', 'do'}
+                      
+            if w1.intersection(w2) - ignore: return True
+            
+            # 4. Massive Dictionary of Known Shorthands/Acronyms & Translations
+            pairs = [
+                # England
+                ('manchester', 'man'), ('spurs', 'tottenham'), ('wolves', 'wolverhampton'),
+                ('nottm', 'nottingham'), ('sheff', 'sheffield'), ('brighton', 'hove'),
+                ('villa', 'aston'), ('whu', 'west'), ('palace', 'crystal'), ('qpr', 'queens'),
+                
+                # Spain
+                ('barca', 'barcelona'), ('atleti', 'atletico'), ('atl', 'atletico'), 
+                ('sociedad', 'rso'), ('betis', 'rbb'), ('espanyol', 'rcde'), ('valencia', 'vcf'),
+                
+                # Italy
+                ('inter', 'internazionale'), ('juve', 'juventus'), ('milan', 'milano'),
+                ('roma', 'rome'), ('napoli', 'naples'), ('fiorentina', 'viola'), 
+                ('lazio', 'ssl'), ('torino', 'toro'),
+                
+                # Germany
+                ('bvb', 'dortmund'), ('gladbach', 'monchengladbach'), ('munich', 'munchen'),
+                ('cologne', 'koln'), ('leverkusen', 'bayer'), ('leipzig', 'rb'), 
+                ('schalke', 's04'), ('frankfurt', 'eintracht'), ('stuttgart', 'vfb'),
+                
+                # France
+                ('psg', 'paris'), ('om', 'marseille'), ('ol', 'lyon'), ('losc', 'lille'),
+                ('asse', 'etienne'), ('monaco', 'asm'), ('bordeaux', 'fcgb'),
+                
+                # Rest of Europe
+                ('psv', 'eindhoven'), ('ajax', 'amsterdam'), ('gala', 'galatasaray'),
+                ('fener', 'fenerbahce'), ('bjk', 'besiktas'), ('cp', 'lisbon'), 
+                ('benfica', 'slb'), ('porto', 'fcp'), ('celtic', 'cfc'), ('rangers', 'rfc'),
+                ('kiev', 'kyiv'), ('shakhtar', 'donetsk'), ('dinamo', 'dynamo'),
+                ('red', 'crvena'), ('star', 'zvezda'), 
+                
+                # Americas & Rest of World
+                ('boca', 'juniors'), ('river', 'plate'), ('flamengo', 'fla'),
+                ('corinthians', 'sccp'), ('palmeiras', 'sep'), ('sao', 'spfc'),
+                ('galaxy', 'lag'), ('nyrb', 'red'), ('nycfc', 'nyc'),
+                ('yoko', 'yokohama'), ('melb', 'melbourne')
+            ]
+            
+            for a, b in pairs:
+                if (a in w1 and b in w2) or (b in w1 and a in w2): return True
+                
+            return False
+
+        def ages_match(a1, a2):
+            try:
+                # Allow a 1-year margin of error for birthdays / data staleness
+                return abs(float(a1) - float(a2)) <= 1.0
+            except:
+                return False
+
+        roster_club_col = next((c for c in roster_df.columns if 'club' in c), 'club')
+
         def align_slug(row):
             t_slug = row['team_slug']
             p_slug = row['player_slug']
-            if t_slug not in player_slugs_by_team: return p_slug
+            r_club = row.get(roster_club_col, '')
+            r_age = row.get('age', 28)
             
-            valid_slugs = player_slugs_by_team[t_slug]
+            if t_slug not in db_players_by_team: return p_slug
+            
+            db_candidates = db_players_by_team[t_slug]
+            valid_slugs = [c['player_slug'] for c in db_candidates]
+            
+            # 1. Exact Match
             if p_slug in valid_slugs: return p_slug
+            
+            def get_generous_match(candidates, cutoff):
+                matches = difflib.get_close_matches(p_slug, candidates, n=1, cutoff=cutoff)
+                if matches: return matches[0]
+                for vs in candidates:
+                    if (len(p_slug) >= 3 and p_slug in vs) or (len(vs) >= 3 and vs in p_slug):
+                        return vs
+                return None
+
+            high_conf = [] # BOTH Club and Age match
+            med_conf = []  # EITHER Club or Age match
+            
+            for c in db_candidates:
+                c_match = clubs_match(r_club, c.get('club', ''))
+                a_match = ages_match(r_age, c.get('age', 28))
+                
+                if c_match and a_match: high_conf.append(c['player_slug'])
+                elif c_match or a_match: med_conf.append(c['player_slug'])
                     
-            matches = difflib.get_close_matches(p_slug, valid_slugs, n=1, cutoff=0.92)
+            # 2. High Confidence (Club + Age Match) -> Ultra generous name matching (50%)
+            if high_conf:
+                m = get_generous_match(high_conf, 0.50)
+                if m: return m
+                
+            # 3. Medium Confidence (Club OR Age Match) -> Generous name matching (65%)
+            if med_conf:
+                m = get_generous_match(med_conf, 0.65)
+                if m: return m
+
+            # 4. Standard strict fallback (Name only, 85%)
+            matches = difflib.get_close_matches(p_slug, valid_slugs, n=1, cutoff=0.85)
             if matches: return matches[0]
+            
+            contain_matches = []
+            for vs in valid_slugs:
+                if (len(p_slug) >= 4 and p_slug in vs) or (len(vs) >= 4 and vs in p_slug):
+                    contain_matches.append(vs)
+            
+            if len(contain_matches) == 1:
+                return contain_matches[0]
+            elif len(contain_matches) > 1:
+                contain_matches.sort(key=lambda x: abs(len(x) - len(p_slug)))
+                return contain_matches[0]
             
             return p_slug
 
