@@ -397,7 +397,7 @@ United States	DF	Auston Trusty	Celtic	27	7	0
 United States	DF	Miles Robinson	FC Cincinnati	29	39	3																			
 United States	DF	Tim Ream	Charlotte FC	38	81	1	Captain																		
 United States	DF	Alex Freeman	Villarreal	21	16	2																			
-United States	DF	Maximilian Arfsten	Columbus Crew	25	19	1																			
+United States	DF	Max Arfsten	Columbus Crew	25	19	1																			
 United States	DF	Mark McKenzie	Toulouse	27	28	0																			
 United States	DF	Joe Scally	Borussia Mönchengladbach	23	25	0																			
 United States	MF	Tyler Adams	Bournemouth	27	53	2																			
@@ -665,7 +665,7 @@ Egypt	MF	Emam Ashour	Al Ahly	28	28	0
 Egypt	MF	Mohanad Lasheen	Pyramids	30	22	0																			
 Egypt	MF	Mahmoud Saber	ZED	24	15	1																			
 Egypt	MF	Nabil Emad	Al-Najma	30	12	0																			
-Egypt	MF	Mostafa Ziko [ar]	Pyramids	29	1	1																			
+Egypt	MF	Mostafa Ziko    Pyramids	29	1	1																			
 Egypt	FW	Mohamed Salah	Liverpool	33	116	67	Captain																		
 Egypt	FW	Trézéguet	Al Ahly	31	95	23																			
 Egypt	FW	Zizo	Al Ahly	30	62	5																			
@@ -673,32 +673,32 @@ Egypt	FW	Omar Marmoush	Manchester City	27	48	11
 Egypt	FW	Ibrahim Adel	Nordsjælland	25	23	3																			
 Egypt	FW	Haissem Hassan	Oviedo	24	3	0																			
 Egypt	FW	Hamza Abdelkarim	Barcelona B	18	1	0																			
-Iran	GK	Max Crocombe	Millwall	32	22	0																			
-Iran	GK	Alex Paulsen	Lechia Gdańsk	23	6	0																			
-Iran	GK	Michael Woud	Auckland FC	27	6	0																			
-Iran	DF	Tim Payne	Wellington Phoenix	32	49	3																			
-Iran	DF	Francis de Vries	Auckland FC	31	18	1																			
-Iran	DF	Tyler Bindon	Sheffield United	21	23	3																			
-Iran	DF	Michael Boxall	Minnesota United FC	37	61	1																			
-Iran	DF	Liberato Cacace	Wrexham	25	35	1																			
-Iran	DF	Nando Pijnaker	Auckland FC	27	23	0																			
-Iran	DF	Finn Surman	Portland Timbers	22	17	2																			
-Iran	DF	Callan Elliot	Auckland FC	26	9	0																			
-Iran	DF	Tommy Smith	Braintree Town	36	56	2																			
-Iran	MF	Joe Bell	Viking	27	31	1																			
-Iran	MF	Matthew Garbett	Peterborough United	24	35	5																			
-Iran	MF	Marko Stamenić	Swansea City	24	37	3																			
-Iran	MF	Sarpreet Singh	Wellington Phoenix	27	26	3																			
-Iran	MF	Elijah Just	Motherwell	26	42	9																			
-Iran	MF	Alex Rufer	Wellington Phoenix	29	24	0																			
-Iran	MF	Ben Old	Saint-Étienne	23	22	2																			
-Iran	MF	Callum McCowatt	Silkeborg	27	30	4																			
-Iran	MF	Ryan Thomas	PEC Zwolle	31	25	3																			
-Iran	MF	Lachlan Bayliss	Newcastle Jets	23	2	0																			
-Iran	FW	Chris Wood	Nottingham Forest	34	88	45	Captain																		
-Iran	FW	Kosta Barbarouses	Western Sydney Wanderers	36	74	10																			
-Iran	FW	Ben Waine	Port Vale	25	30	9																			
-Iran	FW	Jesse Randall	Auckland FC	23	9	2																			
+Iran	GK	Alireza Beiranvand	Tractor	32	85	0	
+Iran	GK	Payam Niazmand	Persepolis	23	15	0	
+Iran	GK	Hossein Hosseini	Sepahan	27	13	0	
+Iran	DF	Saleh Hardani	Esteghlal	32	17	1	
+Iran	DF	Ehsan Hajsafi	Sepahan	31	145	7	Captain
+Iran	DF	Shojae Khalilzadeh	Tractor	21	57	2	
+Iran	DF	Milad Mohammadi	Persepolis	37	75	1	
+Iran	DF	Hossein Kanaanizadegan	Persepolis	25	64	6	
+Iran	DF	Aria Yousefi	Sepahan	27	13	1	
+Iran	DF	Ali Nemati	Foolad	22	16	0	
+Iran	DF	Ramin Rezaeian	Foolad	26	73	7	
+Iran	DF	Danial Eiri	Malavan	36	0	0	
+Iran	MF	Saeid Ezatolahi	Shabab Al-Ahli	27	82	1	
+Iran	MF	Alireza Jahanbakhsh	Dender	24	98	17	
+Iran	MF	Mohammad Mohebi	Rostov	24	36	14	
+Iran	MF	Saman Ghoddos	Kalba	27	67	3	
+Iran	MF	Rouzbeh Cheshmi	Esteghlal	26	40	3	
+Iran	MF	Mehdi Torabi	Tractor	29	52	7	
+Iran	MF	Mohammad Ghorbani	Al-Wahda	23	15	0	
+Iran	MF	Amirmohammad Razzaghinia	Esteghlal	27	3	0	
+Iran	FW	Mehdi Taremi	Olympiacos	31	104	60	
+Iran	FW	Mehdi Ghayedi	Al-Nasr	23	29	10	
+Iran	FW	Ali Alipour	Persepolis	34	13	1	
+Iran	FW	Amirhossein Hosseinzadeh	Tractor	36	17	5	
+Iran	FW	Shahriyar Moghanlou	Kalba	25	20	2	
+Iran	FW	Dennis Eckert	Standard Liège	23	0	0	
 New Zealand	GK	Max Crocombe	Millwall	32	22	0																			
 New Zealand	DF	Tim Payne	Wellington Phoenix	32	49	3																			
 New Zealand	DF	Francis de Vries	Auckland FC	31	18	1																			
