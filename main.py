@@ -2638,7 +2638,7 @@ def update_dashboard_data(event=None):
     <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:20px; margin-bottom:20px;">
         <div class="dashboard-card" style="margin:0; padding:20px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <h4 style="margin:0; color:var(--text-main); font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">📋 32-Man Pool Projection</h4>
+                <h4 style="margin:0; color:var(--text-main); font-size:0.85em; text-transform:uppercase; letter-spacing:1px;">📋 26-Man Pool</h4>
                 <span style="font-size:0.7em; background:var(--sidebar-border); padding:2px 6px; border-radius:4px; color:var(--text-light); font-weight:bold;">{len(top_players)} PLAYERS</span>
             </div>
             {squad_html if squad_html else "<div style='color:var(--text-light); font-size:0.9em;'>No player data available.</div>"}
