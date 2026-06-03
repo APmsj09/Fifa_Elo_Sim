@@ -630,7 +630,7 @@ Netherlands,71,80,Wouter Burger,24,"DM, MC",Hoffenheim,06-2028,€29K,€18M - �
 Netherlands,71,71,Joshua Zirkzee,24,ST,Man United,06-2029,€121K,€49M - €92M,Likely
 Netherlands,71,78,Kenny Tete,30,"DR, WBR",Fulham,06-2028,€81K,€28M - €52M,No
 Netherlands,71,-,Kenneth Taylor,23,"MC, AMC",Lazio,06-2030,€53K,€40M - €75M,Likely
-Netherlands,71,79,Jorrel Hato,19,"DL, DC",Chelsea,06-2032,€116K,€57M - €108M,Likely
+Netherlands,74,79,Jorrel Hato,19,"DL, DC",Chelsea,06-2032,€116K,€57M - €108M,Likely
 Netherlands,70,71,Youri Baas,22,"DL, DC",Ajax,06-2028,€18K,€82M - €153M,No
 Netherlands,70,80,Pascal Struijk,26,DC,Leeds United,06-2027,€46K,€32M - €60M,No
 Netherlands,70,73,Arnaut Danjuma,28,AML,Valencia,06-2028,€44K,€10M - €18M,No
@@ -645,7 +645,7 @@ Netherlands,69,-,Ryan Flamingo,22,"DC, DM",PSV,06-2029,€15K,€58M - €109M,T
 Netherlands,69,78,Kees Smit,19,"DM, MC",AZ,06-2028,€2K,€44M - €83M,No
 Netherlands,69,73,C. Summerville,24,"AMR, AML",West Ham,06-2029,€58K,€42M - €79M,TBD
 Netherlands,69,73,Robin Roefs,22,GK,Sunderland,06-2030,€41K,€24M - €46M,No
-Netherlands,69,75,Brian Brobbey,23,ST,Sunderland,06-2030,€72K,€28M - €52M,Likely
+Netherlands,72,75,Brian Brobbey,23,ST,Sunderland,06-2030,€72K,€28M - €52M,Likely
 Netherlands,68,72,Jordy Clasie,34,"DM, MC",AZ,06-2028,€11K,€278M - €521M,No
 Netherlands,68,73,Jordan Teze,26,"DR, DC",AS Monaco,06-2029,€37K,€12M - €23M,No
 Netherlands,68,75,Givairo Read,19,"DR, WBR",Feyenoord,06-2029,€10K,€49M - €93M,No
@@ -859,7 +859,13 @@ Ecuador,60,62,Wash. Corozo,27,AMR,Emelec,-,382,€1M - €2M,No
 Ecuador,60,61,Michael Carcelén,28,MC,Querétaro,-,234,€1M - €2M,No
 Ecuador,60,60,Daniel Valencia,29,AMR,Amér. de Cali,-,277,€596K - €1M,No
 Ecuador,60,60,Jonnathan Mina,30,DL,Barcelona SC,-,272,€826K - €2M,No
-Ecuador,60,-,Kendry Páez,18,AMC,Chelsea,-,5K,€25M - €46M,Yes
+Ecuador,68,-,Kendry Páez,18,AMC,Chelsea,-,5K,€25M - €46M,Yes
+Ecuador,64,-,Jeremy Arévalo,21,ST,VfB Stuttgart,-,5K,€25M - €46M,Yes
+Ecuador,66,-,Jordy Caicedo,28,ST,Huracán,-,5K,€25M - €46M,Yes
+Ecuador,65,-,Anthony Valencia,22,AMR,Antwerp,-,5K,€25M - €46M,Yes
+Ecuador,66,-,Denil Castillo,22,AMR,Midtjylland,-,5K,€25M - €46M,Yes
+Ecuador,65,-,Jackson Porozo,25,DC,Tijuana,-,5K,€25M - €46M,Yes
+Ecuador,67,-,Yaimar Medina,21,DC,Genk,-,5K,€25M - €46M,Yes
 Japan,83,83,Kaoru Mitoma,28,AML,Brighton,-,6K,€60M - €113M,Yes
 Japan,83,83,Takefusa Kubo,24,"AMR, AMC",R. Sociedad,-,6K,€67M - €125M,Yes
 Japan,76,76,Wataru Endo,32,DM,Liverpool,-,3K,€24M - €45M,Yes
@@ -889,16 +895,16 @@ Japan,68,70,Taiyo Koga,27,Kashiwa Reysol,DC,-,552,€3M - €6M,No
 Japan,67,70,Takahiro Ohgihara,34,Vissel Kobe,DM,-,607,€278M - €521M,No
 Japan,67,69,Gen Shoji,32,Machida Zelvia,DC,-,668,€278M - €521M,No
 Japan,68,70,Koki Machida,28,TSG Hoffenheim,DC,-,947,€6M - €11M,Likely
-Japan,68,72,Yuito Suzuki,24,SC Freiburg,AMC,-,2K,€9M - €17M,TBD
+Japan,72,72,Yuito Suzuki,24,SC Freiburg,AMC,-,2K,€9M - €17M,TBD
 Japan,67,68,Takashi Inui,37,Shimizu S-Pulse,AMC,-,599,€278M - €521M,No
 Japan,68,68,Takuma Asano,31,Mallorca,AMR,-,937,€8M - €15M,Likely
 Japan,66,68,Tatsuya Ito,28,Kawasaki Frontale,"AMR, AML",-,546,€3M - €5M,No
 Japan,66,70,Jun Ichimori,34,Gamba Osaka,GK,-,403,€278M - €521M,No
-Japan,66,76,Yukinari Sugawara,25,Southampton,"DR, WBR",-,2K,€17M - €32M,Yes
+Japan,70,76,Yukinari Sugawara,25,Southampton,"DR, WBR",-,2K,€17M - €32M,Yes
 Japan,69,-,Kodai Sano,22,NEC,"MC, ML, AMC",-,3K,€16M - €31M,TBD
 Japan,67,71,Kota Tawaratsumida,21,FC Tokyo,ML,-,14K,€3M - €6M,TBD
 Japan,66,73,Gotoku Sakai,34,Vissel Kobe,DR,-,714,€278M - €521M,No
-Japan,66,69,Junnosuke Suzuki,22,FC København,DC,-,1K,€9M - €16M,TBD
+Japan,69,69,Junnosuke Suzuki,22,FC København,DC,-,1K,€9M - €16M,TBD
 Japan,67,70,Mao Hosoya,24,Kashiwa Reysol,ST,-,800,€3M - €6M,Likely
 Japan,66,69,Hayato Araki,29,Sanfrecce Hiro.,DC,-,803,€3M - €6M,No
 Japan,66,68,Hotaru Yamaguchi,35,V-Varen Nagasaki,DM,-,334,€278M - €521M,No
@@ -960,11 +966,12 @@ Japan,64,64,Koya Kitagawa,29,Shimizu S-Pulse,ST,-,480,€2M - €4M,No
 Japan,64,69,Yoshiaki Komai,33,Yokohama FC,"MC, AMC",-,204,€278M - €521M,No
 Japan,64,66,Yoshio Koizumi,29,Kashiwa Reysol,AMC,-,190,€4M - €7M,No
 Japan,64,-,Tomoya Miki,27,Avispa Fukuoka,"MC, AMC",-,355,€2M - €4M,No
-Senegal,79,80,Iliman N'Diaye,25,Everton,"AML, AMC",-,7K,€59M - €110M,Yes
+Japan,74,77,Junya Ito,33,Genk,"MR, AMR",-,355,€2M - €4M,No
+Senegal,78,80,Iliman N'Diaye,25,Everton,"AML, AMC",-,7K,€59M - €110M,Yes
 Senegal,77,85,Kalidou Koulibaly,34,Al-Hilal,DC,-,2K,€16M - €31M,Yes
 Senegal,75,75,Ismaïla Sarr,27,Crystal Palace,"MR, AMR, AMC",-,3K,€38M - €72M,Yes
 Senegal,75,75,Pape Guèye,26,Villarreal,"DM, MC",-,6K,€59M - €111M,Yes
-Senegal,76,81,Nicolas Jackson,24,Chelsea,ST,-,5K,€55M - €104M,Yes
+Senegal,78,81,Nicolas Jackson,24,Chelsea,ST,-,5K,€55M - €104M,Yes
 Senegal,75,83,Édouard Mendy,33,Al-Ahli,GK,-,1K,€32M - €61M,Yes
 Senegal,77,93,Sadio Mané,33,Al-Nassr,AML,-,3K,€22M - €42M,Yes
 Senegal,71,76,Idrissa Gueye,36,Everton,"DM, MC",-,2K,€278M - €521M,Likely
@@ -998,7 +1005,7 @@ Senegal,63,81,Chérif N'Diaye,29,Samsunspor,ST,-,1K,€4M - €7M,No
 Senegal,62,77,Nobel Mendy,21,Rayo Vallecano,DC,-,2K,€33M - €61M,TBD
 Senegal,62,64,Mikayil Faye,21,Rennes,DC,-,3K,€14M - €26M,TBD
 Senegal,62,-,Cheikh Sabaly,26,Vancouver,"AML, ST",-,637,€3M - €6M,No
-Senegal,66,67,Ibrahim Mbaye,17,PSG,AMR,-,5K,€20M - €38M,TBD
+Senegal,70,70,Ibrahim Mbaye,17,PSG,AMR,-,5K,€20M - €38M,TBD
 Senegal,62,62,Moustapha Mbow,25,Paris FC,DC,-,709,€2M - €4M,No
 Senegal,61,72,Demba Thiam,27,Monza,GK,-,425,€2M - €5M,No
 Senegal,61,64,Abdoulaye Ndiaye,23,Parma,DC,-,980,€4M - €8M,No
@@ -1023,6 +1030,7 @@ Senegal,60,66,Philippe Keny,26,FC Zürich,ST,-,411,€1M - €2M,No
 Senegal,59,77,Alfred Gomis,32,Palermo,GK,-,402,€520K - €975K,No
 Senegal,59,63,Abdoulaye Faye,21,Leverkusen,DC,-,2K,€7M - €13M,No
 Senegal,59,-,Mouhamed Diop,25,Troyes,MC,-,295,€1M - €3M,No
+Senegal,69,-,Bara Sapoko Ndiaye,18,Bayern Munich,MC,-,295,€1M - €3M,No
 Croatia,81,90,Luka Modrić,40,AC Milan,"DM, MC",-,8K,€278M - €521M,Yes
 Croatia,84,90,Joško Gvardiol,23,Man City,"DL, DC",-,7K,€76M - €142M,Yes
 Croatia,79,86,Mateo Kovačić,31,Man City,"DM, MC",-,3K,€42M - €78M,Yes
@@ -2476,7 +2484,7 @@ Egypt,58,68,Omar Kamal,32,Al-Ahly,"DR, WBR",06-2027,€174,€1M - €2M,TBD
 Egypt,58,68,Amr El Soleya,35,C. Cleopatra,"DM, MC",07-2026,€3K,€278M - €521M,No
 Egypt,58,64,Oufa,29,National Bank,ST,06-2028,€7K,€2M - €3M,No
 Jordan,75,75,Musa Al-Tamari,28,Rennes,AMR,06-2028,€16K,€5M - €9M,Yes
-Jordan,71,71,Yazan Al-Arab,29,FC Seoul,DC,12-2026,€5K,€769K - €1M,Yes
+Jordan,68,71,Yazan Al-Arab,29,FC Seoul,DC,12-2026,€5K,€769K - €1M,Yes
 Jordan,60,65,Tammer Bany,22,West Brom,"AMC, ST",06-2028,€7K,€3M - €5M,Likely
 Jordan,55,55,Baha'a Faisal,30,Al-Waab,ST,06-2026,€12K,€2M - €3M,Likely
 Jordan,55,55,Ihsan Haddad,31,Al-Hussein,"DR, WBR",06-2026,€3K,€90K - €168K,Yes
@@ -2498,21 +2506,21 @@ Jordan,50,53,Yousef Abu Al-Jazar,26,Kazma,DC,06-2027,€2K,€799K - €1M,Likel
 Jordan,50,53,Shararh,27,Raja Casablanca,AMR,06-2028,€3K,€88K - €165K,Likely
 Jordan,54,56,Ibrahim Sabra,20,Göztepe,ST,06-2029,€2K,€400K,Likely
 Jordan,50,55,A. Al-Fakhouri,25,Al-Wehdat,GK,06-2026,€502,€73K - €137K,Likely
-Jordan,52,60,Odeh Al-Fakhouri,20,Pyramids,"AML, ST",07-2029,€4K,€365K - €684K,TBD
+Jordan,57,60,Odeh Al-Fakhouri,20,Pyramids,"AML, ST",07-2029,€4K,€365K - €684K,TBD
 Jordan,50,58,Hamza Al-Dardour,34,Al-Ramtha,"AMC, ST",06-2026,€616,€278M - €521M,No
-Jordan,50,60,Ali Olwan,25,Al-Sailiya,ST,06-2026,€9K,€822K - €2M,Yes
-Jordan,50,53,Odai Al-Qarra,34,Dhofar,ST,06-2026,€668,€278M - €521M,No
+Jordan,58,60,Ali Olwan,25,Al-Sailiya,ST,06-2026,€9K,€822K - €2M,Yes
+Jordan,53,53,Odai Al-Qarra,34,Dhofar,ST,06-2026,€668,€278M - €521M,No
 Jordan,54,54,Mohammad Abu Hashish,30,Al-Karma,DL,06-2026,€964,€450K,Yes
-Jordan,50,56,Mussab Al-Laham,34,Al-Ramtha,"AML, AMC",06-2026,€650,€278M - €521M,No
-Jordan,50,55,H. Abu Al-Dahab,25,Al-Faisaly,DC,06-2028,€1K,€88K - €164K,Likely
-Jordan,50,55,Sisa,27,Al-Hussein,"MC, AMC",06-2026,€982,€40K - €75K,No
+Jordan,55,56,Mussab Al-Laham,34,Al-Ramtha,"AML, AMC",06-2026,€650,€278M - €521M,No
+Jordan,55,55,H. Abu Al-Dahab,25,Al-Faisaly,DC,06-2028,€1K,€88K - €164K,Likely
+Jordan,55,55,Sisa,27,Al-Hussein,"MC, AMC",06-2026,€982,€40K - €75K,No
 Jordan,50,53,Nizar Mahmoud,26,Qatar SC,"DM, MC",06-2026,€10K,€708K - €1M,Yes
-Jordan,49,50,Y. Al-Rawashdeh,35,Salt,"MR, ML",06-2026,€286,€278M - €521M,No
-Jordan,49,53,M. Bani Attieh,26,Expired,"AMR, AML",-,€0,0 - 0,No
-Jordan,48,53,Yazan Thalji,31,Jazeera,"MC, MR",06-2026,€257,€16K - €29K,No
-Jordan,48,60,Yousef Al-Alousi,31,Zakho SC,DC,06-2026,€693,€26K - €48K,No
-Jordan,48,53,M. Al-Emwase,29,Al-Najaf,GK,06-2026,€489,€56K - €106K,No
-Jordan,48,53,Nour Bani Attiah,32,Al-Faisaly,GK,06-2026,€380,€278M - €521M,No
+Jordan,50,50,Y. Al-Rawashdeh,35,Salt,"MR, ML",06-2026,€286,€278M - €521M,No
+Jordan,52,53,M. Bani Attieh,26,Expired,"AMR, AML",-,€0,0 - 0,No
+Jordan,52,53,Yazan Thalji,31,Jazeera,"MC, MR",06-2026,€257,€16K - €29K,No
+Jordan,50,60,Yousef Al-Alousi,31,Zakho SC,DC,06-2026,€693,€26K - €48K,No
+Jordan,50,53,M. Al-Emwase,29,Al-Najaf,GK,06-2026,€489,€56K - €106K,No
+Jordan,50,53,Nour Bani Attiah,32,Al-Faisaly,GK,06-2026,€380,€278M - €521M,No
 Jordan,48,53,Mohammad Al-Zoubi,26,Expired,ST,-,€0,0 - 0,No
 Jordan,48,50,Abdullah Al-Attar,33,Al-Hussein,ST,06-2026,€1K,€39K - €73K,No
 Jordan,48,50,Mohammed Zureiqat,34,Expired,DC,-,€0,0 - 0,No
@@ -2522,9 +2530,9 @@ Jordan,48,50,Saed Al-Rosan,28,Al-Hussein,DC,06-2026,€1K,€61K - €114K,Likel
 Jordan,48,53,Bara'a Marei,31,Hidd,DC,06-2026,€139,€10K - €19K,Likely
 Jordan,48,53,Feras Shelbaieh,32,Al-Wehdat,DR,06-2026,€568,€278M - €521M,Likely
 Jordan,48,50,Mustafa Kamal,30,Al-Wehdat,DL,06-2026,€899,€33K - €63K,No
-Jordan,48,53,Ghaith Al-Madadha,25,Al-Gaish,"ML, AML",07-2027,€4K,€71K - €134K,No
+Jordan,51,53,Ghaith Al-Madadha,25,Al-Gaish,"ML, AML",07-2027,€4K,€71K - €134K,No
 Jordan,48,55,Yaseen Al-Bakhit,36,Jazeera,AML,06-2026,€361,€4K - €7K,No
-Jordan,48,53,Amer Jamous,23,Al-Wehdat,"DM, MC",06-2027,€944,€86K - €161K,Likely
+Jordan,52,53,Amer Jamous,23,Al-Wehdat,"DM, MC",06-2027,€944,€86K - €161K,Likely
 Jordan,56,56,Ibrahim Sa'deh,26,Al-Karma,"MC",06-2027,€944,€400K,Yes
 Jordan,57,57,Noor Al-Rawabdeh,29,Selangor FC,"MC",06-2027,€944,€450K,Yes
 Jordan,59,59,Nizar Al-Rashdan,27,Qatar SC,"MC",06-2027,€944,€600K,Yes
