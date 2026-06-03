@@ -279,7 +279,7 @@ ENGINE_SETTINGS = {
 def load_data():
     import unicodedata
     try:
-        def safe_read(file):
+        def safe_read(file, sep=','):
             # Only load columns required for simulation logic
             cols = None
             if file == "results.csv":
@@ -289,9 +289,9 @@ def load_data():
             
             data_path = file if file.startswith("/") else f"{DATA_DIR}/{file}"
             try:
-                df = pd.read_csv(data_path, encoding='utf-8-sig', on_bad_lines='skip', usecols=cols)
+                df = pd.read_csv(data_path, sep=sep, encoding='utf-8-sig', on_bad_lines='skip', usecols=cols)
             except:
-                df = pd.read_csv(data_path, encoding='latin1', on_bad_lines='skip', usecols=cols)
+                df = pd.read_csv(data_path, sep=sep, encoding='latin1', on_bad_lines='skip', usecols=cols)
             
             for col in df.select_dtypes(include=['object']):
                 if 'team' in col.lower() or 'nation' in col.lower():
@@ -308,16 +308,15 @@ def load_data():
         formation_df = safe_read("Formations.csv")
         player_df = safe_read("Player_Data.csv")
         
-        # New Call-up Data
-        current_df = safe_read("Current_Squad.csv")
-        recent_df = safe_read("Recent_Call_Ups.csv")
+        # New Official Roster Data (Tab-Separated)
+        roster_df = safe_read("Official_Rosters.tsv", sep='\t')
         
-        return results_df, goalscorers_df, former_names_df, player_df, formation_df, current_df, recent_df
+        return results_df, goalscorers_df, former_names_df, player_df, formation_df, roster_df
     except Exception as e:
         js.console.error(f"DATA LOAD ERROR: {e}")
         raise RuntimeError(f"Could not load CSV files: {e}")
 
-def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
+def calculate_squad_ratings(player_df, formation_df, roster_df):
     if player_df is None: return {}
     import re
     import numpy as np
@@ -327,34 +326,29 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
     player_df.columns = [str(c).strip().lower() for c in player_df.columns]
     if 'rat' not in player_df.columns and 'rating' in player_df.columns: player_df['rat'] = player_df['rating']
     
-    # Do NOT default to 68 yet, leave as NaN to calculate true team averages
     player_df['rat'] = pd.to_numeric(player_df['rat'].astype(str).str.extract(r'(\d+)')[0], errors='coerce')
     player_df['player_slug'] = player_df.get('name', '').apply(get_player_slug)
     player_df['team_slug'] = player_df.get('nation', '').apply(get_slug)
 
-    # --- DYNAMIC FALLBACK CALCULATION ---
-    # Calculate the median rating for each team to dynamically scale missing players
-    # Filter out stars (rating > 85) so missing fringe players get realistic ratings
+    # Dynamic fallback medians
     normal_players = player_df[player_df['rat'] <= 86]
     team_medians = normal_players.groupby('team_slug')['rat'].median().to_dict()
 
-    # 2. Process & Combine Call-Up Data
-    if current_df is not None: current_df['callup_tier'] = 'Current'
-    if recent_df is not None: recent_df['callup_tier'] = 'Recent'
-    
-    callups = pd.concat([df for df in [current_df, recent_df] if df is not None], ignore_index=True)
-    
-    if not callups.empty:
-        callups.columns = [str(c).strip().lower() for c in callups.columns]
-        callups['player_slug'] = callups.get('name', '').apply(get_player_slug)
-        callups['team_slug'] = callups.get('team', '').apply(get_slug)
+    # 2. Process Official Roster Data
+    if roster_df is not None and not roster_df.empty:
+        roster_df.columns = [str(c).strip().lower() for c in roster_df.columns]
         
-        callups['caps'] = pd.to_numeric(callups.get('caps', 0), errors='coerce').fillna(0)
-        callups['age'] = pd.to_numeric(callups.get('age', 28), errors='coerce').fillna(28)
-        squad_no_col = 'no.' if 'no.' in callups.columns else ('no' if 'no' in callups.columns else None)
-        callups['squad_no'] = pd.to_numeric(callups[squad_no_col], errors='coerce').fillna(999) if squad_no_col else 999
+        # Dynamically detect name/team cols
+        name_col = next((c for c in roster_df.columns if 'name' in c or 'player' in c), 'name')
+        team_col = next((c for c in roster_df.columns if 'team' in c or 'nation' in c), 'team')
+        
+        roster_df['player_slug'] = roster_df.get(name_col, '').apply(get_player_slug)
+        roster_df['team_slug'] = roster_df.get(team_col, '').apply(get_slug)
+        
+        roster_df['caps'] = pd.to_numeric(roster_df.get('caps', 0), errors='coerce').fillna(0)
+        roster_df['age'] = pd.to_numeric(roster_df.get('age', 28), errors='coerce').fillna(28)
             
-        callups = callups.sort_values('callup_tier').drop_duplicates(subset=['team_slug', 'player_slug'])
+        roster_df = roster_df.drop_duplicates(subset=['team_slug', 'player_slug'])
 
         # Smart Name Alignment
         player_slugs_by_team = player_df.groupby('team_slug')['player_slug'].apply(list).to_dict()
@@ -367,20 +361,19 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
             valid_slugs = player_slugs_by_team[t_slug]
             if p_slug in valid_slugs: return p_slug
                     
-            # Make the spell-checker much stricter (0.92 instead of 0.8) 
-            # so "Mohamed Alaa" doesn't turn into "Mohamed Salah"
             matches = difflib.get_close_matches(p_slug, valid_slugs, n=1, cutoff=0.92)
             if matches: return matches[0]
             
             return p_slug
 
-        callups['player_slug'] = callups.apply(align_slug, axis=1)
+        roster_df['player_slug'] = roster_df.apply(align_slug, axis=1)
 
-        # 3. Merge Datasets
-        pool = pd.merge(player_df, callups, on=['team_slug', 'player_slug'], how='outer', suffixes=('', '_c'))
+        # 3. Merge Datasets - STRICTLY KEEP ROSTER PLAYERS (right join)
+        pool = pd.merge(player_df, roster_df, on=['team_slug', 'player_slug'], how='right', suffixes=('', '_c'))
     else:
+        # Fallback if no roster provided
         pool = player_df.copy()
-        pool['caps'], pool['age'], pool['squad_no'], pool['status'], pool['callup_tier'], pool['captain'] = 0, 28, 999, '', 'None', ''
+        pool['caps'], pool['age'], pool['status'], pool['captain?'] = 0, 28, '', ''
 
     def get_merged_val(row, col_name, default_val):
         val_c = row.get(f'{col_name}_c')
@@ -393,34 +386,29 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
     def resolve_row(row):
         name = get_merged_val(row, 'name', 'Unknown Player')
         
-        # 1. Gather all potential fields that might contain Position or Club data
         raw_p_pos = str(row.get('position(s)', '')).upper()
         raw_p_pos2 = str(row.get('pos', '')).upper()
         raw_p_pos3 = str(row.get('position a', '')).upper()
+        raw_p_pos4 = str(row.get('pos_c', '')).upper() # Handles TSV merge suffix
         raw_c_pos = str(row.get('pos.', '')).upper()
         
         raw_club = str(row.get('club', '')).upper()
         raw_club_c = str(row.get('club_c', '')).upper()
         
-        # Combine them all and remove empties
-        all_vals = [raw_p_pos, raw_p_pos2, raw_p_pos3, raw_c_pos, raw_club, raw_club_c]
+        all_vals = [raw_p_pos, raw_p_pos2, raw_p_pos3, raw_p_pos4, raw_c_pos, raw_club, raw_club_c]
         valid_vals = [v.strip() for v in all_vals if v.strip() and v.strip() != 'NAN']
         
-        # A master list of known position acronyms
         known_pos = ['GK', 'ST', 'CF', 'FW', 'LW', 'RW', 'AML', 'AMR', 'AMC', 'CAM', 'DM', 'CDM', 'MC', 'CM', 'LM', 'RM', 'CB', 'DC', 'LB', 'RB', 'DL', 'DR', 'LWB', 'RWB', 'WB', 'DEF', 'MID', 'ATT', 'MF', 'DF']
         
         pos_cands = []
         club_cands = []
         
-        # 2. Smartly sort the text into "Positions" vs "Clubs"
         for v in valid_vals:
-            # It is a position if it's an exact acronym, or a short comma list (e.g., "DM, MC")
             if any(p == v for p in known_pos) or (',' in v and len(v) < 15):
                 if v not in pos_cands: pos_cands.append(v)
             else:
                 if v not in club_cands: club_cands.append(v)
                 
-        # 3. Pick the most descriptive Position
         detailed_pos = [p for p in pos_cands if ',' in p]
         if detailed_pos:
             true_pos = detailed_pos[0]
@@ -429,15 +417,13 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
         else:
             true_pos = ""
             
-        # 4. Pick the most accurate Club
         if raw_club_c in club_cands:
-            true_club = raw_club_c # Prefer the club from Recent Callups
+            true_club = raw_club_c 
         elif club_cands:
             true_club = club_cands[-1]
         else:
             true_club = "Unknown"
             
-        # 5. Map to Core Unit for engine logic
         if 'GK' in true_pos or 'GK' == raw_c_pos: unit = 'GK'
         elif 'DF' in raw_c_pos or 'DEF' in true_pos: unit = 'DEF'
         elif 'FW' in raw_c_pos or 'ATT' in true_pos: unit = 'ATT'
@@ -446,7 +432,6 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
         
         display_pos = true_pos if true_pos else unit
 
-        # --- APPLY DYNAMIC FALLBACK RATING ---
         t_slug = row.get('team_slug', '')
         fallback_rat = team_medians.get(t_slug, 64.0) - 2.0
         
@@ -454,54 +439,12 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
         except: rat = fallback_rat
         if pd.isna(rat): rat = fallback_rat 
         
-        # Format the club name nicely (e.g. "West Ham" instead of "WEST HAM")
         return pd.Series([name, display_pos, true_club.title(), unit, rat])
         
     pool[['display_name', 'display_pos', 'display_club', 'unit', 'rat']] = pool.apply(resolve_row, axis=1)
 
-    # 5. Calculate SELECTION SCORE
-    def calc_score(row):
-        base_rat = row['rat']
-        try: caps = float(get_merged_val(row, 'caps', 0.0))
-        except: caps = 0.0
-        try: age = float(get_merged_val(row, 'age', 28.0))
-        except: age = 28.0
-        try: squad_no = float(get_merged_val(row, 'squad_no', 999.0))
-        except: squad_no = 999.0
-
-        status = str(get_merged_val(row, 'status', '')).lower()
-        tier = str(row.get('callup_tier', 'None'))
-        unit = row['unit']
-        captain = str(get_merged_val(row, 'captain', '')).lower()
-        
-        if 'RET' in status: return -999.0
-        
-        score = base_rat
-        
-        if tier == 'Current': score += 5.0
-        elif tier == 'Recent': score += 2.0
-        
-        if tier == 'Current':
-            if unit == 'GK' and squad_no == 1.0: score += 2.0
-            elif squad_no == 10.0: score += 2.0
-        
-        cap_bonus = min(caps * 0.15, 8.0) 
-        if age >= 34.0:
-            cap_bonus = min(caps * 0.10, 5.0) 
-            score -= (age - 33.0) * 1.0  
-            
-        score += cap_bonus
-            
-        if 'INJ' in status:
-            if caps > 40.0: score -= 3.0
-            else: score -= 10.0
-            
-        if 'captain' in captain:
-            score += 8.0 
-            
-        return score
-
-    pool['selection_score'] = pool.apply(calc_score, axis=1)
+    # 5. Calculate SELECTION SCORE (Just using rating since players are pre-selected in 26-man roster)
+    pool['selection_score'] = pool['rat']
     pool = pool[pool['selection_score'] > 0]
 
     team_ratings = {}
@@ -534,14 +477,14 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
         mids = pick_players(mids, targets['MID'], 'Starter')
         atts = pick_players(atts, targets['ATT'], 'Starter')
 
-        # Backups
+        # Backups (Targeting EXACTLY 26 players total = 11 Starters + 2 Backup GKs + 13 Backup Outfielders)
         gks = pick_players(gks, 2, 'Backup')
         rem_outfield = pd.concat([defs, mids, atts]).sort_values('selection_score', ascending=False)
         rem_outfield = pick_players(rem_outfield, 13, 'Backup')
 
-        # Fringe
-        pick_players(gks, 1, 'Fringe')
-        pick_players(rem_outfield, 5, 'Fringe')
+        # Fringe (Any remaining overflow, if roster size exceeds 26)
+        pick_players(gks, 99, 'Fringe')
+        pick_players(rem_outfield, 99, 'Fringe')
 
         final_squad = pd.DataFrame(selected_players)
         if final_squad.empty: continue
@@ -571,6 +514,11 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
             try: final_age = int(float(get_merged_val(row, 'age', 28)))
             except: final_age = 28
             
+            cap_flag = str(row.get('captain?', row.get('captain?_c', ''))).lower()
+            status_val = str(get_merged_val(row, 'status', ''))
+            if 'captain' in cap_flag:
+                status_val += " Captain"
+            
             fixed_top_players.append({
                 'name': str(row['display_name']),
                 'pos': str(row['display_pos']),
@@ -579,7 +527,7 @@ def calculate_squad_ratings(player_df, formation_df, current_df, recent_df):
                 'rat': float(row['rat']),
                 'caps': final_caps,
                 'age': final_age,
-                'status': str(get_merged_val(row, 'status', '')),
+                'status': status_val,
                 'roster_status': str(row['roster_status'])
             })
         
@@ -701,14 +649,13 @@ def _initialize_engine_impl():
     global TEAM_TALENT, TEAM_FORMATIONS, TEAM_HISTORY, TEAM_STATS, calculated_hfa, TEAM_CONFEDS
     
     # 1. SLUGIFY CONFEDERATIONS
-    # This guarantees that the keys perfectly match the match slugs later!
     TEAM_CONFEDS = {get_slug(k): v for k, v in TEAM_CONFEDS.items()}
     
-    results_df, scorers_df, df_names, player_df, formation_df, current_df, recent_df = load_data()
+    results_df, scorers_df, df_names, player_df, formation_df, roster_df = load_data()
 
     load_r32_combinations()
     
-    # 2. POPULATE FORMATIONS FIRST (Before calculating ratings!)
+    # 2. POPULATE FORMATIONS FIRST
     TEAM_FORMATIONS = {}
     if formation_df is not None:
         formation_df.columns = [str(c).strip().lower() for c in formation_df.columns]
@@ -717,7 +664,7 @@ def _initialize_engine_impl():
                 TEAM_FORMATIONS[get_slug(row['nation'])] = row.to_dict()
 
     # 3. THEN CALCULATE SQUAD RATINGS
-    TEAM_TALENT = calculate_squad_ratings(player_df, formation_df, current_df, recent_df)
+    TEAM_TALENT = calculate_squad_ratings(player_df, formation_df, roster_df)
 
     try:
         if df_names is not None and 'old_name' in df_names.columns and 'new_name' in df_names.columns:

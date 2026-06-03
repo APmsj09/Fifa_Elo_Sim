@@ -2453,6 +2453,9 @@ def update_dashboard_data(event=None):
 
             # Injured Badge
             inj_badge = " <span style='background:var(--accent-red); color:white; font-size:0.65em; padding:2px 4px; border-radius:3px; font-weight:bold;'>INJ</span>" if 'injured' in status_text else ""
+            
+            # Captain Badge
+            cap_badge = " <span style='background:var(--accent-gold); color:white; font-size:0.65em; padding:2px 4px; border-radius:3px; font-weight:bold;' title='Team Captain'>C</span>" if 'captain' in status_text else ""
 
             unit = p.get('unit', 'MID')
             raw_pos_detail = p.get('pos') or p.get('position') or unit
@@ -2469,7 +2472,7 @@ def update_dashboard_data(event=None):
                     <span style="font-size:1.2em;">{role_icon}</span>
                 </td>
                 <td style="padding: 8px 4px;">
-                    <div style="font-weight:700; color:var(--text-main);">{p['name']}{inj_badge}</div>
+                    <div style="font-weight:700; color:var(--text-main);">{p['name']}{cap_badge}{inj_badge}</div>
                     <div style="font-size:0.85em; color:var(--text-light);">
                         <span style="color:{u_col}; font-weight:bold;">{raw_pos_detail}</span> • {p.get('club', 'Unknown')}
                     </div>
