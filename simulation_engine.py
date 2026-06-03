@@ -348,7 +348,8 @@ def calculate_squad_ratings(player_df, formation_df, roster_df):
         roster_df['caps'] = pd.to_numeric(roster_df.get('caps', 0), errors='coerce').fillna(0)
         roster_df['age'] = pd.to_numeric(roster_df.get('age', 28), errors='coerce').fillna(28)
             
-        roster_df = roster_df.drop_duplicates(subset=['team_slug', 'player_slug'])
+        # FIX: Added .copy() to prevent the SettingWithCopyWarning
+        roster_df = roster_df.drop_duplicates(subset=['team_slug', 'player_slug']).copy()
 
         # Smart Name Alignment
         player_slugs_by_team = player_df.groupby('team_slug')['player_slug'].apply(list).to_dict()
