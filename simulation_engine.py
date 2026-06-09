@@ -1148,28 +1148,29 @@ def _initialize_engine_impl():
         weighted_opp_elo = (avg_opp_elo * agg['eff_games'] + GLOBAL_ELO_MEAN * REGRESSION_DUMMY_GAMES) / denom
         difficulty_ratio = weighted_opp_elo / GLOBAL_ELO_MEAN
         
-        sos_weight_off = np.clip(difficulty_ratio, 0.85, 1.15)
-        # Simply multiply the ratio. 
-        # If I score 0.8x avg against a 1.15x hard schedule, my rating jumps up to 0.92x.
+        # Exponentially scale the difficulty ratio and widen the bounds.
+        # Playing 1000 Elo teams (0.66 ratio) now severely punishes raw stats.
+        sos_weight_off = np.clip(difficulty_ratio ** 2.0, 0.4, 1.6)
         adjusted_off = (raw_gf_avg / avg_goals_global) * sos_weight_off
 
-        sos_weight_def = difficulty_ratio ** 1.1 
-        # Simply divide the ratio.
-        # If I concede 0.8x avg against a 1.15x hard schedule, my defense drops to an elite 0.69x.
+        # Defense is also scaled exponentially. Conceding against minnows hurts badly.
+        sos_weight_def = np.clip(difficulty_ratio ** 2.0, 0.4, 1.6)
         adjusted_def = (raw_ga_avg / avg_goals_global) / sos_weight_def
 
         elo_ratio = s['elo'] / GLOBAL_ELO_MEAN
-        elo_off = elo_ratio ** 0.95 
-        elo_def = 1.0 / (elo_ratio ** 0.95) 
+        elo_off = elo_ratio ** 1.2
+        elo_def = 1.0 / (elo_ratio ** 1.2) 
         
-        elo_off = np.clip(elo_off, 0.6, 2.0)
-        elo_def = np.clip(elo_def, 0.6, 2.0)
+        elo_off = np.clip(elo_off, 0.5, 2.5)
+        elo_def = np.clip(elo_def, 0.5, 2.5)
 
         elo_off_log = np.log(elo_off)
         elo_def_log = np.log(elo_def)
 
-        STAT_WEIGHT = 0.65  
-        ELO_WEIGHT  = 0.35 
+        # Shift weight slightly more towards Elo. International stats are highly 
+        # confederation-dependent, so Elo serves as the true global equalizer.
+        STAT_WEIGHT = 0.45  
+        ELO_WEIGHT  = 0.55
 
         final_off_log = STAT_WEIGHT * np.log(adjusted_off) + ELO_WEIGHT * elo_off_log
         s['off'] = np.exp(final_off_log)
