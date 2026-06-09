@@ -316,8 +316,12 @@ def open_predictor_tab():
         PREDICTOR_STATE['groups'] = {grp: [sim.get_slug(t) for t in teams] for grp, teams in base_groups.items()}
         
         # 3. Automatically select the first 8 groups as the default advancing 3rd-place teams
-        PREDICTOR_STATE['advancing_thirds'] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+         PREDICTOR_STATE['advancing_thirds'] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
         
+        # 4. Sort each group internally by official FIFA Rank (Official Seeding)
+        for grp in PREDICTOR_STATE['groups']:
+            PREDICTOR_STATE['groups'][grp].sort(key=lambda t: sim.TEAM_STATS.get(t, {}).get('fifa_rank', 999))
+            
     show_predictor_step(PREDICTOR_STATE['step'])
 
 def show_predictor_step(step):
@@ -375,7 +379,11 @@ def get_team_quick_stats(slug):
     defe = int(talent.get('rating_def', 0))
     
     # &#10; creates a line break in the native HTML title tooltip
-    title_text = f"World Rank: #{rank} | Elo: {elo}&#10;Style: {style}&#10;OVR: {ovr} | ATT: {att} | MID: {mid} | DEF: {defe}"
+    fifa_rank = stats.get('fifa_rank', 999)
+    fifa_display = fifa_rank if fifa_rank != 999 else 'Unranked'
+    
+    # &#10; creates a line break in the native HTML title tooltip
+    title_text = f"Elo Rank: #{rank} | FIFA Rank: #{fifa_display}&#10;Elo: {elo} | Style: {style}&#10;OVR: {ovr} | ATT: {att} | MID: {mid} | DEF: {defe}"
     rank_html = f"<span class='no-print' style='font-size:0.75em; color:var(--text-light); margin-left:4px; font-weight:normal; opacity:0.7;'>#{rank}</span>"
     
     return title_text, rank_html
@@ -1989,8 +1997,8 @@ def sort_table(col):
         TABLE_SORT_DESC = not TABLE_SORT_DESC
     else:
         TABLE_SORT_COL = col
-        if col == 'name':
-            TABLE_SORT_DESC = False # Default to A-Z for text
+        if col == 'name' or col == 'fifa_rank':
+            TABLE_SORT_DESC = False # Default to A-Z for text, Ascending for Rank
         else:
             TABLE_SORT_DESC = True  # Default to highest-first for stats
     load_data_view(None)
@@ -2051,6 +2059,7 @@ def load_data_view(event=None):
         table_data.append({
             'team_slug': team,
             'name': sim.PRETTY_NAMES.get(team, team.title()),
+            'fifa_rank': stats.get('fifa_rank', 999),
             'elo': elo,
             'ovr': ovr,
             'hybrid': hybrid,
@@ -2097,6 +2106,7 @@ def load_data_view(event=None):
             <tr>
                 <th>Rank</th>
                 {get_th("name", "Team")}
+                {get_th("fifa_rank", "FIFA", "var(--text-light)", "Official FIFA World Ranking")}
                 {get_th("elo", "Elo")}
                 {get_th("hybrid", "Power Rating", "var(--accent-gold)", "60% Elo / 40% Squad OVR")}
                 {get_th("ovr", "OVR", "var(--accent-blue)", "Overall Squad Rating")}
@@ -2132,6 +2142,7 @@ def load_data_view(event=None):
         <tr>
             <td style="font-weight:bold;">#{rank_counter}</td>
             <td style="font-weight:600">{row['name']}</td>
+            <td style="color:var(--text-light); text-align:center; font-weight:600;">{row['fifa_rank'] if row['fifa_rank'] != 999 else '--'}</td>
             <td style="font-weight:bold; color:var(--text-main); font-size:1.1em;">{int(row['elo'])}</td>
             <td style="font-weight:900; color:var(--accent-gold); font-size:1.15em; text-align:center;">{int(row['hybrid'])}</td>
             <td style="font-weight:bold; color:var(--accent-blue); background:rgba(59, 130, 246, 0.05); text-align:center;">{ovr_display}</td>
@@ -2340,6 +2351,7 @@ def update_dashboard_data(event=None):
             </div>
             <div style="display:flex; gap:15px; font-size:0.9em; color:var(--text-light); font-weight:500;">
                 <span>ELO: <b style="color:var(--text-main);">{int(stats['elo'])}</b></span>
+                <span>FIFA RANK: <b style="color:var(--text-main);">#{stats.get('fifa_rank', 'Unranked') if stats.get('fifa_rank', 999) != 999 else 'Unranked'}</b></span>
                 <span>CONFED: <b style="color:var(--accent-blue);">{confed}</b></span>
             </div>
         </div>

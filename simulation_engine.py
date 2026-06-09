@@ -17,6 +17,27 @@ def calculate_recency_weight(match_date, latest_date):
 import re
 import unicodedata
 
+RAW_FIFA_RANKINGS = {
+    'argentina': 1, 'spain': 2, 'france': 3, 'england': 4, 'portugal': 5,
+    'brazil': 6, 'morocco': 7, 'netherlands': 8, 'belgium': 9, 'germany': 10,
+    'croatia': 11, 'italy': 12, 'colombia': 13, 'mexico': 14, 'senegal': 15,
+    'uruguay': 16, 'united states': 17, 'japan': 18, 'switzerland': 19, 'ir iran': 20,
+    'denmark': 21, 'turkiye': 22, 'ecuador': 23, 'austria': 24, 'south korea': 25,
+    'nigeria': 26, 'australia': 27, 'algeria': 28, 'egypt': 29, 'canada': 30,
+    'norway': 31, 'ukraine': 32, "cote d'ivoire": 33, 'panama': 34, 'russia': 35,
+    'poland': 36, 'wales': 37, 'sweden': 38, 'czech republic': 39, 'paraguay': 40,
+    'hungary': 41, 'scotland': 42, 'serbia': 43, 'cameroon': 44, 'dr congo': 45,
+    'tunisia': 46, 'slovakia': 47, 'greece': 48, 'venezuela': 49, 'uzbekistan': 50,
+    'peru': 51, 'costa rica': 52, 'romania': 53, 'mali': 54, 'chile': 55,
+    'iraq': 56, 'qatar': 57, 'republic of ireland': 58, 'slovenia': 59, 'south africa': 60,
+    'saudi arabia': 61, 'burkina faso': 62, 'jordan': 63, 'bosnia and herzegovina': 64,
+    'honduras': 65, 'albania': 66, 'cape verde': 67, 'united arab emirates': 68,
+    'north macedonia': 69, 'northern ireland': 70, 'jamaica': 71, 'georgia': 72,
+    'ghana': 73, 'iceland': 74, 'finland': 75, 'israel': 76, 'bolivia': 77,
+    'kosovo': 78, 'oman': 79, 'montenegro': 80, 'guinea': 81, 'curacao': 82,
+    'haiti': 83, 'syria': 84, 'new zealand': 85
+}
+
 def get_slug(name):
     """Accents, Synonyms, and Formatting handler"""
     if not name: return ""
@@ -59,6 +80,8 @@ def get_slug(name):
     # This turns 'Cote d'Ivoire' into 'cotedivoire'
     # and 'United States' into 'unitedstates'
     return re.sub(r'[^a-z0-9]', '', name.lower())
+
+FIFA_RANKINGS = {get_slug(k): v for k, v in RAW_FIFA_RANKINGS.items()}
 
 def get_player_slug(name):
     """Aggressive slugifying for player names to maximize matching across disjoint datasets"""
@@ -948,6 +971,7 @@ def _initialize_engine_impl():
     for t in all_teams_set:
         TEAM_STATS[t] = {
             'elo': INITIAL_RATING, 'notable_results': [],
+            'fifa_rank': FIFA_RANKINGS.get(t, 999),
             'rec_weaker': [0, 0, 0], 'rec_similar': [0, 0, 0], 'rec_stronger': [0, 0, 0], 'rec_elite': [0, 0, 0],
             'pedigree_pts': 0,
             'upsets_major_won': 0,  'upsets_minor_won': 0, 'upsets_major_lost': 0, 'upsets_minor_lost': 0,
@@ -1546,7 +1570,7 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
                     table_stats[t1]['p'] += 1; table_stats[t2]['p'] += 1
                     table_stats[t1]['d'] += 1; table_stats[t2]['d'] += 1
 
-        sorted_teams = sorted(teams_shuffled, key=lambda t: (table_stats[t]['p'], table_stats[t]['gd'], table_stats[t]['gf']), reverse=True)
+        sorted_teams = sorted(teams_shuffled, key=lambda t: (table_stats[t]['p'], table_stats[t]['gd'], table_stats[t]['gf'], -TEAM_STATS.get(t, {}).get('fifa_rank', 999)), reverse=True)
         group_results_lists[grp] = sorted_teams
         third_place.append({'team': sorted_teams[2], 'team_group': grp, 'stats': table_stats[sorted_teams[2]]})
 
@@ -1559,7 +1583,7 @@ def run_simulation(verbose=False, quiet=False, fast_mode=False, finalized_slots=
         return group_results_lists[grp][pos]
 
     # 1. Identify the 8 best 3rd-place teams
-    best_3rds_list = sorted(third_place, key=lambda x: (x['stats']['p'], x['stats']['gd'], x['stats']['gf']), reverse=True)[:8]
+    best_3rds_list = sorted(third_place, key=lambda x: (x['stats']['p'], x['stats']['gd'], x['stats']['gf'], -TEAM_STATS.get(x['team'], {}).get('fifa_rank', 999)), reverse=True)[:8]
     
     # 2. Map group letter to the team slug (e.g., {'E': 'germany', 'J': 'argentina'})
     third_place_teams = {x['team_group']: x['team'] for x in best_3rds_list}
