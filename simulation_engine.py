@@ -107,39 +107,53 @@ def map_pos_to_unit(pos_str):
 
 def parse_formation_to_targets(fmt_str):
     """
-    Explicitly maps modern formations to their true unit counts.
-    (e.g., 4-2-3-1 is 4 Defenders, 2 Midfielders, 4 Attackers (1 ST + 3 AM/Wingers))
+    Explicitly maps modern formations to their true role counts.
     """
     import re
     fmt = str(fmt_str).strip()
     
     mapping = {
-        '4-2-3-1': {'GK': 1, 'DEF': 4, 'MID': 2, 'ATT': 4},
-        '4-3-3':   {'GK': 1, 'DEF': 4, 'MID': 3, 'ATT': 3},
-        '4-4-2':   {'GK': 1, 'DEF': 4, 'MID': 4, 'ATT': 2},
-        '3-4-3':   {'GK': 1, 'DEF': 3, 'MID': 4, 'ATT': 3},
-        '3-4-2-1': {'GK': 1, 'DEF': 5, 'MID': 2, 'ATT': 3},
-        '3-5-2':   {'GK': 1, 'DEF': 3, 'MID': 5, 'ATT': 2},
-        '4-1-4-1': {'GK': 1, 'DEF': 4, 'MID': 5, 'ATT': 1},
-        '5-3-2':   {'GK': 1, 'DEF': 5, 'MID': 3, 'ATT': 2},
-        '4-3-2-1': {'GK': 1, 'DEF': 4, 'MID': 3, 'ATT': 3},
-        '4-3-1-2': {'GK': 1, 'DEF': 4, 'MID': 3, 'ATT': 3},
-        '4-4-1-1': {'GK': 1, 'DEF': 4, 'MID': 4, 'ATT': 2},
-        '4-2-2-2': {'GK': 1, 'DEF': 4, 'MID': 2, 'ATT': 4},
+        '4-2-3-1': ['GK', 'CB', 'CB', 'FB', 'FB', 'DM', 'DM', 'AM', 'W', 'W', 'ST'],
+        '4-3-3':   ['GK', 'CB', 'CB', 'FB', 'FB', 'CM', 'CM', 'DM', 'W', 'W', 'ST'],
+        '4-4-2':   ['GK', 'CB', 'CB', 'FB', 'FB', 'CM', 'CM', 'WM', 'WM', 'ST', 'ST'],
+        '3-4-3':   ['GK', 'CB', 'CB', 'CB', 'WB', 'WB', 'CM', 'CM', 'W', 'W', 'ST'],
+        '3-4-2-1': ['GK', 'CB', 'CB', 'CB', 'WB', 'WB', 'CM', 'CM', 'AM', 'AM', 'ST'],
+        '3-5-2':   ['GK', 'CB', 'CB', 'CB', 'WB', 'WB', 'DM', 'CM', 'CM', 'ST', 'ST'],
+        '4-1-4-1': ['GK', 'CB', 'CB', 'FB', 'FB', 'DM', 'CM', 'CM', 'WM', 'WM', 'ST'],
+        '5-3-2':   ['GK', 'CB', 'CB', 'CB', 'FB', 'FB', 'CM', 'CM', 'CM', 'ST', 'ST'],
+        '4-3-2-1': ['GK', 'CB', 'CB', 'FB', 'FB', 'CM', 'CM', 'CM', 'AM', 'AM', 'ST'],
+        '4-3-1-2': ['GK', 'CB', 'CB', 'FB', 'FB', 'CM', 'CM', 'CM', 'AM', 'ST', 'ST'],
+        '4-4-1-1': ['GK', 'CB', 'CB', 'FB', 'FB', 'CM', 'CM', 'WM', 'WM', 'AM', 'ST'],
+        '4-2-2-2': ['GK', 'CB', 'CB', 'FB', 'FB', 'DM', 'DM', 'AM', 'AM', 'ST', 'ST'],
     }
     
-    if fmt in mapping: 
-        return mapping[fmt]
-    
-    # Fallback if string is weird
-    nums = [int(n) for n in re.findall(r'\d', fmt)]
-    if len(nums) == 3:
-        return {'GK': 1, 'DEF': nums[0], 'MID': nums[1], 'ATT': nums[2]}
-    elif len(nums) == 4:
-        # Assume generic 4-band shape implies defensive mids + attacking mids
-        return {'GK': 1, 'DEF': nums[0], 'MID': nums[1], 'ATT': nums[2] + nums[3]}
-    
-    return {'GK': 1, 'DEF': 4, 'MID': 4, 'ATT': 2}
+    slots = mapping.get(fmt)
+    if not slots:
+        nums = [int(n) for n in re.findall(r'\d', fmt)]
+        slots = ['GK']
+        if len(nums) >= 3:
+            d, m, a = nums[0], nums[1], nums[2]
+            
+            if d == 3: slots.extend(['CB']*3)
+            elif d == 4: slots.extend(['CB', 'CB', 'FB', 'FB'])
+            elif d == 5: slots.extend(['CB', 'CB', 'CB', 'FB', 'FB'])
+            else: slots.extend(['CB']*d)
+            
+            if len(nums) == 4:
+                m1, m2 = nums[1], nums[2]
+                a = nums[3]
+                slots.extend(['DM']*m1)
+                slots.extend(['AM']*m2)
+            else:
+                slots.extend(['CM']*m)
+                
+            slots.extend(['ST']*a)
+            
+        if len(slots) < 11:
+            slots.extend(['CM'] * (11 - len(slots)))
+        slots = slots[:11]
+        
+    return slots
 # We will store the 'Pretty' version of names here as we find them
 PRETTY_NAMES = {}
 
@@ -571,13 +585,64 @@ def calculate_squad_ratings(player_df, formation_df, roster_df):
         except: rat = fallback_rat
         if pd.isna(rat): rat = fallback_rat 
         
-        return pd.Series([name, display_pos, true_club.title(), unit, rat])
+        def get_roles(pos_str):
+            p = str(pos_str).upper()
+            roles = set()
+            if 'GK' in p: roles.add('GK')
+            
+            if any(x in p for x in ['ST', 'CF', 'FW']): roles.add('ST')
+            if any(x in p for x in ['LW', 'RW', 'AML', 'AMR', 'WF', 'WING']): roles.add('W')
+            
+            if any(x in p for x in ['AMC', 'CAM', 'AM']): roles.add('AM')
+            if any(x in p for x in ['DM', 'CDM']): roles.add('DM')
+            if any(x in p for x in ['MC', 'CM', 'MF', 'MID']): roles.add('CM')
+            if any(x in p for x in ['LM', 'RM', 'ML', 'MR', 'WIDE']): roles.add('WM')
+            
+            if any(x in p for x in ['CB', 'DC', 'SW', 'DF', 'DEF']): roles.add('CB')
+            if any(x in p for x in ['LB', 'RB', 'DL', 'DR', 'FB']): roles.add('FB')
+            if any(x in p for x in ['WB', 'LWB', 'RWB']): roles.add('WB')
+            
+            if not roles:
+                if 'ATT' in p: roles.add('ST')
+                elif 'MID' in p: roles.add('CM')
+                elif 'DEF' in p: roles.add('CB')
+                
+            return list(roles) if roles else ['CM']
+            
+        role_list = get_roles(true_pos if true_pos else raw_c_pos)
         
-    pool[['display_name', 'display_pos', 'display_club', 'unit', 'rat']] = pool.apply(resolve_row, axis=1)
+        return pd.Series([name, display_pos, true_club.title(), unit, rat, role_list])
+        
+    pool[['display_name', 'display_pos', 'display_club', 'unit', 'rat', 'roles']] = pool.apply(resolve_row, axis=1)
 
-    # 5. Calculate SELECTION SCORE (Just using rating since players are pre-selected in 26-man roster)
+    # 5. Calculate SELECTION SCORE
     pool['selection_score'] = pool['rat']
     pool = pool[pool['selection_score'] > 0]
+
+    ROLE_PREFS = {
+        'GK': [['GK'], [], [], ['GK']],
+        'CB': [['CB'], ['FB', 'DM'], ['WB'], ['DEF']],
+        'FB': [['FB', 'WB'], ['CB', 'WM'], ['W', 'DM'], ['DEF', 'MID']],
+        'WB': [['WB', 'FB'], ['WM', 'W'], ['DM', 'AM'], ['DEF', 'MID']],
+        'DM': [['DM'], ['CM'], ['CB', 'FB'], ['MID', 'DEF']],
+        'CM': [['CM', 'DM'], ['AM', 'WM'], ['WB'], ['MID']],
+        'WM': [['WM', 'W'], ['AM', 'CM'], ['WB', 'FB'], ['MID', 'ATT']],
+        'AM': [['AM'], ['W', 'CM'], ['ST', 'WM'], ['MID', 'ATT']],
+        'W':  [['W', 'WM'], ['AM', 'ST'], ['CM'], ['ATT', 'MID']],
+        'ST': [['ST', 'CF'], ['W', 'AM'], ['WM'], ['ATT']]
+    }
+
+    def get_suitability_score(player, slot):
+        rat = player['rat']
+        p_roles = player['roles']
+        p_unit = player['unit']
+        prefs = ROLE_PREFS.get(slot, [['CM'], [], [], ['MID']])
+        
+        if any(r in p_roles for r in prefs[0]): return rat
+        if any(r in p_roles for r in prefs[1]): return rat - 3.0
+        if any(r in p_roles for r in prefs[2]): return rat - 6.0
+        if p_unit in prefs[3]: return rat - 10.0
+        return rat - 20.0
 
     team_ratings = {}
     
@@ -585,40 +650,64 @@ def calculate_squad_ratings(player_df, formation_df, roster_df):
     for team_slug, group in pool.groupby('team_slug'):
         fmt_data = TEAM_FORMATIONS.get(team_slug, {})
         fmt_str = fmt_data.get('formation 1', '4-2-3-1') 
-        targets = parse_formation_to_targets(fmt_str)
+        slots = parse_formation_to_targets(fmt_str)
         squad_avg = group['rat'].mean() if not group.empty else 68
 
-        gks = group[group['unit'] == 'GK'].sort_values('selection_score', ascending=False)
-        outfield = group[group['unit'] != 'GK'].sort_values('selection_score', ascending=False)
-        defs = outfield[outfield['unit'] == 'DEF']
-        mids = outfield[outfield['unit'] == 'MID']
-        atts = outfield[outfield['unit'] == 'ATT']
+        unassigned_players = group.sort_values('selection_score', ascending=False).to_dict('records')
+        unfilled_slots = slots.copy()
+        
+        starters = []
+        
+        # Greedy assignment to find the optimal Starting 11 based on assigned formation roles
+        while unfilled_slots and unassigned_players:
+            best_score = -999
+            best_match = None
+            
+            for i, slot in enumerate(unfilled_slots):
+                for j, p in enumerate(unassigned_players):
+                    score = get_suitability_score(p, slot)
+                    score += (p['rat'] / 1000.0) 
+                    
+                    if score > best_score:
+                        best_score = score
+                        best_match = (i, j)
+            
+            if best_match:
+                slot_idx, player_idx = best_match
+                p = unassigned_players.pop(player_idx)
+                p['roster_status'] = 'Starter'
+                starters.append(p)
+                unfilled_slots.pop(slot_idx)
+            else:
+                break
 
-        selected_players = []
+        remaining_df = pd.DataFrame(unassigned_players)
+        
+        if not remaining_df.empty:
+            gks = remaining_df[remaining_df['unit'] == 'GK'].sort_values('selection_score', ascending=False)
+            outfield = remaining_df[remaining_df['unit'] != 'GK'].sort_values('selection_score', ascending=False)
+        else:
+            gks = pd.DataFrame()
+            outfield = pd.DataFrame()
 
-        def pick_players(pool_df, count, role):
+        backups = []
+        fringe = []
+
+        def pick_rem(pool_df, count, role, dest_list):
             picks = pool_df.head(count).copy()
             if not picks.empty:
                 picks['roster_status'] = role
-                selected_players.extend(picks.to_dict('records'))
+                dest_list.extend(picks.to_dict('records'))
             return pool_df.iloc[count:]
-
-        # Starters
-        gks = pick_players(gks, targets['GK'], 'Starter')
-        defs = pick_players(defs, targets['DEF'], 'Starter')
-        mids = pick_players(mids, targets['MID'], 'Starter')
-        atts = pick_players(atts, targets['ATT'], 'Starter')
-
+            
         # Backups (Targeting EXACTLY 26 players total = 11 Starters + 2 Backup GKs + 13 Backup Outfielders)
-        gks = pick_players(gks, 2, 'Backup')
-        rem_outfield = pd.concat([defs, mids, atts]).sort_values('selection_score', ascending=False)
-        rem_outfield = pick_players(rem_outfield, 13, 'Backup')
-
-        # Fringe (Any remaining overflow, if roster size exceeds 26)
-        pick_players(gks, 99, 'Fringe')
-        pick_players(rem_outfield, 99, 'Fringe')
-
-        final_squad = pd.DataFrame(selected_players)
+        gks = pick_rem(gks, 2, 'Backup', backups)
+        outfield = pick_rem(outfield, 13, 'Backup', backups)
+        
+        pick_rem(gks, 99, 'Fringe', fringe)
+        pick_rem(outfield, 99, 'Fringe', fringe)
+        
+        final_squad = pd.DataFrame(starters + backups + fringe)
         if final_squad.empty: continue
 
         final_units = {}
@@ -638,7 +727,8 @@ def calculate_squad_ratings(player_df, formation_df, roster_df):
                           final_units['MID']*0.3 + final_units['ATT']*0.3)
         
         fixed_top_players = []
-        for _, row in final_squad.sort_values(by=['roster_status', 'rat'], ascending=[False, False]).iterrows():
+        final_squad['status_rank'] = final_squad['roster_status'].map({'Starter': 1, 'Backup': 2, 'Fringe': 3})
+        for _, row in final_squad.sort_values(by=['status_rank', 'rat'], ascending=[True, False]).iterrows():
             
             try: final_caps = int(float(get_merged_val(row, 'caps', 0)))
             except: final_caps = 0
