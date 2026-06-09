@@ -316,7 +316,7 @@ def open_predictor_tab():
         PREDICTOR_STATE['groups'] = {grp: [sim.get_slug(t) for t in teams] for grp, teams in base_groups.items()}
         
         # 3. Automatically select the first 8 groups as the default advancing 3rd-place teams
-         PREDICTOR_STATE['advancing_thirds'] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+        PREDICTOR_STATE['advancing_thirds'] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
         
         # 4. Sort each group internally by official FIFA Rank (Official Seeding)
         for grp in PREDICTOR_STATE['groups']:
