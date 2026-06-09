@@ -184,30 +184,39 @@ R32_LOOKUP = {}
 
 def load_r32_combinations():
     global R32_LOOKUP
+    R32_LOOKUP = {}
     try:
-        df = pd.read_csv(f"{DATA_DIR}/possible_matchups.csv")
-        for _, row in df.iterrows():
-            combo_str = str(row.get('Combination', '')).strip().upper()
-            if not combo_str or combo_str == 'NAN': continue
-            
-            # The key is the sorted combination string
-            combo_key = "".join(sorted(combo_str))
-            
-            # Dynamically map the columns (1A, 1B, 1D, etc.) to the lookup
-            # This handles all 177 combinations automatically
-            R32_LOOKUP[combo_key] = {
-                'A': str(row['1A'])[-1].upper(),
-                'B': str(row['1B'])[-1].upper(),
-                'D': str(row['1D'])[-1].upper(),
-                'E': str(row['1E'])[-1].upper(),
-                'G': str(row['1G'])[-1].upper(),
-                'I': str(row['1I'])[-1].upper(),
-                'K': str(row['1K'])[-1].upper(),
-                'L': str(row['1L'])[-1].upper()
-            }
-        js.console.log(f"Loaded {len(R32_LOOKUP)} 3rd-place combinations from CSV.")
+        with open(f"{DATA_DIR}/possible_matchups.tsv", "r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip() or line.startswith('['): continue
+                
+                # Clean up tabs and split by whitespace
+                tokens = line.replace('\t', ' ').split()
+                
+                # Extract the 8 advancing group letters (A through L)
+                advancing = [t.upper() for t in tokens if len(t) == 1 and t.isalpha()]
+                
+                # Extract the 8 assigned opponents (e.g., '3E' becomes 'E')
+                opponents = [t[1].upper() for t in tokens if len(t) == 2 and t.startswith('3')]
+                
+                if len(advancing) == 8 and len(opponents) == 8:
+                    combo_key = "".join(sorted(advancing))
+                    
+                    # Based on FIFA's table structure, the columns map to winners in this exact order:
+                    # 1A | 1B | 1D | 1E | 1G | 1I | 1K | 1L
+                    R32_LOOKUP[combo_key] = {
+                        'A': opponents[0],
+                        'B': opponents[1],
+                        'D': opponents[2],
+                        'E': opponents[3],
+                        'G': opponents[4],
+                        'I': opponents[5],
+                        'K': opponents[6],
+                        'L': opponents[7]
+                    }
+        js.console.log(f"Loaded {len(R32_LOOKUP)} exact FIFA combinations from possible_matchups.tsv.")
     except Exception as e:
-        js.console.error(f"Error loading possible_matchups.csv: {e}")
+        js.console.error(f"Error parsing possible_matchups.tsv: {e}")
 
 # =============================================================================
 # --- PART 1: SETUP & DATA LOADING ---
