@@ -2008,8 +2008,6 @@ def load_data_view(event=None):
     wc_team_slugs = [sim.get_slug(t) for t in sim.WC_TEAMS]
     
     table_data = []
-    DUMMY_GAMES = 10 
-    GLOBAL_AVG = sim.AVG_GOALS if sim.AVG_GOALS > 0 else 1.25
 
     for team, stats in sim.TEAM_STATS.items():
         if wc_only and team not in wc_team_slugs:
@@ -2034,14 +2032,13 @@ def load_data_view(event=None):
         else:
             hybrid = elo
 
-        reg_gf_avg = stats.get('gf_avg', 0)
-        reg_ga_avg = stats.get('ga_avg', 0)
-        
-        true_gf = (reg_gf_avg * (matches + DUMMY_GAMES)) - (DUMMY_GAMES * GLOBAL_AVG)
-        true_ga = (reg_ga_avg * (matches + DUMMY_GAMES)) - (DUMMY_GAMES * GLOBAL_AVG)
-        
-        total_gf = max(0, int(round(true_gf)))
-        total_ga = max(0, int(round(true_ga)))
+        # Flat averages (time-weighted, but not strength-of-schedule adjusted)
+        raw_gf = stats.get('gf_avg', 0)
+        raw_ga = stats.get('ga_avg', 0)
+
+        # Use Strength-of-Schedule Adjusted Expected Goals per Game
+        adj_gf = stats.get('adj_gf', 0)
+        adj_ga = stats.get('adj_ga', 0)
 
         raw_form = stats.get('form', '-----')
         formatted_form = ""
@@ -2056,15 +2053,17 @@ def load_data_view(event=None):
             'name': sim.PRETTY_NAMES.get(team, team.title()),
             'elo': elo,
             'ovr': ovr,
-            'hybrid': hybrid, # Fixed variable name
+            'hybrid': hybrid,
             'att': fmt('rating_att'),
             'mid': fmt('rating_mid'),
             'def': fmt('rating_def'),
             'gk': fmt('rating_gk'),
             'form_html': formatted_form,
             'matches': matches,
-            'gf': total_gf,
-            'ga': total_ga,
+            'raw_gf': raw_gf,
+            'raw_ga': raw_ga,
+            'gf': adj_gf,
+            'ga': adj_ga,
             'cs': int(stats.get('cs_pct', 0)),
             'btts': int(stats.get('btts_pct', 0)),
             'late': int(stats.get('late_pct', 0))
@@ -2107,8 +2106,10 @@ def load_data_view(event=None):
                 {get_th("gk", "GK", "var(--accent-green)")}
                 <th>Form</th>
                 {get_th("matches", "Matches")}
-                {get_th("gf", "Gls For")}
-                {get_th("ga", "Gls Agst")}
+                {get_th("raw_gf", "Raw GF/g", "var(--text-light)", "Flat average goals scored per match")}
+                {get_th("raw_ga", "Raw GA/g", "var(--text-light)", "Flat average goals conceded per match")}
+                {get_th("gf", "Adj GF/g", "var(--accent-blue)", "Strength-of-Schedule adjusted goals scored per match")}
+                {get_th("ga", "Adj GA/g", "var(--accent-red)", "Strength-of-Schedule adjusted goals conceded per match")}
                 {get_th("cs", "CS%")}
                 {get_th("btts", "BTTS%")}
                 {get_th("late", "Late%")}
@@ -2140,11 +2141,13 @@ def load_data_view(event=None):
             <td style="text-align:center;">{gk_display}</td>
             <td style="font-family:monospace; letter-spacing:2px;">{row['form_html']}</td>
             <td style="text-align:center;">{row['matches']}</td>
-            <td style="color:#2980b9; font-weight:bold;">{row['gf']}</td>
-            <td style="color:#c0392b;">{row['ga']}</td>
-            <td>{row['cs']}%</td>
-            <td>{row['btts']}%</td>
-            <td style="color:#e67e22;">{row['late']}%</td>
+            <td style="color:var(--text-light); text-align:center; font-weight:500;">{row['raw_gf']:.2f}</td>
+            <td style="color:var(--text-light); text-align:center; font-weight:500;">{row['raw_ga']:.2f}</td>
+            <td style="color:var(--accent-blue); font-weight:bold; text-align:center; background:rgba(59, 130, 246, 0.05);">{row['gf']:.2f}</td>
+            <td style="color:var(--accent-red); font-weight:bold; text-align:center; background:rgba(239, 68, 68, 0.05);">{row['ga']:.2f}</td>
+            <td style="text-align:center;">{row['cs']}%</td>
+            <td style="text-align:center;">{row['btts']}%</td>
+            <td style="color:#e67e22; text-align:center;">{row['late']}%</td>
         </tr>
         '''
     
