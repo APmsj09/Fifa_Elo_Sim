@@ -189,6 +189,7 @@ def setup_interactions():
     bind_click("btn-print-bracket", lambda e: js.window.print())
     bind_click("btn-reset-bracket", reset_predictor)
     bind_click("btn-back-to-groups", lambda e: show_predictor_step('groups'))
+    bind_click("btn-copy-sheets", export_to_sheets)
 
     js.window.make_pick = create_proxy(make_pick)
     js.window.move_team_in_group = create_proxy(move_team_in_group)
@@ -326,17 +327,24 @@ def open_predictor_tab():
 
 def show_predictor_step(step):
     PREDICTOR_STATE['step'] = step
+    
+    btn_back = js.document.getElementById("btn-back-to-groups")
+    btn_print = js.document.getElementById("btn-print-bracket")
+    btn_copy = js.document.getElementById("btn-copy-sheets")
+    
     if step == 'groups':
         js.document.getElementById("predictor-groups-section").style.display = "block"
         js.document.getElementById("interactive-bracket-container").style.display = "none"
-        js.document.getElementById("btn-back-to-groups").style.display = "none"
-        js.document.getElementById("btn-print-bracket").style.display = "none"
+        if btn_back: btn_back.style.display = "none"
+        if btn_print: btn_print.style.display = "none"
+        if btn_copy: btn_copy.style.display = "none"
         render_predictor_groups()
     else:
         js.document.getElementById("predictor-groups-section").style.display = "none"
         js.document.getElementById("interactive-bracket-container").style.display = "flex"
-        js.document.getElementById("btn-back-to-groups").style.display = "inline-block"
-        js.document.getElementById("btn-print-bracket").style.display = "inline-block"
+        if btn_back: btn_back.style.display = "inline-block"
+        if btn_print: btn_print.style.display = "inline-block"
+        if btn_copy: btn_copy.style.display = "inline-block"
         build_predicted_bracket()
         render_interactive_bracket()
 
@@ -389,7 +397,7 @@ def get_team_quick_stats(slug):
     return title_text, rank_html
 
 def render_predictor_groups():
-    html = '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:15px; margin-bottom:30px;">'
+    html = '<div id="pred-groups-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:15px; margin-bottom:30px;">'
     for grp in sorted(PREDICTOR_STATE['groups'].keys()):
         teams = PREDICTOR_STATE['groups'][grp]
         html += f'<div class="pred-group-card"><h3 style="margin:0 0 10px 0; color:var(--accent-blue);">Group {grp}</h3>'
@@ -408,14 +416,14 @@ def render_predictor_groups():
             html += f'''
             <div class="pred-team-row" title="{title_text}">
                 <span style="color:{color}; font-weight:{weight}; cursor:help;"><b>{i+1}.</b> {name} {rank_html}</span>
-                <div style="display:flex; gap:4px;">{up_btn}{dn_btn}</div>
+                <div class="no-print" style="display:flex; gap:4px;">{up_btn}{dn_btn}</div>
             </div>
             '''
         html += '</div>'
     html += '</div>'
     
     # 8 Third Place Teams Selection
-    html += '<div class="dashboard-card">'
+    html += '<div class="dashboard-card no-print">'
     sel_count = len(PREDICTOR_STATE['advancing_thirds'])
     color_class = "var(--accent-green)" if sel_count == 8 else "var(--accent-red)"
     html += f'<h3 style="margin-top:0;">Select 8 Third-Place Teams <span style="color:{color_class};">({sel_count}/8 Selected)</span></h3>'
@@ -502,6 +510,51 @@ def generate_predictor_bracket():
     USER_PICKS = {} # Reset knockout picks since bracket flow changed
     PREDICTED_BRACKET = []
     show_predictor_step('bracket')
+
+def export_to_sheets(event=None):
+    # 1. Format the Group Stage Data
+    tsv = "GROUP STAGE\nGroup\t1st Place\t2nd Place\t3rd Place\t4th Place\n"
+    for grp in sorted(PREDICTOR_STATE['groups'].keys()):
+        teams = [sim.PRETTY_NAMES.get(t, t.title()) for t in PREDICTOR_STATE['groups'][grp]]
+        tsv += f"{grp}\t{teams[0]}\t{teams[1]}\t{teams[2]}\t{teams[3]}\n"
+        
+    # 2. Format the Knockout Data
+    tsv += "\nKNOCKOUT STAGE\nRound\tTeam 1\tTeam 2\tWinner\n"
+    if PREDICTED_BRACKET:
+        for rd in PREDICTED_BRACKET:
+            rd_name = rd['round']
+            for m in rd['matches']:
+                t1 = sim.PRETTY_NAMES.get(m['t1'], str(m['t1']).title()) if m['t1'] else "TBD"
+                t2 = sim.PRETTY_NAMES.get(m['t2'], str(m['t2']).title()) if m['t2'] else "TBD"
+                winner = sim.PRETTY_NAMES.get(m['winner'], str(m['winner']).title()) if m.get('winner') else "TBD"
+                tsv += f"{rd_name}\t{t1}\t{t2}\t{winner}\n"
+                
+    # 3. Create a popup overlay with the text box
+    html = f"""
+    <div id="export-modal-overlay" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center; backdrop-filter:blur(3px);" onclick="document.getElementById('export-modal-overlay').remove()">
+        <div style="background:var(--card-bg); width:95%; max-width:700px; border-radius:12px; padding:25px; box-shadow:var(--shadow-lg);" onclick="event.stopPropagation()">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid var(--sidebar-border); padding-bottom:10px;">
+                <h2 style="margin:0; color:var(--text-main); font-size:1.3em;">📋 Export to Google Sheets</h2>
+                <button onclick="document.getElementById('export-modal-overlay').remove()" style="background:transparent; border:none; font-size:1.5em; cursor:pointer; color:var(--text-light);">&times;</button>
+            </div>
+            <p style="color:var(--text-light); font-size:0.9em; margin-bottom:10px;">Click the <b>Copy to Clipboard</b> button below, then paste (Ctrl+V or Cmd+V) directly into cell A1 of an empty Google Sheet or Excel file.</p>
+            <textarea id="tsv-export-area" readonly style="width:100%; height:400px; padding:12px; border-radius:8px; border:1px solid var(--sidebar-border); background:#f8fafc; color:#0f172a; font-family:monospace; font-size:0.85em; white-space:pre; resize:none;">{tsv}</textarea>
+            <div style="margin-top:15px; text-align:right;">
+                <button class="action-btn" style="width:auto; padding:12px 25px; background:var(--accent-green);" onclick="
+                    var copyText = document.getElementById('tsv-export-area');
+                    copyText.select();
+                    document.execCommand('copy');
+                    this.innerText = '✅ Copied!';
+                    setTimeout(() => this.innerText = '📋 Copy to Clipboard', 2000);
+                ">📋 Copy to Clipboard</button>
+            </div>
+        </div>
+    </div>
+    """
+    
+    div = js.document.createElement("div")
+    div.innerHTML = html
+    js.document.body.appendChild(div.firstElementChild)
 
 def make_pick(round_idx, match_idx, team):
     global USER_PICKS

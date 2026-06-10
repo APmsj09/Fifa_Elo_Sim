@@ -1184,6 +1184,45 @@
                 opacity: 0.5 !important;
                 text-decoration: line-through !important;
             }
+
+            /* 5. Force the group stage to show at the top of the bracket */
+            #predictor-groups-section {
+                display: block !important;
+                margin-bottom: 10px !important;
+            }
+
+            #pred-groups-grid {
+                display: grid !important;
+                grid-template-columns: repeat(6, 1fr) !important;
+                gap: 6px !important;
+                margin-bottom: 10px !important;
+            }
+
+            .pred-group-card {
+                border: 1px solid #ccc !important;
+                box-shadow: none !important;
+                padding: 4px !important;
+                margin: 0 !important;
+                border-radius: 4px !important;
+                background: transparent !important;
+            }
+
+            .pred-group-card h3 {
+                font-size: 10px !important;
+                margin: 0 0 2px 0 !important;
+                color: black !important;
+            }
+
+            .pred-team-row {
+                padding: 1px 0 !important;
+                border: none !important;
+                font-size: 8px !important;
+                line-height: 1.1 !important;
+            }
+
+            .pred-team-row span {
+                color: black !important; /* High contrast ink saving */
+            }
         }
     </style>
 </head>
@@ -1429,6 +1468,9 @@
                         <button id="btn-reset-bracket" class="action-btn"
                             style="background:var(--sidebar-border); color:var(--text-main); margin:0; width:auto; padding:10px 20px;">🔄
                             Reset Picks</button>
+                        <button id="btn-copy-sheets" class="action-btn"
+                            style="background:var(--accent-green); margin:0; width:auto; padding:10px 20px; display:none;">📋
+                            Copy to Sheets</button>
                         <button id="btn-print-bracket" class="action-btn"
                             style="background:var(--accent-blue); margin:0; width:auto; padding:10px 20px; display:none;">🖨️
                             Save as PDF</button>
